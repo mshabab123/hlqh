@@ -1,0 +1,27 @@
+## LOGIN
+POST http://localhost:5000/api/auth/login
+Content-Type: application/json
+
+{
+  "id": 12345,
+    "password": "abc"
+}
+
+
+# POST http://localhost:5000/api/users
+# Content-Type: application/json
+
+# {
+#   "id": 12345,
+#   "first_name": "Ali",
+#   "second_name": "Mohammed",
+#   "third_name": "Saleh",
+#   "last_name": "Alqahtani",
+#   "email": "ali@example.com",
+#   "password": "abc",
+#   "role": "admin",
+#   "school_id": null,
+#   "phone": "0555555555",
+#   "date_of_birth": "2000-01-01",
+#   "address": "Jazan, KSA"
+# }
