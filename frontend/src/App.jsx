@@ -1,15 +1,27 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
+import { useState } from "react";
 
-
-function App() {
+const Card = ({ title }) => {
+  const [hasLiked, setHasLnked] = useState(false);
 
   return (
-    <>
-      ,<h1 className='text-3xl font-blod'>اهلابك يا مشبب في اول تطبيق</h1>
-    </>
-  )
-}
+    <div className="card">
+      <p>{title}</p>
+      <button onClick={() => setHasLnked(!hasLiked)}>
+        {hasLiked ? "❤️" : "like"}
+      </button>
+    </div>
+  );
+};
 
-export default App
+const App = () => {
+  return (
+    <div className="card-container">
+      <h2>اهلابك يا مشبب في اول تطبيق</h2>
+      <Card title="الاول" x={4} y={"ابو عبدالله"} />
+      <Card title="الثاني" />
+      <Card title="الثالث" />
+    </div>
+  );
+};
+
+export default App;
