@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import reactLogo from './assets/react.svg'
 import viteLogo from '/vite.svg'
-import './App.css'
+
 
 function App() {
 
   return (
     <>
-      ,<h1 className='text-3xl font-blod underline'>اهلابك يا مشبب في اول تطبيق</h1>
+      ,<h1 className='text-3xl font-blod'>اهلابك يا مشبب في اول تطبيق</h1>
     </>
   )
 }
