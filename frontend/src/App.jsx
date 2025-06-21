@@ -15,12 +15,25 @@ const Card = ({ title }) => {
 
 const App = () => {
   return (
-    <div className="card-container">
-      <h2>اهلابك يا مشبب في اول تطبيق</h2>
-      <Card title="الاول" x={4} y={"ابو عبدالله"} />
-      <Card title="الثاني" />
-      <Card title="الثالث" />
-    </div>
+    <>
+      <div class="flex justify-between items-center bg-gray-dark p-4">
+        <div className="btn">Brand</div>
+        <div class="hidden md:flex space-x-4">
+          <a class="text-blue hover:text-gray-lighter" href="#">
+            Home
+          </a>
+          <a class="text-red hover:text-gray-lighter" href="#">
+            About
+          </a>
+          <a class="text-green hover:text-gray-lighter" href="#">
+            Contact
+          </a>
+        </div>
+      </div>
+      <div className="card-container">
+        <h1 class="text-3xl font-bold underline">Hello world!</h1>
+      </div>
+    </>
   );
 };
 
