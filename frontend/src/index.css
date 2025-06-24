@@ -2,6 +2,9 @@
 @import url('https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400;1,700&display=swap');
 
 
+
+@import "tailwindcss/utilities";
+
 .btn {
   @apply px-4 py-2 font-bold text-blue-200 bg-blue-50 hover:bg-blue-800;
 }
