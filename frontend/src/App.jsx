@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Routes, Route } from "react-router-dom";
+import Login from "./pages/login";
 import About from "./pages/About";
+import Rregistration from "./pages/registration";
 
 const Card = ({ title }) => {
   const [hasLiked, setHasLnked] = useState(false);
@@ -21,8 +23,7 @@ const App = () => {
   return (
     <Routes>
       <Route path="/" element={<Login />} />
-      <Route path="/dashboard" element={<Dashboard />} />
-      <Route path="/schools" element={<Schools />} />
+      <Route path="/registration" element={<Rregistration />} />
       <Route path="/about" element={<About />} /> {/* ✅ add About route */}
     </Routes>
   );
