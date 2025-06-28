@@ -1,36 +1,50 @@
 const express = require('express');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const router = express.Router();
 const db = require('../db');
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
 
-const SECRET_KEY = process.env.JWT_SECRET || 'my_super_secret';
+// Use a strong secret key! Store in env in production
+const JWT_SECRET = process.env.JWT_SECRET || 'your_very_secret_jwt_key';
 
-// Login
 router.post('/login', async (req, res) => {
   const { id, password } = req.body;
-console.log("this is ")
+
   try {
+    // 1. Find user by id
     const result = await db.query('SELECT * FROM users WHERE id = $1', [id]);
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(401).json({ error: 'رقم الهوية أو كلمة المرور غير صحيحة' });
+    }
+    const user = result.rows[0];
+
+    // 2. Check password
+    const valid = await bcrypt.compare(password, user.password);
+    if (!valid) {
+      return res.status(401).json({ error: 'رقم الهوية أو كلمة المرور غير صحيحة' });
     }
 
+    // 3. Create JWT payload (do NOT put password!)
+    const payload = {
+      id: user.id,
+      role: user.role,
+      first_name: user.first_name,
+      last_name: user.last_name,
+    };
 
-    const user = result.rows[0];  
-    const isValid = await bcrypt.compare(password, user.password);
-    console.log(isValid);
-    if (!isValid) return res.status(401).json({ error: 'Wrong password' });
+    // 4. Sign JWT (1 day expiry)
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '1d' });
 
-    const token = jwt.sign(
-      { id: user.id, role: user.role },
-      SECRET_KEY,
-      { expiresIn: '2h' }
-    );
+    // 5. Respond with JWT
+    res.json({
+      message: 'تم تسجيل الدخول بنجاح',
+      token,
+      user: payload,
+    });
 
-    res.json({ token, user: { id: user.id, role: user.role, email: user.email } });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'حدث خطأ أثناء تسجيل الدخول' });
   }
 });
 

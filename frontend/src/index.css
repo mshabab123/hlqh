@@ -135,6 +135,15 @@
 }
 
 
+@keyframes gradient-move {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+.animate-gradient-move {
+  background-size: 200% 200%;
+  animation: gradient-move 6s ease-in-out infinite;
+}
+
 
 /* Global app styles */
 html,
