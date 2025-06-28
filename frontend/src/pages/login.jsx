@@ -8,6 +8,7 @@ import {
   AiOutlineEyeInvisible,
   AiOutlineLoading3Quarters,
 } from "react-icons/ai";
+const API_BASE = import.meta.env.VITE_API_BASE || "";
 
 export default function Login() {
   const [form, setForm] = useState({ id: "", password: "" });
@@ -25,7 +26,8 @@ export default function Login() {
     setError("");
     setLoading(true);
     try {
-      const res = await axios.post("http://localhost:5000/api/auth/login", {
+      // const res = await axios.post("http://localhost:5000/api/auth/login", {
+      const res = await axios.post(`${API_BASE}/api/auth/login`, {
         id: form.id,
         password: form.password,
       });

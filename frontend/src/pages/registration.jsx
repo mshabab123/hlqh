@@ -7,7 +7,7 @@ import {
   AiOutlineEyeInvisible,
 } from "react-icons/ai";
 import SuccessModal from "../components/SuccessModal"; // adjust path if needed
-
+const API_BASE = import.meta.env.VITE_API_BASE || "";
 export default function Register() {
   const [showModal, setShowModal] = useState(false);
 
@@ -32,7 +32,6 @@ export default function Register() {
   const [inputErrors, setInputErrors] = useState({});
   const navigate = useNavigate();
   const [success, setSuccess] = useState(false);
-
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
@@ -136,8 +135,8 @@ export default function Register() {
         registerSelf,
         selfSchoolLevel: registerSelf ? selfSchoolLevel : undefined,
       };
-      await axios.post("http://localhost:5000/api/users", registrationData);
-      console.log(registrationData);
+      await axios.post(`${API_BASE}/api/users`, registrationData);
+
       setSuccess(true);
       // Redirect after 2 seconds (adjust as needed)
       //setTimeout(() => navigate("/"), 2000);

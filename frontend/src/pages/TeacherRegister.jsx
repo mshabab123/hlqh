@@ -7,6 +7,7 @@ import {
   AiOutlineEyeInvisible,
 } from "react-icons/ai";
 import SuccessModal from "../components/SuccessModal"; // adjust path if needed
+const API_BASE = import.meta.env.VITE_API_BASE || "";
 
 export default function TeacherRegister() {
   const [showModal, setShowModal] = useState(false);
@@ -69,7 +70,7 @@ export default function TeacherRegister() {
     if (Object.keys(errors).length > 0) return;
 
     try {
-      await axios.post("http://localhost:5000/api/users", form);
+      await axios.post(`${API_BASE}/api/users`, form);
       setSuccess(true);
       setShowModal(true);
       //   setTimeout(() => navigate("/"), 2000);
