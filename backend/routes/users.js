@@ -65,28 +65,46 @@ const registerLimiter = rateLimit({
     // Hash parent password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Insert parent/parent-student
+    // Insert into users table (base user data)
     await client.query(`
       INSERT INTO users (
         id, first_name, second_name, third_name, last_name, address,
-        email, phone, password, role, school_level
+        email, phone, password
       ) VALUES (
-        $1, $2, $3, $4, $5, $6,
-        $7, $8, $9, $10 , $11
+        $1, $2, $3, $4, $5, $6, $7, $8, $9
       )
     `, [
       id, first_name, second_name, third_name, last_name, neighborhood,
-      email, phone, hashedPassword, parentRole, selfSchoolLevel
+      email, phone, hashedPassword
     ]);
+
+    // Insert into parents table
+    await client.query(`
+      INSERT INTO parents (
+        id, neighborhood, is_also_student, student_school_level
+      ) VALUES ($1, $2, $3, $4)
+    `, [id, neighborhood, registerSelf, selfSchoolLevel]);
+
+    // If parent is also registering as student
+    if (registerSelf && selfSchoolLevel) {
+      await client.query(`
+        INSERT INTO students (
+          id, school_level, parent_id
+        ) VALUES ($1, $2, $1)
+      `, [id, selfSchoolLevel]);
+    }
 
     // Insert children (if any)
     for (const child of children) {
       const childHashedPassword = await bcrypt.hash(child.password, 10);
+      
+      // Insert child into users table
       await client.query(`
         INSERT INTO users (
-          id, first_name, second_name, third_name, last_name, address, password, role, date_of_birth, phone, school_level, ParentID
+          id, first_name, second_name, third_name, last_name, address, 
+          password, date_of_birth, phone
         ) VALUES (
-          $1, $2, $3, $4, $5, $6,  $7, $8, $9, $10, $11, $12
+          $1, $2, $3, $4, $5, $6, $7, $8, $9
         )
       `, [
         child.id,
@@ -96,13 +114,22 @@ const registerLimiter = rateLimit({
         last_name,
         neighborhood,
         childHashedPassword,
-        'Student',
         child.date_of_birth,
-        child.phone || null,
-        child.school_level,
-         id,
+        child.phone || null
       ]);
-      // You may also want to add to a parent_student_relationships table here!
+
+      // Insert child into students table
+      await client.query(`
+        INSERT INTO students (
+          id, school_level, parent_id
+        ) VALUES ($1, $2, $3)
+      `, [child.id, child.school_level, id]);
+
+      // Create parent-student relationship
+      await client.query(`
+        INSERT INTO parent_student_relationships (parent_id, student_id, is_primary)
+        VALUES ($1, $2, true)
+      `, [id, child.id]);
     }
 
     await client.query('COMMIT');

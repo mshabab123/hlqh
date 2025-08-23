@@ -1,101 +1,143 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
+const { body, validationResult } = require('express-validator');
 
-// CREATE a school
-router.post('/', async (req, res) => {
-  const {
-    name, license_number, address, phone, email, website,
-    established_year, logo, supervisor_id
-  } = req.body;
+// Middleware to check if user is admin (you'll need to implement authentication middleware)
+const requireAuth = (req, res, next) => {
+  // TODO: Implement proper authentication middleware
+  // For now, we'll assume the user is authenticated
+  next();
+};
 
+const requireAdmin = (req, res, next) => {
+  // TODO: Check if user has admin role
+  // For now, we'll assume the user is an admin
+  next();
+};
+
+// School validation rules
+const schoolValidationRules = [
+  body('name').notEmpty().withMessage('اسم مجمع الحلقات مطلوب'),
+  body('address').notEmpty().withMessage('العنوان مطلوب'),
+  body('phone')
+    .optional({ checkFalsy: true })
+    .matches(/^05\d{8}$/)
+    .withMessage('رقم الهاتف يجب أن يكون 10 أرقام ويبدأ بـ 05'),
+  body('email')
+    .optional({ checkFalsy: true })
+    .isEmail()
+    .withMessage('صيغة البريد الإلكتروني غير صحيحة'),
+  body('established_date')
+    .optional({ checkFalsy: true })
+    .isISO8601()
+    .withMessage('تاريخ التأسيس غير صحيح'),
+  body('is_active')
+    .optional()
+    .isBoolean()
+    .withMessage('حالة التفعيل يجب أن تكون صحيح أو خطأ')
+];
+
+// GET /api/schools - Get all schools
+router.get('/', requireAuth, async (req, res) => {
   try {
-    const result = await db.query(
-      `INSERT INTO schools (
-        name, license_number, address, phone, email, website,
-        established_year, logo, supervisor_id
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-      RETURNING *`,
-      [name, license_number, address, phone, email, website,
-       established_year, logo, supervisor_id]
-    );
-    res.status(201).json(result.rows[0]);
+    const result = await db.query(`
+      SELECT 
+        s.id, s.name, s.address, s.phone, s.email, s.established_date, s.is_active, s.created_at
+      FROM schools s
+      ORDER BY s.created_at DESC
+    `);
+
+    res.json({ schools: result.rows });
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    console.error('Get schools error:', err);
+    res.status(500).json({ error: 'حدث خطأ أثناء جلب مجمع الحلقات' });
   }
 });
 
-// READ all schools
-router.get('/', async (req, res) => {
+// POST /api/schools - Create new school
+router.post('/', requireAuth, requireAdmin, schoolValidationRules, async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ error: errors.array()[0].msg });
+  }
+
+  const client = await db.connect();
   try {
-    const result = await db.query('SELECT * FROM schools ORDER BY created_at DESC');
-    res.json(result.rows);
+    const {
+      name,
+      address,
+      phone,
+      email,
+      established_date,
+      is_active = true
+    } = req.body;
+
+    await client.query('BEGIN');
+
+    const result = await client.query(`
+      INSERT INTO schools (
+        name, address, phone, email, established_date, is_active
+      ) VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING id
+    `, [name, address, phone || null, email || null, established_date || null, is_active]);
+
+    await client.query('COMMIT');
+    
+    res.status(201).json({ 
+      message: '✅ تم إنشاء مجمع الحلقات بنجاح',
+      schoolId: result.rows[0].id
+    });
+
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    await client.query('ROLLBACK');
+    console.error('Create school error:', err);
+    res.status(500).json({ error: 'حدث خطأ أثناء إنشاء مجمع الحلقات' });
+  } finally {
+    client.release();
   }
 });
 
-// READ one school by ID
-router.get('/:id', async (req, res) => {
-  const { id } = req.params;
+// PUT /api/schools/:id - Update school
+router.put('/:id', requireAuth, requireAdmin, schoolValidationRules, async (req, res) => {
+  const client = await db.connect();
   try {
-    const result = await db.query('SELECT * FROM schools WHERE id = $1', [id]);
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'School not found' });
-    }
-    res.json(result.rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+    const { id } = req.params;
+    const {
+      name,
+      address,
+      phone,
+      email,
+      established_date,
+      is_active
+    } = req.body;
 
-// UPDATE a school
-router.put('/:id', async (req, res) => {
-  const { id } = req.params;
-  const {
-    name, license_number, address, phone, email, website,
-    established_year, logo, supervisor_id, is_active
-  } = req.body;
+    await client.query('BEGIN');
 
-  try {
-    const result = await db.query(
-      `UPDATE schools SET
-        name = $1,
-        license_number = $2,
-        address = $3,
-        phone = $4,
-        email = $5,
-        website = $6,
-        established_year = $7,
-        logo = $8,
-        supervisor_id = $9,
-        is_active = $10,
-        updated_at = NOW()
-      WHERE id = $11
-      RETURNING *`,
-      [name, license_number, address, phone, email, website,
-       established_year, logo, supervisor_id, is_active, id]
-    );
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'School not found' });
-    }
-    res.json(result.rows[0]);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
+    await client.query(`
+      UPDATE schools SET 
+        name = $1, 
+        address = $2, 
+        phone = $3, 
+        email = $4, 
+        established_date = $5, 
+        is_active = $6
+      WHERE id = $7
+    `, [name, address, phone || null, email || null, established_date || null, is_active, id]);
 
-// DELETE a school
-router.delete('/:id', async (req, res) => {
-  const { id } = req.params;
-  try {
-    const result = await db.query('DELETE FROM schools WHERE id = $1 RETURNING *', [id]);
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'School not found' });
-    }
-    res.json({ message: 'School deleted', school: result.rows[0] });
+    await client.query('COMMIT');
+    
+    res.json({ 
+      message: '✅ تم تحديث مجمع الحلقات بنجاح',
+      schoolId: id
+    });
+
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    await client.query('ROLLBACK');
+    console.error('Update school error:', err);
+    res.status(500).json({ error: 'حدث خطأ أثناء تحديث مجمع الحلقات' });
+  } finally {
+    client.release();
   }
 });
 

@@ -1,22 +1,74 @@
-// src/components/AuthNavbar.jsx
-
+import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   AiOutlineLogout,
   AiOutlineUser,
   AiOutlineHome,
   AiOutlineTeam,
+  AiOutlineMenu,
+  AiOutlineClose,
+  AiOutlineDashboard,
+  AiOutlineBook,
+  AiOutlineBell,
+  AiOutlineCalendar,
+  AiOutlineFileText,
+  AiOutlineBank,
+  AiOutlineAppstore,
 } from "react-icons/ai";
 
-const navLinks = [
-  { to: "/home", label: "الرئيسية", icon: <AiOutlineHome /> },
-  { to: "/children", label: "معلومات الأبناء", icon: <AiOutlineTeam /> },
-  { to: "/profile", label: "الملف الشخصي", icon: <AiOutlineUser /> },
-];
+const getNavLinks = (userRole) => {
+  const baseLinks = [
+    { to: "/home", label: "الرئيسية", icon: <AiOutlineHome /> },
+    { to: "/dashboard", label: "لوحة التحكم", icon: <AiOutlineDashboard /> },
+    { to: "/children", label: "الأبناء", icon: <AiOutlineTeam /> },
+    { to: "/schedule", label: "الجدول", icon: <AiOutlineCalendar /> },
+    { to: "/lessons", label: "الدروس", icon: <AiOutlineBook /> },
+    { to: "/reports", label: "التقارير", icon: <AiOutlineFileText /> },
+    { to: "/profile", label: "الملف الشخصي", icon: <AiOutlineUser /> },
+  ];
+
+  // Add role-specific links
+  const adminLinks = [
+    { to: "/schools", label: "إدارة مجمع الحلقات", icon: <AiOutlineBank /> },
+    { to: "/classes", label: "إدارة الحلقة", icon: <AiOutlineAppstore /> },
+    { to: "/teachers", label: "إدارة المعلمين", icon: <AiOutlineTeam /> },
+  ];
+
+  const administratorLinks = [
+    { to: "/classes", label: "إدارة الحلقة", icon: <AiOutlineAppstore /> },
+  ];
+
+  const supervisorLinks = [
+    { to: "/teachers", label: "إدارة المعلمين", icon: <AiOutlineTeam /> },
+  ];
+
+  if (userRole === 'admin') {
+    return [...baseLinks, ...adminLinks];
+  } else if (userRole === 'administrator') {
+    return [...baseLinks, ...administratorLinks];
+  } else if (userRole === 'supervisor') {
+    return [...baseLinks, ...supervisorLinks];
+  }
+
+  return baseLinks;
+};
 
 export default function AuthNavbar() {
   const location = useLocation();
   const navigate = useNavigate();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [user, setUser] = useState(null);
+  const [notifications, setNotifications] = useState(3); // Mock notifications count
+  const [navLinks, setNavLinks] = useState([]);
+
+  useEffect(() => {
+    const userData = localStorage.getItem("user");
+    if (userData) {
+      const parsedUser = JSON.parse(userData);
+      setUser(parsedUser);
+      setNavLinks(getNavLinks(parsedUser.role || parsedUser.user_type));
+    }
+  }, []);
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -24,51 +76,143 @@ export default function AuthNavbar() {
     navigate("/login");
   };
 
+  const toggleMobileMenu = () => {
+    setIsMobileMenuOpen(!isMobileMenuOpen);
+  };
+
   return (
-    <nav
-      className="w-full bg-gradient-to-l from-[var(--color-primary-100)] via-[var(--color-primary-400)] to-[var(--color-primary-700)] text-white py-3 shadow-lg"
-      dir="rtl"
-    >
-      <div className="container mx-auto flex items-center justify-between px-4">
-        {/* Logo + App name */}
-        <div className="flex items-center gap-3">
-          <img
-            src="/logo.svg"
-            alt="شعار المنصة"
-            className="h-12 w-12 object-contain rounded-full shadow-md border-2 border-white"
-            loading="lazy"
-          />
-          <span className="font-extrabold text-2xl md:text-3xl tracking-tight drop-shadow-sm">
-            منصة الحلقات
-          </span>
-        </div>
-        {/* Navigation Links */}
-        <ul className="flex gap-8 text-lg font-medium">
-          {navLinks.map((link) => (
-            <li key={link.to}>
+    <nav className="w-full bg-gradient-to-l from-[var(--color-primary-100)] via-[var(--color-primary-400)] to-[var(--color-primary-700)] text-white shadow-xl sticky top-0 z-50" dir="rtl">
+      <div className="container mx-auto px-4">
+        <div className="flex items-center justify-between py-4">
+          {/* Logo + App name */}
+          <Link to="/home" className="flex items-center gap-3 hover:opacity-90 transition-opacity">
+            <img
+              src="/logo.svg"
+              alt="شعار المنصة"
+              className="h-12 w-12 object-contain rounded-full shadow-lg border-2 border-white/30 bg-white/10 backdrop-blur-sm"
+              loading="lazy"
+            />
+            <div className="flex flex-col">
+              <span className="font-extrabold text-xl md:text-2xl tracking-tight drop-shadow-md">
+                منصة الحلقات
+              </span>
+              {user && (
+                <span className="text-xs text-white/80 font-medium hidden md:block">
+                  مرحباً، {user.first_name || 'المستخدم'}
+                </span>
+              )}
+            </div>
+          </Link>
+
+          {/* Desktop Navigation */}
+          <div className="hidden lg:flex items-center gap-2">
+            {navLinks.map((link) => (
               <Link
+                key={link.to}
                 to={link.to}
-                className={`flex items-center gap-1 hover:underline transition-all duration-200 ${
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg font-medium transition-all duration-300 hover:bg-white/10 hover:shadow-md ${
                   location.pathname === link.to
-                    ? "text-[var(--color-primary-950)] font-bold underline"
-                    : ""
+                    ? "bg-white/20 text-white font-bold shadow-md"
+                    : "text-white/90 hover:text-white"
                 }`}
               >
-                {link.icon}
-                {link.label}
+                <span className="text-lg">{link.icon}</span>
+                <span className="text-sm font-semibold hidden xl:block">{link.label}</span>
               </Link>
-            </li>
-          ))}
-          <li>
+            ))}
+
+            {/* Notifications */}
+            <button className="relative p-2 rounded-lg hover:bg-white/10 transition-colors">
+              <AiOutlineBell className="h-5 w-5" />
+              {notifications > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold">
+                  {notifications}
+                </span>
+              )}
+            </button>
+
+            {/* Logout Button */}
             <button
               onClick={handleLogout}
-              className="flex items-center gap-1 text-white bg-[var(--color-primary-900)] hover:bg-[var(--color-error-700)] px-4 py-2 rounded-lg font-semibold transition"
+              className="flex items-center gap-2 text-white bg-red-600/80 hover:bg-red-700 px-4 py-2 rounded-lg font-semibold transition-all duration-200 shadow-md hover:shadow-lg"
             >
-              <AiOutlineLogout />
-              تسجيل الخروج
+              <AiOutlineLogout className="h-4 w-4" />
+              <span className="hidden xl:block">خروج</span>
             </button>
-          </li>
-        </ul>
+          </div>
+
+          {/* Mobile menu button */}
+          <button
+            onClick={toggleMobileMenu}
+            className="lg:hidden p-2 rounded-lg hover:bg-white/10 transition-colors"
+            aria-label="فتح القائمة"
+          >
+            {isMobileMenuOpen ? (
+              <AiOutlineClose className="h-6 w-6" />
+            ) : (
+              <AiOutlineMenu className="h-6 w-6" />
+            )}
+          </button>
+        </div>
+
+        {/* Mobile Navigation */}
+        <div
+          className={`lg:hidden overflow-hidden transition-all duration-300 ${
+            isMobileMenuOpen ? "max-h-screen pb-4" : "max-h-0"
+          }`}
+        >
+          <div className="flex flex-col gap-2 pt-2 border-t border-white/20">
+            {/* User info on mobile */}
+            {user && (
+              <div className="px-4 py-3 bg-white/10 rounded-lg mb-2">
+                <p className="text-white font-semibold">
+                  مرحباً، {user.first_name || 'المستخدم'}
+                </p>
+                <p className="text-white/70 text-sm">
+                  {user.email}
+                </p>
+              </div>
+            )}
+
+            {navLinks.map((link) => (
+              <Link
+                key={link.to}
+                to={link.to}
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all duration-200 ${
+                  location.pathname === link.to
+                    ? "bg-white/20 text-white font-bold"
+                    : "text-white/90 hover:bg-white/10 hover:text-white"
+                }`}
+              >
+                <span className="text-xl">{link.icon}</span>
+                <span>{link.label}</span>
+              </Link>
+            ))}
+
+            {/* Notifications on mobile */}
+            <button className="flex items-center gap-3 px-4 py-3 text-white/90 hover:bg-white/10 rounded-lg transition-colors">
+              <span className="text-xl relative">
+                <AiOutlineBell />
+                {notifications > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center font-bold">
+                    {notifications}
+                  </span>
+                )}
+              </span>
+              <span>الإشعارات</span>
+            </button>
+
+            {/* Logout on mobile */}
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-3 px-4 py-3 text-white bg-red-600/80 hover:bg-red-700 rounded-lg font-semibold transition-colors mt-2"
+            >
+              <AiOutlineLogout className="text-xl" />
+              <span>تسجيل الخروج</span>
+            </button>
+          </div>
+        </div>
       </div>
     </nav>
   );

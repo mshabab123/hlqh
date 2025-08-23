@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import {
@@ -11,18 +11,23 @@ const API_BASE = import.meta.env.VITE_API_BASE || "";
 
 export default function TeacherRegister() {
   const [showModal, setShowModal] = useState(false);
-
+  const [registrationResponse, setRegistrationResponse] = useState(null);
+  const [schools, setSchools] = useState([]);
   const [form, setForm] = useState({
     id: "",
     first_name: "",
     second_name: "",
     third_name: "",
     last_name: "",
-    neighborhood: "",
+    address: "",
     phone: "",
     email: "",
     password: "",
-    role: "Teacher", // Always Teacher for this page
+    user_type: "teacher",
+    school_id: "",
+    specialization: "",
+    qualifications: "",
+    salary: "",
   });
 
   const [showPassword, setShowPassword] = useState(false);
@@ -30,6 +35,19 @@ export default function TeacherRegister() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    fetchSchools();
+  }, []);
+
+  const fetchSchools = async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/api/schools`);
+      setSchools(response.data.schools || []);
+    } catch (err) {
+      console.error('Error fetching schools:', err);
+    }
+  };
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -50,7 +68,6 @@ export default function TeacherRegister() {
     else if (!/^05\d{8}$/.test(form.phone))
       errors.phone = "رقم الجوال يجب أن يكون 10 أرقام ويبدأ بـ 05";
 
-    if (!form.neighborhood) errors.neighborhood = "يرجى تعبئة هذا الحقل";
     if (!form.email) errors.email = "يرجى تعبئة هذا الحقل";
     else if (!/^[\w-.]+@([\w-]+\.)+[\w-]{2,}$/.test(form.email))
       errors.email = "صيغة البريد الإلكتروني غير صحيحة";
@@ -58,6 +75,10 @@ export default function TeacherRegister() {
     if (!form.password) errors.password = "يرجى تعبئة هذا الحقل";
     else if (form.password.length < 6)
       errors.password = "كلمة المرور يجب أن تكون 6 أحرف أو أكثر";
+
+    if (!form.user_type) errors.user_type = "يرجى اختيار نوع المستخدم";
+
+    if (!form.school_id) errors.school_id = "يرجى اختيار مجمع الحلقات";
 
     return errors;
   };
@@ -70,10 +91,10 @@ export default function TeacherRegister() {
     if (Object.keys(errors).length > 0) return;
 
     try {
-      await axios.post(`${API_BASE}/api/users`, form);
+      const response = await axios.post(`${API_BASE}/api/teachers`, form);
+      setRegistrationResponse(response.data);
       setSuccess(true);
       setShowModal(true);
-      //   setTimeout(() => navigate("/"), 2000);
     } catch (err) {
       setError(err.response?.data?.error || "حدث خطأ أثناء التسجيل");
     }
@@ -90,7 +111,7 @@ export default function TeacherRegister() {
         style={{ backdropFilter: "blur(2px)" }}
       >
         <h2 className="text-2xl font-bold mb-4 text-center text-[var(--color-primary-500)]">
-          يرجى تعبئة الحقول التالية للتسجيل كمعلم
+          يرجى تعبئة الحقول التالية للتسجيل
         </h2>
 
         {success && (
@@ -102,8 +123,59 @@ export default function TeacherRegister() {
 
         <div className="bg-primary-50 p-6 rounded-lg">
           <h3 className="text-lg font-semibold mb-4 text-[var(--color-primary-700)]">
-            بيانات المعلم
+            البيانات الأساسية
           </h3>
+          
+          {/* User Type Selection */}
+          <div className="mb-4">
+            <select
+              name="user_type"
+              value={form.user_type}
+              onChange={handleChange}
+              className={`p-3 w-full border ${
+                inputErrors.user_type
+                  ? "border-[var(--color-error-500)]"
+                  : "border-light"
+              } rounded-lg focus:border-accent focus:outline-none transition-colors bg-white`}
+            >
+              <option value="teacher">معلم</option>
+              <option value="admin">مدير</option>
+              <option value="administrator">مسؤول</option>
+              <option value="supervisor">مشرف</option>
+            </select>
+            {inputErrors.user_type && (
+              <div className="flex items-center mt-1 text-[var(--color-error-600)] text-sm">
+                <AiOutlineExclamationCircle className="ml-1" />
+                {inputErrors.user_type}
+              </div>
+            )}
+          </div>
+
+          {/* School Selection */}
+          <div className="mb-4">
+            <select
+              name="school_id"
+              value={form.school_id}
+              onChange={handleChange}
+              className={`p-3 w-full border ${
+                inputErrors.school_id
+                  ? "border-[var(--color-error-500)]"
+                  : "border-light"
+              } rounded-lg focus:border-accent focus:outline-none transition-colors bg-white`}
+            >
+              <option value="">اختر مجمع الحلقات *</option>
+              {schools.map(school => (
+                <option key={school.id} value={school.id}>{school.name}</option>
+              ))}
+            </select>
+            {inputErrors.school_id && (
+              <div className="flex items-center mt-1 text-[var(--color-error-600)] text-sm">
+                <AiOutlineExclamationCircle className="ml-1" />
+                {inputErrors.school_id}
+              </div>
+            )}
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             {["first_name", "second_name", "third_name", "last_name"].map(
               (field, idx) => (
@@ -174,20 +246,20 @@ export default function TeacherRegister() {
           </div>
           <div>
             <input
-              name="neighborhood"
-              placeholder="الحي"
-              value={form.neighborhood}
+              name="address"
+              placeholder="العنوان (اختياري)"
+              value={form.address}
               onChange={handleChange}
               className={`mt-4 p-3 w-full border ${
-                inputErrors.neighborhood
+                inputErrors.address
                   ? "border-[var(--color-error-500)]"
                   : "border-light"
               } rounded-lg focus:border-accent focus:outline-none transition-colors`}
             />
-            {inputErrors.neighborhood && (
+            {inputErrors.address && (
               <div className="flex items-center mt-1 text-[var(--color-error-600)] text-sm">
                 <AiOutlineExclamationCircle className="ml-1" />
-                {inputErrors.neighborhood}
+                {inputErrors.address}
               </div>
             )}
           </div>
@@ -241,14 +313,75 @@ export default function TeacherRegister() {
           </div>
         </div>
 
+        {/* Additional Fields Section */}
+        <div className="bg-background-secondary p-6 rounded-lg">
+          <h3 className="text-lg font-semibold mb-4 text-[var(--color-primary-700)]">
+            معلومات إضافية (اختيارية)
+          </h3>
+          
+          {form.user_type === 'teacher' && (
+            <div>
+              <input
+                name="specialization"
+                placeholder="التخصص (اختياري)"
+                value={form.specialization}
+                onChange={handleChange}
+                className={`p-3 w-full border ${
+                  inputErrors.specialization
+                    ? "border-[var(--color-error-500)]"
+                    : "border-light"
+                } rounded-lg focus:border-accent focus:outline-none transition-colors`}
+              />
+              {inputErrors.specialization && (
+                <div className="flex items-center mt-1 text-[var(--color-error-600)] text-sm">
+                  <AiOutlineExclamationCircle className="ml-1" />
+                  {inputErrors.specialization}
+                </div>
+              )}
+            </div>
+          )}
+          
+          <div>
+            <textarea
+              name="qualifications"
+              placeholder="المؤهلات والشهادات (اختياري)"
+              value={form.qualifications}
+              onChange={handleChange}
+              rows="3"
+              className={`mt-4 p-3 w-full border ${
+                inputErrors.qualifications
+                  ? "border-[var(--color-error-500)]"
+                  : "border-light"
+              } rounded-lg focus:border-accent focus:outline-none transition-colors resize-vertical`}
+            />
+            {inputErrors.qualifications && (
+              <div className="flex items-center mt-1 text-[var(--color-error-600)] text-sm">
+                <AiOutlineExclamationCircle className="ml-1" />
+                {inputErrors.qualifications}
+              </div>
+            )}
+          </div>
+
+
+
+        </div>
+
         <button
           type="submit"
           className="w-full bg-[var(--color-primary-500)] hover:bg-[var(--color-primary-700)] text-white py-3 rounded-lg font-semibold transition-colors"
         >
-          تسجيل كمعلم
+          تسجيل ك{form.user_type === 'teacher' ? 'معلم' : form.user_type === 'admin' ? 'مدير' : form.user_type === 'administrator' ? 'مسؤول' : 'مشرف'}
         </button>
       </form>
-      {showModal && <SuccessModal onClose={() => navigate("/login")} />}
+      {showModal && (
+        <SuccessModal 
+          onClose={() => navigate("/")}
+          title={registrationResponse?.status === 'pending_activation' ? 'طلب قيد المراجعة!' : undefined}
+          message={registrationResponse?.message}
+          isInactive={registrationResponse?.status === 'pending_activation'}
+          buttonText="العودة للرئيسية"
+        />
+      )}
     </div>
   );
 }
