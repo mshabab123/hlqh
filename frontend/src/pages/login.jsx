@@ -14,6 +14,7 @@ export default function Login() {
   const [form, setForm] = useState({ id: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [warning, setWarning] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
@@ -24,9 +25,9 @@ export default function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    setWarning("");
     setLoading(true);
     try {
-      // const res = await axios.post("http://localhost:5000/api/auth/login", {
       const res = await axios.post(`${API_BASE}/api/auth/login`, {
         id: form.id,
         password: form.password,
@@ -35,8 +36,17 @@ export default function Login() {
       if (res.data.token) {
         localStorage.setItem("token", res.data.token);
         localStorage.setItem("user", JSON.stringify(res.data.user));
-        setLoading(false);
-        navigate("/Home");
+        
+        // Check if user is inactive
+        if (res.data.account_status === 'pending_activation' || res.data.limited_access) {
+          setWarning(res.data.warning || "حسابك قيد المراجعة من الإدارة");
+          setLoading(false);
+          // Still navigate to home but with limited access
+          navigate("/Home");
+        } else {
+          setLoading(false);
+          navigate("/Home");
+        }
       }
     } catch (err) {
       setError(err.response?.data?.error || "بيانات الدخول غير صحيحة");
@@ -58,6 +68,12 @@ export default function Login() {
         {error && (
           <div className="flex items-center text-[var(--color-error-700)] bg-[var(--color-error-100)] border border-[var(--color-error-400)] px-4 py-2 rounded mb-4">
             <AiOutlineExclamationCircle className="ml-2" /> {error}
+          </div>
+        )}
+        
+        {warning && (
+          <div className="flex items-center text-yellow-700 bg-yellow-100 border border-yellow-400 px-4 py-2 rounded mb-4">
+            <AiOutlineExclamationCircle className="ml-2" /> {warning}
           </div>
         )}
 

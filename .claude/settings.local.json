@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(node:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(npm run dev:*)",
+      "Bash(psql:*)"
     ],
     "deny": [],
     "ask": [],

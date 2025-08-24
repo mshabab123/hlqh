@@ -1,6 +1,7 @@
 // src/pages/Home.jsx
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { AiOutlineExclamationCircle } from "react-icons/ai";
 import AuthNavbar from "../components/AuthNavbar";
 
 export default function Home() {
@@ -32,6 +33,25 @@ export default function Home() {
     <>
       {/* <AuthNavbar /> */}
       <div className="bg-[url('/baground.svg')] bg-cover bg-center bg-no-repeat bg-fixed bg-blend-overlay min-h-screen flex flex-col items-center justify-center font-[var(--font-family-arabic)] py-8">
+        
+        {/* Inactive User Warning */}
+        {user && (user.is_active === false || user.account_status === 'pending_activation') && (
+          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6 max-w-2xl w-full mx-auto">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <AiOutlineExclamationCircle className="h-5 w-5 text-yellow-400" />
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-yellow-700">
+                  <strong>تنبيه:</strong> حسابك قيد المراجعة من الإدارة. سيتم إشعارك عند تفعيل الحساب بشكل كامل.
+                  <br />
+                  يمكنك تصفح المنصة بصلاحيات محدودة حتى يتم تفعيل حسابك.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div
           className="bg-white/90 p-10 rounded-xl max-w-lg w-full shadow-xl space-y-8 text-center"
           style={{ backdropFilter: "blur(2px)" }}

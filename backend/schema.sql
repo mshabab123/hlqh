@@ -122,7 +122,6 @@ CREATE TABLE classes (
     teacher_id VARCHAR(10) REFERENCES teachers(id) ON DELETE SET NULL,
     school_level VARCHAR(50) NOT NULL,
     max_students INTEGER DEFAULT 20,
-    schedule_info TEXT,
     room_number VARCHAR(20),
     is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

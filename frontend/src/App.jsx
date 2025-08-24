@@ -8,6 +8,7 @@ import TeacherRegister from "./pages/TeacherRegister";
 import SchoolManagement from "./pages/SchoolManagement";
 import ClassManagement from "./pages/ClassManagement";
 import TeacherManagement from "./pages/TeacherManagement";
+import StudentManagement from "./pages/StudentManagement";
 import About from "./pages/About";
 import Home from "./pages/home";
 import Navbar from "./components/Navbar"; // Import your Navbar component
@@ -66,6 +67,14 @@ export default function App() {
             element={
               <ProtectedRoute requiredRole={["admin", "supervisor"]}>
                 <TeacherManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/students"
+            element={
+              <ProtectedRoute>
+                <StudentManagement />
               </ProtectedRoute>
             }
           />

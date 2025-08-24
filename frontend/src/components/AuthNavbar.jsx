@@ -21,8 +21,7 @@ const getNavLinks = (userRole) => {
     { to: "/home", label: "الرئيسية", icon: <AiOutlineHome /> },
     { to: "/dashboard", label: "لوحة التحكم", icon: <AiOutlineDashboard /> },
     { to: "/children", label: "الأبناء", icon: <AiOutlineTeam /> },
-    { to: "/schedule", label: "الجدول", icon: <AiOutlineCalendar /> },
-    { to: "/lessons", label: "الدروس", icon: <AiOutlineBook /> },
+    { to: "/students", label: "الطلاب", icon: <AiOutlineUser /> },
     { to: "/reports", label: "التقارير", icon: <AiOutlineFileText /> },
     { to: "/profile", label: "الملف الشخصي", icon: <AiOutlineUser /> },
   ];

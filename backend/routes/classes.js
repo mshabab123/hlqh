@@ -3,11 +3,8 @@ const router = express.Router();
 const db = require('../db');
 const { body, validationResult } = require('express-validator');
 
-// Middleware to check if user is authenticated
-const requireAuth = (req, res, next) => {
-  // TODO: Implement proper authentication middleware
-  next();
-};
+// Import authentication middleware
+const { authenticateToken: requireAuth } = require('../middleware/auth');
 
 // Class validation rules
 const classValidationRules = [
@@ -58,7 +55,7 @@ router.get('/', requireAuth, async (req, res) => {
     query += ` ORDER BY c.created_at DESC`;
 
     const result = await db.query(query, params);
-    res.json({ classes: result.rows });
+    res.json(result.rows);
   } catch (err) {
     console.error('Get classes error:', err);
     res.status(500).json({ error: 'حدث خطأ أثناء جلب الحلقات' });

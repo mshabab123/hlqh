@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const router = express.Router();
 const db = require('../db');
 const { body, validationResult } = require('express-validator');
+const { authenticateToken: auth } = require('../middleware/auth');
 
 const rateLimit = require('express-rate-limit');
 const registerLimiter = rateLimit({
@@ -143,8 +144,63 @@ router.post('/', registerLimiter, studentValidationRules, async (req, res) => {
   }
 });
 
+// GET /api/students - Get all students (with filters)
+router.get('/', auth, async (req, res) => {
+  try {
+    const { school_level, status, parent_id, page = 1, limit = 50 } = req.query;
+    
+    let query = `
+      SELECT 
+        u.id, u.first_name, u.second_name, u.third_name, u.last_name,
+        u.email, u.phone, u.address, u.date_of_birth, u.is_active,
+        s.school_level, s.status, s.enrollment_date, s.graduation_date, s.notes,
+        sc.name as school_name, sc.id as school_id,
+        c.name as class_name, c.id as class_id
+      FROM users u
+      JOIN students s ON u.id = s.id
+      LEFT JOIN student_enrollments se ON s.id = se.student_id AND se.status = 'enrolled'
+      LEFT JOIN classes c ON se.class_id = c.id
+      LEFT JOIN schools sc ON c.school_id = sc.id
+      WHERE 1=1
+    `;
+    
+    const params = [];
+    let paramIndex = 1;
+
+    if (school_level) {
+      query += ` AND s.school_level = $${paramIndex}`;
+      params.push(school_level);
+      paramIndex++;
+    }
+
+    if (status) {
+      query += ` AND s.status = $${paramIndex}`;
+      params.push(status);
+      paramIndex++;
+    }
+
+    if (parent_id) {
+      query += ` AND s.parent_id = $${paramIndex}`;
+      params.push(parent_id);
+      paramIndex++;
+    }
+
+    query += `
+      ORDER BY u.first_name, u.last_name
+    `;
+
+    const result = await db.query(query, params);
+
+    res.json(result.rows);
+
+  } catch (err) {
+    console.error('Get students error:', err);
+    res.status(500).json({ error: 'حدث خطأ أثناء جلب قائمة الطلاب' });
+  }
+});
+
 // GET /api/students/:id - Get student details
-router.get('/:id', async (req, res) => {
+router.get('/:id', auth, async (req, res) => {
   try {
     const { id } = req.params;
     
@@ -203,201 +259,252 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// GET /api/students - Get all students (with filters)
-router.get('/', async (req, res) => {
+// POST /api/students/manage - Create new student for management (different from registration)
+router.post('/manage', (req, res, next) => {
+  console.log('POST /manage called with body:', req.body);
+  next();
+}, auth, [
+  body('id')
+    .isLength({ min: 10, max: 10 })
+    .withMessage('رقم الهوية يجب أن يكون 10 أرقام')
+    .isNumeric()
+    .withMessage('رقم الهوية يجب أن يتكون من أرقام فقط'),
+  body('first_name').notEmpty().withMessage('يرجى تعبئة الإسم الأول'),
+  body('second_name').notEmpty().withMessage('يرجى تعبئة الاسم الثاني'),
+  body('third_name').notEmpty().withMessage('يرجى تعبئة اسم الجد'),
+  body('last_name').notEmpty().withMessage('يرجى تعبئة اسم العائلة'),
+  body('school_level').notEmpty().withMessage('يرجى تحديد المستوى الدراسي'),
+  body('email').optional().isEmail().withMessage('صيغة البريد الإلكتروني غير صحيحة'),
+  body('phone').optional().matches('^05[0-9]{8}$').withMessage('رقم الهاتف يجب أن يبدأ ب 05 ويتكون من 10 أرقام')
+], async (req, res) => {
   try {
-    const { school_level, status = 'active', parent_id, page = 1, limit = 50 } = req.query;
-    
-    let query = `
-      SELECT 
-        u.id, u.first_name, u.second_name, u.third_name, u.last_name,
-        s.school_level, s.status, s.enrollment_date,
-        COUNT(se.id) as active_enrollments
-      FROM users u
-      JOIN students s ON u.id = s.id
-      LEFT JOIN student_enrollments se ON s.id = se.student_id AND se.status = 'enrolled'
-      WHERE 1=1
-    `;
-    
-    const params = [];
-    let paramIndex = 1;
-
-    if (school_level) {
-      query += ` AND s.school_level = $${paramIndex}`;
-      params.push(school_level);
-      paramIndex++;
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ 
+        error: 'بيانات غير صحيحة',
+        details: errors.array().map(err => err.msg)
+      });
     }
 
-    if (status) {
-      query += ` AND s.status = $${paramIndex}`;
-      params.push(status);
-      paramIndex++;
-    }
+    const {
+      id, first_name, second_name, third_name, last_name,
+      email, phone, address, date_of_birth, school_level,
+      class_id, notes, status = 'active'
+    } = req.body;
 
-    if (parent_id) {
-      query += ` AND s.parent_id = $${paramIndex}`;
-      params.push(parent_id);
-      paramIndex++;
-    }
+    const client = await db.connect();
+    await client.query('BEGIN');
 
-    query += `
-      GROUP BY u.id, u.first_name, u.second_name, u.third_name, u.last_name,
-               s.school_level, s.status, s.enrollment_date
-      ORDER BY u.first_name, u.last_name
-    `;
-
-    // Add pagination
-    const offset = (page - 1) * limit;
-    query += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
-    params.push(limit, offset);
-
-    const result = await db.query(query, params);
-    
-    // Get total count
-    let countQuery = `
-      SELECT COUNT(*) as total
-      FROM users u
-      JOIN students s ON u.id = s.id
-      WHERE 1=1
-    `;
-    
-    const countParams = [];
-    let countParamIndex = 1;
-
-    if (school_level) {
-      countQuery += ` AND s.school_level = $${countParamIndex}`;
-      countParams.push(school_level);
-      countParamIndex++;
-    }
-
-    if (status) {
-      countQuery += ` AND s.status = $${countParamIndex}`;
-      countParams.push(status);
-      countParamIndex++;
-    }
-
-    if (parent_id) {
-      countQuery += ` AND s.parent_id = $${countParamIndex}`;
-      countParams.push(parent_id);
-      countParamIndex++;
-    }
-
-    const countResult = await db.query(countQuery, countParams);
-    const total = parseInt(countResult.rows[0].total);
-
-    res.json({
-      students: result.rows,
-      pagination: {
-        current_page: parseInt(page),
-        total_pages: Math.ceil(total / limit),
-        total_students: total,
-        per_page: parseInt(limit)
+    try {
+      // Check if user already exists
+      const existingUser = await client.query('SELECT id FROM users WHERE id = $1', [id]);
+      if (existingUser.rows.length > 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'رقم الهوية مستخدم من قبل' });
       }
-    });
 
-  } catch (err) {
-    console.error('Get students error:', err);
-    res.status(500).json({ error: 'حدث خطأ أثناء جلب قائمة الطلاب' });
+      // Create user record with default password
+      const hashedPassword = await bcrypt.hash('123456', 10);
+      const userQuery = `
+        INSERT INTO users (id, first_name, second_name, third_name, last_name, email, phone, address, date_of_birth, password, is_active)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        RETURNING id
+      `;
+      
+      await client.query(userQuery, [
+        id, first_name, second_name, third_name, last_name,
+        email || null, phone || null, address || null, date_of_birth || null, hashedPassword, true
+      ]);
+
+      // Create student record
+      const studentQuery = `
+        INSERT INTO students (id, school_level, status, notes)
+        VALUES ($1, $2, $3, $4)
+        RETURNING *
+      `;
+      
+      await client.query(studentQuery, [id, school_level, status, notes || null]);
+
+      // Add student to class if class_id provided
+      if (class_id) {
+        const enrollmentQuery = `
+          INSERT INTO student_enrollments (student_id, class_id, status)
+          VALUES ($1, $2, 'enrolled')
+          ON CONFLICT (student_id, class_id) DO NOTHING
+        `;
+        await client.query(enrollmentQuery, [id, class_id]);
+      }
+
+      await client.query('COMMIT');
+      res.status(201).json({ message: 'تم إضافة الطالب بنجاح', studentId: id });
+
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+
+  } catch (error) {
+    console.error('Error creating student:', error);
+    if (error.code === '23505') {
+      res.status(400).json({ error: 'رقم الهوية أو البريد الإلكتروني مستخدم من قبل' });
+    } else {
+      res.status(500).json({ error: 'حدث خطأ في إنشاء الطالب' });
+    }
   }
 });
 
 // PUT /api/students/:id - Update student information
-router.put('/:id', [
-  body('school_level').optional({ checkFalsy: true }).notEmpty().withMessage('المرحلة الدراسية مطلوبة'),
-  body('phone').optional({ checkFalsy: true }).matches(/^05\d{8}$/).withMessage('رقم الجوال غير صحيح'),
-  body('email').optional({ checkFalsy: true }).isEmail().withMessage('البريد الإلكتروني غير صحيح'),
-  body('status').optional({ checkFalsy: true }).isIn(['active', 'graduated', 'suspended', 'withdrawn']).withMessage('حالة الطالب غير صحيحة')
-], async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ error: errors.array()[0].msg });
-  }
-
-  const client = await db.connect();
+router.put('/:id', (req, res, next) => {
+  console.log('PUT /students/:id called for ID:', req.params.id);
+  console.log('Request body:', req.body);
+  next();
+}, auth, async (req, res) => {
   try {
+    // Basic validation for required fields if they are provided
+    if (req.body.email && req.body.email.trim() && !/\S+@\S+\.\S+/.test(req.body.email)) {
+      return res.status(400).json({ error: 'صيغة البريد الإلكتروني غير صحيحة' });
+    }
+    if (req.body.phone && req.body.phone.trim() && !/^05\d{8}$/.test(req.body.phone)) {
+      return res.status(400).json({ error: 'رقم الهاتف يجب أن يبدأ ب 05 ويتكون من 10 أرقام' });
+    }
+
     const { id } = req.params;
-    const { school_level, phone, email, status, notes } = req.body;
-
-    await client.query('BEGIN');
-
-    // Check if student exists
-    const studentCheck = await client.query('SELECT id FROM students WHERE id = $1', [id]);
-    if (studentCheck.rows.length === 0) {
-      return res.status(404).json({ error: 'الطالب غير موجود' });
-    }
-
-    // Update users table
-    const userUpdates = [];
-    const userParams = [];
-    let userParamIndex = 1;
-
-    if (phone !== undefined) {
-      userUpdates.push(`phone = $${userParamIndex}`);
-      userParams.push(phone || null);
-      userParamIndex++;
-    }
-
-    if (email !== undefined) {
-      userUpdates.push(`email = $${userParamIndex}`);
-      userParams.push(email || null);
-      userParamIndex++;
-    }
-
-    if (userUpdates.length > 0) {
-      userParams.push(id);
-      const userQuery = `UPDATE users SET ${userUpdates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = $${userParamIndex}`;
-      await client.query(userQuery, userParams);
-    }
-
-    // Update students table
-    const studentUpdates = [];
-    const studentParams = [];
-    let studentParamIndex = 1;
-
-    if (school_level !== undefined) {
-      studentUpdates.push(`school_level = $${studentParamIndex}`);
-      studentParams.push(school_level);
-      studentParamIndex++;
-    }
-
-    if (status !== undefined) {
-      studentUpdates.push(`status = $${studentParamIndex}`);
-      studentParams.push(status);
-      studentParamIndex++;
-    }
-
-    if (notes !== undefined) {
-      studentUpdates.push(`notes = $${studentParamIndex}`);
-      studentParams.push(notes);
-      studentParamIndex++;
-    }
-
-    if (studentUpdates.length > 0) {
-      studentParams.push(id);
-      const studentQuery = `UPDATE students SET ${studentUpdates.join(', ')} WHERE id = $${studentParamIndex}`;
-      await client.query(studentQuery, studentParams);
-    }
-
-    await client.query('COMMIT');
     
-    res.json({ 
-      message: '✅ تم تحديث بيانات الطالب بنجاح',
-      studentId: id
-    });
+    // Check if trying to activate student without school assignment
+    if (req.body.status === 'active') {
+      // Get current student data to check school assignment
+      const studentCheck = await db.query(`
+        SELECT s.id, se.class_id, c.school_id 
+        FROM students s
+        LEFT JOIN student_enrollments se ON s.id = se.student_id AND se.status = 'enrolled'
+        LEFT JOIN classes c ON se.class_id = c.id
+        WHERE s.id = $1
+      `, [id]);
 
-  } catch (err) {
-    await client.query('ROLLBACK');
-    console.error('Update student error:', err);
-    
-    if (err.code === '23505') {
-      if (err.detail && err.detail.includes('email')) {
-        return res.status(400).json({ error: "البريد الإلكتروني مستخدم من قبل" });
+      if (studentCheck.rows.length > 0) {
+        const studentData = studentCheck.rows[0];
+        if (!studentData.school_id) {
+          return res.status(400).json({ 
+            error: 'لا يمكن تفعيل الطالب بدون تعيينه إلى مدرسة. يرجى تحديد المدرسة أولاً.' 
+          });
+        }
       }
     }
     
-    res.status(500).json({ error: 'حدث خطأ أثناء تحديث بيانات الطالب' });
-  } finally {
-    client.release();
+    const {
+      first_name, second_name, third_name, last_name,
+      email, phone, address, date_of_birth, school_level,
+      class_id, notes, status
+    } = req.body;
+
+    const client = await db.connect();
+    await client.query('BEGIN');
+
+    try {
+      // Check if student exists
+      const existingStudent = await client.query('SELECT id FROM students WHERE id = $1', [id]);
+      if (existingStudent.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'الطالب غير موجود' });
+      }
+
+      // Update user record (including is_active based on status)
+      const userQuery = `
+        UPDATE users 
+        SET first_name = $1, second_name = $2, third_name = $3, last_name = $4,
+            email = $5, phone = $6, address = $7, date_of_birth = $8, 
+            is_active = $9, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $10
+      `;
+      
+      const isActive = status === 'active';
+      await client.query(userQuery, [
+        first_name, second_name, third_name, last_name,
+        email || null, phone || null, address || null, date_of_birth || null, 
+        isActive, id
+      ]);
+
+      // Update student record
+      const studentQuery = `
+        UPDATE students 
+        SET school_level = $1, status = $2, notes = $3
+        WHERE id = $4
+      `;
+      
+      await client.query(studentQuery, [school_level, status, notes || null, id]);
+
+      // Handle class assignment changes
+      if (class_id !== undefined) {
+        // Remove student from current class
+        await client.query('DELETE FROM student_enrollments WHERE student_id = $1 AND status = $2', [id, 'enrolled']);
+
+        // Add to new class if provided
+        if (class_id) {
+          const enrollmentQuery = `
+            INSERT INTO student_enrollments (student_id, class_id, status)
+            VALUES ($1, $2, 'enrolled')
+            ON CONFLICT (student_id, class_id) DO NOTHING
+          `;
+          await client.query(enrollmentQuery, [id, class_id]);
+        }
+      }
+
+      await client.query('COMMIT');
+      res.json({ message: 'تم تحديث بيانات الطالب بنجاح', studentId: id });
+
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+
+  } catch (error) {
+    console.error('Error updating student:', error);
+    res.status(500).json({ error: 'حدث خطأ في تحديث بيانات الطالب' });
+  }
+});
+
+// DELETE /api/students/:id - Delete student (soft delete)
+router.delete('/:id', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const client = await db.connect();
+    await client.query('BEGIN');
+
+    try {
+      // Check if student exists
+      const existingStudent = await client.query('SELECT id FROM students WHERE id = $1', [id]);
+      if (existingStudent.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'الطالب غير موجود' });
+      }
+
+      // Remove student from all classes
+      await client.query('DELETE FROM student_enrollments WHERE student_id = $1', [id]);
+
+      // Set student status to withdrawn instead of hard delete
+      await client.query('UPDATE students SET status = $1 WHERE id = $2', ['withdrawn', id]);
+
+      // Also deactivate the user
+      await client.query('UPDATE users SET is_active = false WHERE id = $1', [id]);
+
+      await client.query('COMMIT');
+      res.json({ message: 'تم حذف الطالب بنجاح' });
+
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+
+  } catch (error) {
+    console.error('Error deleting student:', error);
+    res.status(500).json({ error: 'حدث خطأ في حذف الطالب' });
   }
 });
 

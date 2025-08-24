@@ -3,12 +3,8 @@ const router = express.Router();
 const db = require('../db');
 const { body, validationResult } = require('express-validator');
 
-// Middleware to check if user is admin (you'll need to implement authentication middleware)
-const requireAuth = (req, res, next) => {
-  // TODO: Implement proper authentication middleware
-  // For now, we'll assume the user is authenticated
-  next();
-};
+// Import authentication middleware
+const { authenticateToken: requireAuth } = require('../middleware/auth');
 
 const requireAdmin = (req, res, next) => {
   // TODO: Check if user has admin role
@@ -41,14 +37,16 @@ const schoolValidationRules = [
 // GET /api/schools - Get all schools
 router.get('/', requireAuth, async (req, res) => {
   try {
+    console.log('GET /schools called');
     const result = await db.query(`
       SELECT 
         s.id, s.name, s.address, s.phone, s.email, s.established_date, s.is_active, s.created_at
       FROM schools s
       ORDER BY s.created_at DESC
     `);
+    console.log('Schools found:', result.rows.length);
 
-    res.json({ schools: result.rows });
+    res.json(result.rows);
   } catch (err) {
     console.error('Get schools error:', err);
     res.status(500).json({ error: 'حدث خطأ أثناء جلب مجمع الحلقات' });
