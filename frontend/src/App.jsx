@@ -8,6 +8,7 @@ import TeacherRegister from "./pages/TeacherRegister";
 import SchoolManagement from "./pages/SchoolManagement";
 import ClassManagement from "./pages/ClassManagement";
 import TeacherManagement from "./pages/TeacherManagement";
+import AdministratorManagement from "./pages/AdministratorManagement";
 import StudentManagement from "./pages/StudentManagement";
 import About from "./pages/About";
 import Home from "./pages/home";
@@ -67,6 +68,14 @@ export default function App() {
             element={
               <ProtectedRoute requiredRole={["admin", "supervisor"]}>
                 <TeacherManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/administrators"
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <AdministratorManagement />
               </ProtectedRoute>
             }
           />

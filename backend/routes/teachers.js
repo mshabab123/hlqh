@@ -143,8 +143,8 @@ router.post('/', registerLimiter, teacherValidationRules, async (req, res) => {
     
     const userTypeArabic = {
       teacher: 'المعلم',
-      admin: 'المدير',
-      administrator: 'المسؤول',
+      admin: 'مدير منصة',
+      administrator: 'مدير مجمع',
       supervisor: 'المشرف'
     };
 

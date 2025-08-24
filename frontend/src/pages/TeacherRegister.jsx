@@ -44,7 +44,7 @@ export default function TeacherRegister() {
 
   const fetchSchools = async () => {
     try {
-      const response = await axios.get(`${API_BASE}/api/schools`);
+      const response = await axios.get(`${API_BASE}/api/schools/public`);
       setSchools(response.data.schools || []);
     } catch (err) {
       console.error('Error fetching schools:', err);
@@ -141,8 +141,8 @@ export default function TeacherRegister() {
               } rounded-lg focus:border-accent focus:outline-none transition-colors bg-white`}
             >
               <option value="teacher">معلم</option>
-              <option value="admin">مدير</option>
-              <option value="administrator">مسؤول</option>
+              <option value="admin">مدير منصة</option>
+              <option value="administrator">مدير مجمع</option>
               <option value="supervisor">مشرف</option>
             </select>
             {inputErrors.user_type && (
@@ -372,7 +372,7 @@ export default function TeacherRegister() {
           type="submit"
           className="w-full bg-[var(--color-primary-500)] hover:bg-[var(--color-primary-700)] text-white py-3 rounded-lg font-semibold transition-colors"
         >
-          تسجيل ك{form.user_type === 'teacher' ? 'معلم' : form.user_type === 'admin' ? 'مدير' : form.user_type === 'administrator' ? 'مسؤول' : 'مشرف'}
+          تسجيل ك{form.user_type === 'teacher' ? 'معلم' : form.user_type === 'admin' ? 'مدير منصة' : form.user_type === 'administrator' ? 'مدير مجمع' : 'مشرف'}
         </button>
       </form>
       {showModal && (

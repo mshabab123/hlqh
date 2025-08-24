@@ -31,6 +31,7 @@ const getNavLinks = (userRole) => {
     { to: "/schools", label: "إدارة مجمع الحلقات", icon: <AiOutlineBank /> },
     { to: "/classes", label: "إدارة الحلقة", icon: <AiOutlineAppstore /> },
     { to: "/teachers", label: "إدارة المعلمين", icon: <AiOutlineTeam /> },
+    { to: "/administrators", label: "إدارة مديري المجمعات", icon: <AiOutlineUser /> },
   ];
 
   const administratorLinks = [

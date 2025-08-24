@@ -4,7 +4,8 @@
       "Bash(node:*)",
       "Bash(curl:*)",
       "Bash(npm run dev:*)",
-      "Bash(psql:*)"
+      "Bash(psql:*)",
+      "Bash(npm start)"
     ],
     "deny": [],
     "ask": [],

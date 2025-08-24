@@ -223,7 +223,7 @@ const StudentCard = ({ student, onView, onEdit, onToggleStatus }) => {
             {!hasSchoolAssignment && (
               <div className="flex items-center gap-1 mt-1 text-orange-600">
                 <AiOutlineWarning className="text-sm" />
-                <span className="text-xs">غير مُعيَّن إلى مدرسة</span>
+                <span className="text-xs">               لا يسمح بتنشيط حساب الطالب لان الطالب غير مسجل في مجمع حلقات، لتسجيل الطالب يجب الدخول على تعديل ومن ثم تعديل بينات الطالب وتعيينه في مجمع حلقات وبعد ذلك اضغط على تفعيل لتنشيط الحساب.</span>
               </div>
             )}
           </div>
@@ -280,7 +280,7 @@ const StudentCard = ({ student, onView, onEdit, onToggleStatus }) => {
         ) : hasSchoolAssignment ? (
           <><AiOutlineCheck /> تفعيل</>
         ) : (
-          <><AiOutlineWarning /> غير مُعيَّن</>
+          <><AiOutlineWarning /> تفعيل</>
         )}
       </button>
     </div>
@@ -400,6 +400,9 @@ export default function StudentManagement() {
       if (currentStudent.notes && currentStudent.notes.trim()) {
         studentData.notes = currentStudent.notes.trim();
       }
+      if (currentStudent.school_id) {
+        studentData.school_id = currentStudent.school_id;
+      }
       if (currentStudent.class_id) {
         studentData.class_id = currentStudent.class_id;
       }
@@ -466,7 +469,7 @@ export default function StudentManagement() {
       
       // Check if trying to activate student without school assignment
       if (newStatus === 'active' && !student.school_id) {
-        setError("لا يمكن تفعيل الطالب بدون تعيينه إلى مدرسة. يرجى تعديل بيانات الطالب وتحديد المدرسة أولاً.");
+        alert("يجب أولاً تسجيل الطالب في مدرسة قبل تفعيل حسابه. يرجى تعديل بيانات الطالب وتحديد المدرسة.");
         return;
       }
       

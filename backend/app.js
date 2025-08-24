@@ -15,6 +15,7 @@ app.use('/api/users', require('./routes/users')); // Keep for backward compatibi
 app.use('/api/parents', require('./routes/parents')); // New parent registration
 app.use('/api/students', require('./routes/students')); // New student registration
 app.use('/api/teachers', require('./routes/teachers')); // New teacher registration
+app.use('/api/administrators', require('./routes/administrators')); // Administrator management
 app.use('/api/schools', require('./routes/schools'));
 app.use('/api/classes', require('./routes/classes'));
 

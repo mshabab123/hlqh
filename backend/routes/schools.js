@@ -34,7 +34,27 @@ const schoolValidationRules = [
     .withMessage('حالة التفعيل يجب أن تكون صحيح أو خطأ')
 ];
 
-// GET /api/schools - Get all schools
+// GET /api/schools/public - Get all active schools (public endpoint for registration)
+router.get('/public', async (req, res) => {
+  try {
+    console.log('GET /schools/public called');
+    const result = await db.query(`
+      SELECT 
+        s.id, s.name
+      FROM schools s
+      WHERE s.is_active = true
+      ORDER BY s.name
+    `);
+    console.log('Public schools found:', result.rows.length);
+
+    res.json({ schools: result.rows });
+  } catch (err) {
+    console.error('Get public schools error:', err);
+    res.status(500).json({ error: 'حدث خطأ أثناء جلب مجمع الحلقات' });
+  }
+});
+
+// GET /api/schools - Get all schools (protected endpoint for management)
 router.get('/', requireAuth, async (req, res) => {
   try {
     console.log('GET /schools called');
@@ -46,7 +66,7 @@ router.get('/', requireAuth, async (req, res) => {
     `);
     console.log('Schools found:', result.rows.length);
 
-    res.json(result.rows);
+    res.json({ schools: result.rows });
   } catch (err) {
     console.error('Get schools error:', err);
     res.status(500).json({ error: 'حدث خطأ أثناء جلب مجمع الحلقات' });
