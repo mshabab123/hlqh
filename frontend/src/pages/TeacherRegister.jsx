@@ -9,6 +9,8 @@ import {
 import SuccessModal from "../components/SuccessModal"; // adjust path if needed
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
+# this just start of the teacher register page
+
 export default function TeacherRegister() {
   const [showModal, setShowModal] = useState(false);
   const [registrationResponse, setRegistrationResponse] = useState(null);
