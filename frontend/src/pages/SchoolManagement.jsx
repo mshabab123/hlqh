@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { AiOutlinePlus, AiOutlineEdit, AiOutlineEye, AiOutlineCheck, AiOutlineClose } from "react-icons/ai";
+import { AiOutlinePlus, AiOutlineEdit, AiOutlineEye, AiOutlineCheck, AiOutlineClose, AiOutlineDelete } from "react-icons/ai";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
@@ -266,6 +266,30 @@ export default function SchoolManagement() {
     }
   };
 
+  const handleDeleteSchool = async (school) => {
+    const confirmed = window.confirm(
+      `هل أنت متأكد من حذف مجمع الحلقات "${school.name}"؟\n\n` +
+      `تحذير: هذا الإجراء سيقوم بما يلي:\n` +
+      `• إلغاء تفعيل مجمع الحلقات\n` +
+      `• منع إنشاء حلقات أو طلاب جدد\n` +
+      `• إضافة "(محذوف)" لاسم المجمع\n\n` +
+      `ملاحظة: إذا كان هناك حلقات أو طلاب مسجلين، سيتم رفض الحذف`
+    );
+    
+    if (!confirmed) return;
+    
+    try {
+      await axios.delete(`${API_BASE}/api/schools/${school.id}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      
+      fetchSchools();
+    } catch (err) {
+      setError(err.response?.data?.error || "حدث خطأ في حذف مجمع الحلقات");
+      console.error("Error deleting school:", err);
+    }
+  };
+
 
   if (loading) {
     return (
@@ -319,24 +343,31 @@ export default function SchoolManagement() {
               )}
             </div>
             
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <button
                 onClick={() => setEditingSchool(school)}
-                className="flex items-center gap-1 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+                className="flex items-center gap-1 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
               >
                 <AiOutlineEdit /> تعديل
               </button>
               
               <button
                 onClick={() => toggleSchoolStatus(school.id, school.is_active)}
-                className={`flex items-center gap-1 px-3 py-1 rounded text-white ${
+                className={`flex items-center gap-1 px-3 py-1 rounded text-white text-sm ${
                   school.is_active 
-                    ? 'bg-red-500 hover:bg-red-600' 
+                    ? 'bg-orange-500 hover:bg-orange-600' 
                     : 'bg-green-500 hover:bg-green-600'
                 }`}
               >
                 {school.is_active ? <AiOutlineClose /> : <AiOutlineCheck />}
-                {school.is_active ? 'إلغاء التفعيل' : 'تفعيل'}
+                {school.is_active ? 'إيقاف' : 'تفعيل'}
+              </button>
+              
+              <button
+                onClick={() => handleDeleteSchool(school)}
+                className="flex items-center gap-1 px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
+              >
+                <AiOutlineDelete /> حذف
               </button>
             </div>
           </div>

@@ -10,21 +10,31 @@ import ClassManagement from "./pages/ClassManagement";
 import TeacherManagement from "./pages/TeacherManagement";
 import AdministratorManagement from "./pages/AdministratorManagement";
 import StudentManagement from "./pages/StudentManagement";
+import UserManagement from "./pages/UserManagement";
+import SemesterManagement from "./pages/SemesterManagement";
+import StudentGrading from "./pages/StudentGrading";
+import ClassCourseManagement from "./pages/ClassCourseManagement";
 import About from "./pages/About";
 import Home from "./pages/home";
 import Navbar from "./components/Navbar"; // Import your Navbar component
 import AuthNavbar from "./components/AuthNavbar"; // (optional: navbar for logged-in users)
+import Sidebar from "./components/SidebarSimple"; // Import the Simple Sidebar component
+import Layout from "./components/Layout"; // Import the Layout component
 
 export default function App() {
   const location = useLocation();
 
-  // Define which routes shouldn't show the navbar
+  // Define which routes shouldn't show the navbar or sidebar
   const noNavbarRoutes = ["/Login"];
+  const noSidebarRoutes = ["/Login", "/", "/registration", "/parent-registration", "/student-registration", "/TeacherRegister", "/about"];
   const isLoggedIn = !!localStorage.getItem("token");
 
   return (
     <>
       <div className="min-h-screen text-primary font-arabic">
+        {/* Show sidebar for logged-in users on protected pages */}
+        {isLoggedIn && !noSidebarRoutes.includes(location.pathname) && <Sidebar />}
+        
         {/* Show navbar if not in excluded routes */}
         {!noNavbarRoutes.includes(location.pathname) &&
           (isLoggedIn ? <AuthNavbar /> : <Navbar />)}
@@ -43,7 +53,9 @@ export default function App() {
             path="/Home"
             element={
               <ProtectedRoute>
-                <Home />
+                <Layout>
+                  <Home />
+                </Layout>
               </ProtectedRoute>
             }
           />
@@ -51,7 +63,9 @@ export default function App() {
             path="/schools"
             element={
               <ProtectedRoute requiredRole="admin">
-                <SchoolManagement />
+                <Layout>
+                  <SchoolManagement />
+                </Layout>
               </ProtectedRoute>
             }
           />
@@ -59,7 +73,9 @@ export default function App() {
             path="/classes"
             element={
               <ProtectedRoute requiredRole={["admin", "administrator"]}>
-                <ClassManagement />
+                <Layout>
+                  <ClassManagement />
+                </Layout>
               </ProtectedRoute>
             }
           />
@@ -67,7 +83,9 @@ export default function App() {
             path="/teachers"
             element={
               <ProtectedRoute requiredRole={["admin", "supervisor"]}>
-                <TeacherManagement />
+                <Layout>
+                  <TeacherManagement />
+                </Layout>
               </ProtectedRoute>
             }
           />
@@ -75,7 +93,19 @@ export default function App() {
             path="/administrators"
             element={
               <ProtectedRoute requiredRole="admin">
-                <AdministratorManagement />
+                <Layout>
+                  <AdministratorManagement />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/user-management"
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <Layout>
+                  <UserManagement />
+                </Layout>
               </ProtectedRoute>
             }
           />
@@ -83,13 +113,51 @@ export default function App() {
             path="/students"
             element={
               <ProtectedRoute>
-                <StudentManagement />
+                <Layout>
+                  <StudentManagement />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/semesters"
+            element={
+              <ProtectedRoute requiredRole={["admin", "administrator"]}>
+                <Layout>
+                  <SemesterManagement />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/grading"
+            element={
+              <ProtectedRoute requiredRole={["admin", "administrator", "teacher"]}>
+                <Layout>
+                  <StudentGrading />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/class-courses"
+            element={
+              <ProtectedRoute requiredRole={["admin", "administrator"]}>
+                <Layout>
+                  <ClassCourseManagement />
+                </Layout>
               </ProtectedRoute>
             }
           />
           <Route
             path="/dashboard"
-            element={<ProtectedRoute>{/* <Dashboard /> */}</ProtectedRoute>}
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  {/* <Dashboard /> */}
+                </Layout>
+              </ProtectedRoute>
+            }
           />
         </Routes>
       </div>

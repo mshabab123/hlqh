@@ -159,4 +159,61 @@ router.put('/:id', requireAuth, requireAdmin, schoolValidationRules, async (req,
   }
 });
 
+// DELETE /api/schools/:id - Delete school (soft delete)
+router.delete('/:id', requireAuth, requireAdmin, async (req, res) => {
+  const client = await db.connect();
+  try {
+    const { id } = req.params;
+
+    await client.query('BEGIN');
+
+    // Check if school exists
+    const schoolCheck = await client.query('SELECT id, name FROM schools WHERE id = $1', [id]);
+    if (schoolCheck.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'مجمع الحلقات غير موجود' });
+    }
+
+    // Check if school has active classes
+    const classesCheck = await client.query('SELECT COUNT(*) as count FROM classes WHERE school_id = $1', [id]);
+    if (classesCheck.rows[0].count > 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ 
+        error: 'لا يمكن حذف مجمع الحلقات لوجود حلقات مرتبطة به. يجب حذف الحلقات أولاً أو نقلها إلى مجمع آخر' 
+      });
+    }
+
+    // Check if school has students
+    const studentsCheck = await client.query('SELECT COUNT(*) as count FROM students WHERE school_id = $1', [id]);
+    if (studentsCheck.rows[0].count > 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ 
+        error: 'لا يمكن حذف مجمع الحلقات لوجود طلاب مسجلين به. يجب نقل الطلاب إلى مجمع آخر أولاً' 
+      });
+    }
+
+    // Soft delete - set is_active to false instead of hard delete
+    await client.query(`
+      UPDATE schools SET 
+        is_active = false,
+        name = name || ' (محذوف)'
+      WHERE id = $1
+    `, [id]);
+
+    await client.query('COMMIT');
+    
+    res.json({ 
+      message: '✅ تم حذف مجمع الحلقات بنجاح',
+      schoolId: id
+    });
+
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Delete school error:', err);
+    res.status(500).json({ error: 'حدث خطأ أثناء حذف مجمع الحلقات' });
+  } finally {
+    client.release();
+  }
+});
+
 module.exports = router;

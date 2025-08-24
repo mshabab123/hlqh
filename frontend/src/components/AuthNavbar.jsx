@@ -21,34 +21,12 @@ const getNavLinks = (userRole) => {
     { to: "/home", label: "الرئيسية", icon: <AiOutlineHome /> },
     { to: "/dashboard", label: "لوحة التحكم", icon: <AiOutlineDashboard /> },
     { to: "/children", label: "الأبناء", icon: <AiOutlineTeam /> },
-    { to: "/students", label: "الطلاب", icon: <AiOutlineUser /> },
     { to: "/reports", label: "التقارير", icon: <AiOutlineFileText /> },
     { to: "/profile", label: "الملف الشخصي", icon: <AiOutlineUser /> },
   ];
 
-  // Add role-specific links
-  const adminLinks = [
-    { to: "/schools", label: "إدارة مجمع الحلقات", icon: <AiOutlineBank /> },
-    { to: "/classes", label: "إدارة الحلقة", icon: <AiOutlineAppstore /> },
-    { to: "/teachers", label: "إدارة المعلمين", icon: <AiOutlineTeam /> },
-    { to: "/administrators", label: "إدارة مديري المجمعات", icon: <AiOutlineUser /> },
-  ];
-
-  const administratorLinks = [
-    { to: "/classes", label: "إدارة الحلقة", icon: <AiOutlineAppstore /> },
-  ];
-
-  const supervisorLinks = [
-    { to: "/teachers", label: "إدارة المعلمين", icon: <AiOutlineTeam /> },
-  ];
-
-  if (userRole === 'admin') {
-    return [...baseLinks, ...adminLinks];
-  } else if (userRole === 'administrator') {
-    return [...baseLinks, ...administratorLinks];
-  } else if (userRole === 'supervisor') {
-    return [...baseLinks, ...supervisorLinks];
-  }
+  // All management links have been moved to the home page cards
+  // Keep only basic navigation in the navbar
 
   return baseLinks;
 };

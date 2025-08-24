@@ -154,6 +154,7 @@ router.get('/', auth, async (req, res) => {
         u.id, u.first_name, u.second_name, u.third_name, u.last_name,
         u.email, u.phone, u.address, u.date_of_birth, u.is_active,
         s.school_level, s.status, s.enrollment_date, s.graduation_date, s.notes,
+        s.memorized_surah_id, s.memorized_ayah_number, s.target_surah_id, s.target_ayah_number,
         sc.name as school_name, sc.id as school_id,
         c.name as class_name, c.id as class_id
       FROM users u
@@ -209,7 +210,8 @@ router.get('/:id', auth, async (req, res) => {
         u.id, u.first_name, u.second_name, u.third_name, u.last_name,
         u.email, u.phone, u.date_of_birth, u.created_at,
         s.school_level, s.status, s.enrollment_date, s.notes,
-        s.parent_id
+        s.parent_id, s.memorized_surah_id, s.memorized_ayah_number,
+        s.target_surah_id, s.target_ayah_number, s.last_memorization_update
       FROM users u
       JOIN students s ON u.id = s.id
       WHERE u.id = $1
@@ -289,7 +291,8 @@ router.post('/manage', (req, res, next) => {
     const {
       id, first_name, second_name, third_name, last_name,
       email, phone, address, date_of_birth, school_level,
-      school_id, class_id, notes, status = 'active'
+      school_id, class_id, notes, status = 'active',
+      memorized_surah_id, memorized_ayah_number, target_surah_id, target_ayah_number
     } = req.body;
 
     const client = await db.connect();
@@ -318,12 +321,16 @@ router.post('/manage', (req, res, next) => {
 
       // Create student record
       const studentQuery = `
-        INSERT INTO students (id, school_level, status, notes)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO students (id, school_level, status, notes, memorized_surah_id, memorized_ayah_number, target_surah_id, target_ayah_number)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING *
       `;
       
-      await client.query(studentQuery, [id, school_level, status, notes || null]);
+      await client.query(studentQuery, [
+        id, school_level, status, notes || null,
+        memorized_surah_id || null, memorized_ayah_number || null,
+        target_surah_id || null, target_ayah_number || null
+      ]);
 
       // Add student to class or school if provided
       if (class_id) {
@@ -430,7 +437,8 @@ router.put('/:id', (req, res, next) => {
     const {
       first_name, second_name, third_name, last_name,
       email, phone, address, date_of_birth, school_level,
-      school_id, class_id, notes, status
+      school_id, class_id, notes, status,
+      memorized_surah_id, memorized_ayah_number, target_surah_id, target_ayah_number
     } = req.body;
 
     const client = await db.connect();
@@ -463,11 +471,18 @@ router.put('/:id', (req, res, next) => {
       // Update student record
       const studentQuery = `
         UPDATE students 
-        SET school_level = $1, status = $2, notes = $3
-        WHERE id = $4
+        SET school_level = $1, status = $2, notes = $3,
+            memorized_surah_id = $4, memorized_ayah_number = $5,
+            target_surah_id = $6, target_ayah_number = $7
+        WHERE id = $8
       `;
       
-      await client.query(studentQuery, [school_level, status, notes || null, id]);
+      await client.query(studentQuery, [
+        school_level, status, notes || null,
+        memorized_surah_id || null, memorized_ayah_number || null,
+        target_surah_id || null, target_ayah_number || null,
+        id
+      ]);
 
       // Handle class/school assignment changes
       if (class_id !== undefined || school_id !== undefined) {
@@ -535,7 +550,7 @@ router.put('/:id', (req, res, next) => {
   }
 });
 
-// DELETE /api/students/:id - Delete student (soft delete)
+// DELETE /api/students/:id - Delete student (hard delete)
 router.delete('/:id', auth, async (req, res) => {
   try {
     const { id } = req.params;
@@ -551,17 +566,20 @@ router.delete('/:id', auth, async (req, res) => {
         return res.status(404).json({ error: 'الطالب غير موجود' });
       }
 
-      // Remove student from all classes
+      // Remove student from all classes (foreign key relationships)
       await client.query('DELETE FROM student_enrollments WHERE student_id = $1', [id]);
 
-      // Set student status to withdrawn instead of hard delete
-      await client.query('UPDATE students SET status = $1 WHERE id = $2', ['withdrawn', id]);
+      // Delete any attendance records
+      await client.query('DELETE FROM attendance WHERE student_id = $1', [id]);
 
-      // Also deactivate the user
-      await client.query('UPDATE users SET is_active = false WHERE id = $1', [id]);
+      // Delete student record (hard delete)
+      await client.query('DELETE FROM students WHERE id = $1', [id]);
+
+      // Delete user account (hard delete)
+      await client.query('DELETE FROM users WHERE id = $1', [id]);
 
       await client.query('COMMIT');
-      res.json({ message: 'تم حذف الطالب بنجاح' });
+      res.json({ message: 'تم حذف الطالب نهائياً من قاعدة البيانات' });
 
     } catch (error) {
       await client.query('ROLLBACK');

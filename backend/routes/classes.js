@@ -6,10 +6,105 @@ const { body, validationResult } = require('express-validator');
 // Import authentication middleware
 const { authenticateToken: requireAuth } = require('../middleware/auth');
 
+// Helper function to convert Surah name to ID (reverse order: الناس=1, البقرة=114)
+const getSurahIdFromName = (surahName) => {
+  const surahMapping = {
+    'الناس': 114, 'الفلق': 113, 'الإخلاص': 112, 'المسد': 111, 'النصر': 110,
+    'الكافرون': 109, 'الكوثر': 108, 'الماعون': 107, 'قريش': 106, 'الفيل': 105,
+    'الهمزة': 104, 'العصر': 103, 'التكاثر': 102, 'القارعة': 101, 'العاديات': 100,
+    'الزلزلة': 99, 'البينة': 98, 'القدر': 97, 'العلق': 96, 'التين': 95,
+    'الشرح': 94, 'الضحى': 93, 'الليل': 92, 'الشمس': 91, 'البلد': 90,
+    'الفجر': 89, 'الغاشية': 88, 'الأعلى': 87, 'الطارق': 86, 'البروج': 85,
+    'الانشقاق': 84, 'المطففين': 83, 'الانفطار': 82, 'التكوير': 81, 'عبس': 80,
+    'النازعات': 79, 'النبأ': 78, 'المرسلات': 77, 'الإنسان': 76, 'القيامة': 75,
+    'المدثر': 74, 'المزمل': 73, 'الجن': 72, 'نوح': 71, 'المعارج': 70,
+    'الحاقة': 69, 'القلم': 68, 'الملك': 67, 'التحريم': 66, 'الطلاق': 65,
+    'التغابن': 64, 'المنافقون': 63, 'الجمعة': 62, 'الصف': 61, 'الممتحنة': 60,
+    'الحشر': 59, 'المجادلة': 58, 'الحديد': 57, 'الواقعة': 56, 'الرحمن': 55,
+    'القمر': 54, 'النجم': 53, 'الطور': 52, 'الذاريات': 51, 'ق': 50,
+    'الحجرات': 49, 'الفتح': 48, 'محمد': 47, 'الأحقاف': 46, 'الجاثية': 45,
+    'الدخان': 44, 'الزخرف': 43, 'الشورى': 42, 'فصلت': 41, 'غافر': 40,
+    'الزمر': 39, 'ص': 38, 'الصافات': 37, 'يس': 36, 'فاطر': 35,
+    'سبأ': 34, 'الأحزاب': 33, 'السجدة': 32, 'لقمان': 31, 'الروم': 30,
+    'العنكبوت': 29, 'القصص': 28, 'النمل': 27, 'الشعراء': 26, 'الفرقان': 25,
+    'النور': 24, 'المؤمنون': 23, 'الحج': 22, 'الأنبياء': 21, 'طه': 20,
+    'مريم': 19, 'الكهف': 18, 'الإسراء': 17, 'النحل': 16, 'الحجر': 15,
+    'إبراهيم': 14, 'الرعد': 13, 'يوسف': 12, 'هود': 11, 'يونس': 10,
+    'التوبة': 9, 'الأنفال': 8, 'الأعراف': 7, 'الأنعام': 6, 'المائدة': 5,
+    'النساء': 4, 'آل عمران': 3, 'البقرة': 2, 'الفاتحة': 1
+  };
+  return surahMapping[surahName] || null;
+};
+
+// Function to update student's overall memorization progress
+const updateStudentMemorizationProgress = async (studentId) => {
+  try {
+    console.log('Updating memorization progress for student:', studentId);
+    
+    // Get all memorization grades for this student, ordered by most recent first
+    const grades = await db.query(`
+      SELECT start_reference, end_reference, date_graded
+      FROM grades 
+      WHERE student_id = $1 
+        AND start_reference IS NOT NULL 
+        AND end_reference IS NOT NULL
+        AND grade_type = 'memorization'
+      ORDER BY date_graded DESC, created_at DESC
+    `, [studentId]);
+    
+    if (grades.rows.length === 0) {
+      console.log('No memorization grades found for student:', studentId);
+      return;
+    }
+    
+    // Find the most advanced memorization point
+    let maxSurahId = 114; // Start from الناس (highest number)
+    let maxAyah = 1;
+    
+    for (const grade of grades.rows) {
+      const startRef = grade.start_reference.split(':');
+      const endRef = grade.end_reference.split(':');
+      
+      if (startRef.length === 2 && endRef.length === 2) {
+        const startSurahId = getSurahIdFromName(startRef[0]);
+        const endSurahId = getSurahIdFromName(endRef[0]);
+        const endAyah = parseInt(endRef[1]);
+        
+        if (startSurahId && endSurahId && endAyah) {
+          // Lower surah ID means more advanced (البقرة=2 is more advanced than الناس=114)
+          if (endSurahId < maxSurahId || (endSurahId === maxSurahId && endAyah > maxAyah)) {
+            maxSurahId = endSurahId;
+            maxAyah = endAyah;
+          }
+        }
+      }
+    }
+    
+    // Update student's memorization progress
+    const result = await db.query(`
+      UPDATE students 
+      SET memorized_surah_id = $1,
+          memorized_ayah_number = $2,
+          last_memorization_update = NOW()
+      WHERE id = $3
+      RETURNING memorized_surah_id, memorized_ayah_number
+    `, [maxSurahId, maxAyah, studentId]);
+    
+    console.log('Updated memorization progress:', result.rows[0]);
+    
+  } catch (error) {
+    console.error('Error updating memorization progress:', error);
+  }
+};
+
 // Class validation rules
 const classValidationRules = [
   body('name').notEmpty().withMessage('اسم الحلقة مطلوب'),
   body('school_id').isUUID().withMessage('معرف مجمع الحلقات مطلوب'),
+  body('semester_id')
+    .isInt({ min: 1 })
+    .withMessage('معرف الفصل الدراسي مطلوب'),
+  body('school_level').notEmpty().withMessage('المستوى الدراسي مطلوب'),
   body('teacher_id')
     .optional({ checkFalsy: true })
     .isLength({ min: 10, max: 10 })
@@ -27,12 +122,14 @@ router.get('/', requireAuth, async (req, res) => {
     
     let query = `
       SELECT 
-        c.id, c.name, c.max_students, c.room_number as teacher_id,
-        c.is_active, c.created_at, c.school_id,
+        c.id, c.name, c.max_students, c.room_number as teacher_id, c.school_level,
+        c.is_active, c.created_at, c.school_id, c.semester_id,
         s.name as school_name,
+        sem.display_name as semester_name,
         CASE WHEN u.id IS NOT NULL THEN CONCAT(u.first_name, ' ', u.last_name) ELSE NULL END as teacher_name
       FROM classes c
       LEFT JOIN schools s ON c.school_id = s.id
+      LEFT JOIN semesters sem ON c.semester_id = sem.id
       LEFT JOIN users u ON c.room_number = u.id
       WHERE 1=1
     `;
@@ -125,10 +222,10 @@ router.post('/', requireAuth, classValidationRules, async (req, res) => {
 
     const result = await client.query(`
       INSERT INTO classes (
-        name, school_id, school_level, max_students, room_number, is_active
-      ) VALUES ($1, $2, $3, $4, $5, $6)
+        name, school_id, semester_id, school_level, max_students, room_number, is_active
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING id
-    `, [name, school_id, 'عام', max_students, teacher_id || null, is_active]);
+    `, [name, school_id, req.body.semester_id, req.body.school_level || 'عام', max_students, teacher_id || null, is_active]);
 
     await client.query('COMMIT');
     
@@ -239,6 +336,354 @@ router.delete('/:id', requireAuth, async (req, res) => {
     res.status(500).json({ error: 'حدث خطأ أثناء حذف الحلقة' });
   } finally {
     client.release();
+  }
+});
+
+// Get students in a class
+router.get('/:id/students', requireAuth, async (req, res) => {
+  try {
+    const { id: classId } = req.params;
+    
+    const result = await db.query(`
+      SELECT 
+        s.id,
+        u.first_name,
+        u.second_name, 
+        u.third_name,
+        u.last_name,
+        s.school_level,
+        u.date_of_birth,
+        u.phone,
+        u.email,
+        u.is_active,
+        se.enrollment_date,
+        se.status
+      FROM students s
+      JOIN student_enrollments se ON s.id = se.student_id
+      JOIN users u ON s.id = u.id
+      WHERE se.class_id = $1 AND (se.status = 'enrolled' OR se.status IS NULL)
+      ORDER BY u.first_name, u.last_name
+    `, [classId]);
+    
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching class students:', error);
+    res.status(500).json({ error: 'حدث خطأ في جلب طلاب الحلقة' });
+  }
+});
+
+// Add student to class
+router.post('/:id/students', requireAuth, async (req, res) => {
+  try {
+    const { id: classId } = req.params;
+    const { student_id } = req.body;
+    
+    if (!student_id) {
+      return res.status(400).json({ error: 'معرف الطالب مطلوب' });
+    }
+    
+    // Check if student exists
+    const studentCheck = await db.query('SELECT s.id FROM students s JOIN users u ON s.id = u.id WHERE s.id = $1', [student_id]);
+    if (studentCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'الطالب غير موجود' });
+    }
+    
+    // Check if class exists
+    const classCheck = await db.query('SELECT id FROM classes WHERE id = $1', [classId]);
+    if (classCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'الحلقة غير موجودة' });
+    }
+    
+    // Add student to class (use UPSERT to handle duplicates)
+    const result = await db.query(`
+      INSERT INTO student_enrollments (student_id, class_id, enrollment_date, status)
+      VALUES ($1, $2, NOW(), 'enrolled')
+      ON CONFLICT (student_id, class_id) 
+      DO UPDATE SET status = 'enrolled', enrollment_date = NOW()
+      RETURNING *
+    `, [student_id, classId]);
+    
+    res.status(201).json({ 
+      message: 'تم إضافة الطالب للحلقة بنجاح',
+      enrollment: result.rows[0]
+    });
+    
+  } catch (error) {
+    console.error('Error adding student to class:', error);
+    res.status(500).json({ error: 'حدث خطأ في إضافة الطالب للحلقة' });
+  }
+});
+
+// Remove student from class
+router.delete('/:id/students/:studentId', requireAuth, async (req, res) => {
+  try {
+    const { id: classId, studentId } = req.params;
+    
+    const result = await db.query(`
+      UPDATE student_enrollments 
+      SET status = 'dropped', completion_date = NOW()
+      WHERE class_id = $1 AND student_id = $2 AND status = 'enrolled'
+      RETURNING *
+    `, [classId, studentId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'لم يتم العثور على الطالب في هذه الحلقة' });
+    }
+    
+    res.json({ message: 'تم إزالة الطالب من الحلقة بنجاح' });
+    
+  } catch (error) {
+    console.error('Error removing student from class:', error);
+    res.status(500).json({ error: 'حدث خطأ في إزالة الطالب من الحلقة' });
+  }
+});
+
+// Get available students (not in any class or in specific school)
+router.get('/:id/available-students', requireAuth, async (req, res) => {
+  try {
+    const { id: classId } = req.params;
+    
+    // Get students not in this class
+    const result = await db.query(`
+      SELECT DISTINCT
+        s.id,
+        u.first_name,
+        u.second_name,
+        u.third_name, 
+        u.last_name,
+        s.school_level,
+        u.date_of_birth,
+        u.is_active,
+        1 as priority
+      FROM students s
+      JOIN users u ON s.id = u.id
+      LEFT JOIN student_enrollments se ON s.id = se.student_id AND se.class_id = $1 AND se.status = 'enrolled'
+      WHERE se.student_id IS NULL 
+        AND u.is_active = true
+        AND s.status = 'active'
+      ORDER BY u.first_name, u.last_name
+      LIMIT 100
+    `, [classId]);
+    
+    res.json(result.rows);
+    
+  } catch (error) {
+    console.error('Error fetching available students:', error);
+    res.status(500).json({ error: 'حدث خطأ في جلب الطلاب المتاحين' });
+  }
+});
+
+// Get class with students and courses for grading
+router.get('/:id/grading', requireAuth, async (req, res) => {
+  try {
+    const { id: classId } = req.params;
+    
+    // Get class info
+    const classInfo = await db.query(`
+      SELECT c.*, s.name as school_name, sem.display_name as semester_name
+      FROM classes c
+      LEFT JOIN schools s ON c.school_id = s.id
+      LEFT JOIN semesters sem ON c.semester_id = sem.id
+      WHERE c.id = $1
+    `, [classId]);
+    
+    if (classInfo.rows.length === 0) {
+      return res.status(404).json({ error: 'الحلقة غير موجودة' });
+    }
+    
+    // Get students in the class
+    const students = await db.query(`
+      SELECT 
+        s.id,
+        u.first_name,
+        u.second_name, 
+        u.third_name,
+        u.last_name,
+        s.school_level,
+        se.enrollment_date,
+        se.status
+      FROM students s
+      JOIN student_enrollments se ON s.id = se.student_id
+      JOIN users u ON s.id = u.id
+      WHERE se.class_id = $1 AND (se.status = 'enrolled' OR se.status IS NULL) AND sc.status = 'active'
+      ORDER BY u.first_name, u.last_name
+    `, [classId]);
+    
+    // Get courses for this class
+    const courses = await db.query(`
+      SELECT id, name, percentage, requires_surah, description
+      FROM semester_courses
+      WHERE class_id = $1 AND is_active = true
+      ORDER BY name
+    `, [classId]);
+    
+    // Get existing grades for all students and courses
+    const grades = await db.query(`
+      SELECT student_id, course_id, grade_type, grade_value, max_grade, notes, date_graded, created_at
+      FROM grades
+      WHERE class_id = $1
+    `, [classId]);
+    
+    res.json({
+      class: classInfo.rows[0],
+      students: students.rows,
+      courses: courses.rows,
+      grades: grades.rows
+    });
+    
+  } catch (error) {
+    console.error('Error fetching class grading data:', error);
+    res.status(500).json({ error: 'حدث خطأ في جلب بيانات الدرجات' });
+  }
+});
+
+// Add new grade entry (allows multiple grades per course)
+router.post('/:id/grades', requireAuth, async (req, res) => {
+  try {
+    const { id: classId } = req.params;
+    const { student_id, course_id, grade_type, grade_value, max_grade, notes, start_reference, end_reference } = req.body;
+    
+    if (!student_id || !course_id || grade_value === undefined) {
+      return res.status(400).json({ error: 'البيانات المطلوبة: معرف الطالب، معرف المادة، والدرجة' });
+    }
+    
+    // Always insert new grade (allow multiple entries per course)
+    const result = await db.query(`
+      INSERT INTO grades (student_id, class_id, course_id, grade_type, grade_value, max_grade, notes, start_reference, end_reference, date_graded)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+      RETURNING *
+    `, [student_id, classId, course_id, grade_type || 'assignment', grade_value, max_grade || 100, notes, start_reference, end_reference]);
+    
+    // If this is a memorization grade with Quran references, update student's overall progress
+    if (start_reference && end_reference && grade_type === 'memorization') {
+      await updateStudentMemorizationProgress(student_id);
+    }
+    
+    res.json({ 
+      message: 'تم حفظ الدرجة بنجاح',
+      grade: result.rows[0]
+    });
+    
+  } catch (error) {
+    console.error('Error saving grade:', error);
+    res.status(500).json({ error: 'حدث خطأ في حفظ الدرجة' });
+  }
+});
+
+// Get grades summary for a class
+router.get('/:id/grades-summary', requireAuth, async (req, res) => {
+  try {
+    const { id: classId } = req.params;
+    
+    const result = await db.query(`
+      SELECT 
+        s.id as student_id,
+        u.first_name,
+        u.last_name,
+        sc.name as course_name,
+        sc.percentage as course_percentage,
+        g.grade_value,
+        g.max_grade,
+        CASE 
+          WHEN g.grade_value IS NOT NULL AND g.max_grade > 0 
+          THEN ROUND((g.grade_value::decimal / g.max_grade) * 100, 2)
+          ELSE NULL
+        END as percentage_score
+      FROM students s
+      JOIN student_enrollments se ON s.id = se.student_id
+      JOIN users u ON s.id = u.id
+      CROSS JOIN semester_courses sc
+      LEFT JOIN grades g ON s.id = g.student_id AND sc.id = g.course_id AND g.class_id = $1
+      WHERE se.class_id = $1 AND se.status = 'enrolled' AND sc.class_id = $1 AND sc.is_active = true
+      ORDER BY u.first_name, u.last_name, sc.name
+    `, [classId]);
+    
+    res.json(result.rows);
+    
+  } catch (error) {
+    console.error('Error fetching grades summary:', error);
+    res.status(500).json({ error: 'حدث خطأ في جلب ملخص الدرجات' });
+  }
+});
+
+// Update student goal (using target fields for consistency)
+router.put('/:id/student/:studentId/goal', requireAuth, async (req, res) => {
+  try {
+    const { id: classId, studentId } = req.params;
+    const { target_surah_id, target_ayah_number } = req.body;
+    
+    console.log('Updating goal for student:', studentId);
+    console.log('Goal data:', { target_surah_id, target_ayah_number });
+    
+    // First check if student exists
+    const studentCheck = await db.query('SELECT id FROM students WHERE id = $1', [studentId]);
+    if (studentCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'الطالب غير موجود' });
+    }
+    
+    const result = await db.query(`
+      UPDATE students 
+      SET target_surah_id = $1, 
+          target_ayah_number = $2
+      WHERE id = $3
+      RETURNING target_surah_id, target_ayah_number
+    `, [target_surah_id, target_ayah_number, studentId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'فشل في تحديث الهدف' });
+    }
+    
+    console.log('Goal updated successfully:', result.rows[0]);
+    
+    res.json({ 
+      success: true, 
+      goal: result.rows[0] 
+    });
+    
+  } catch (error) {
+    console.error('Error updating student goal:', error);
+    res.status(500).json({ error: 'حدث خطأ في تحديث الهدف: ' + error.message });
+  }
+});
+
+// Get individual student profile with complete grade history
+router.get('/:id/student/:studentId/profile', requireAuth, async (req, res) => {
+  try {
+    const { id: classId, studentId } = req.params;
+    
+    // Get student goal information
+    const studentGoal = await db.query(`
+      SELECT target_surah_id, target_ayah_number
+      FROM students
+      WHERE id = $1
+    `, [studentId]);
+    
+    // Get class courses
+    const courses = await db.query(`
+      SELECT id, name, percentage, requires_surah, description
+      FROM semester_courses
+      WHERE class_id = $1 AND is_active = true
+      ORDER BY name
+    `, [classId]);
+    
+    // Get all grades for this student in this class
+    const grades = await db.query(`
+      SELECT g.*, sc.name as course_name
+      FROM grades g
+      LEFT JOIN semester_courses sc ON g.course_id = sc.id
+      WHERE g.class_id = $1 AND g.student_id = $2
+      ORDER BY g.date_graded DESC, g.created_at DESC
+    `, [classId, studentId]);
+    
+    res.json({
+      courses: courses.rows,
+      grades: grades.rows,
+      goal: studentGoal.rows[0] || null
+    });
+    
+  } catch (error) {
+    console.error('Error fetching student profile:', error);
+    res.status(500).json({ error: 'حدث خطأ في جلب ملف الطالب' });
   }
 });
 

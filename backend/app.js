@@ -18,6 +18,10 @@ app.use('/api/teachers', require('./routes/teachers')); // New teacher registrat
 app.use('/api/administrators', require('./routes/administrators')); // Administrator management
 app.use('/api/schools', require('./routes/schools'));
 app.use('/api/classes', require('./routes/classes'));
+app.use('/api/semesters', require('./routes/semesters')); // Semester management
+app.use('/api/courses', require('./routes/courses')); // Course management  
+app.use('/api/grades', require('./routes/grades')); // Grade management
+app.use('/api/user-management', require('./routes/userManagement')); // User management (Admin only)
 
 // Default route
 app.get('/', (req, res) => {

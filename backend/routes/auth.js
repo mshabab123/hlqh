@@ -124,13 +124,14 @@ router.post('/login', async (req, res) => {
     }
 
     if (user.role === 'administrator') {
-      // Get assigned school for administrators
+      // For now, just get all schools - administrators can manage any school
+      // TODO: Add proper school assignment logic later
       const schoolResult = await db.query(`
         SELECT s.id, s.name 
         FROM schools s
-        JOIN administrators ad ON s.administrator_id = ad.id
-        WHERE ad.id = $1
-      `, [id]);
+        WHERE s.is_active = true
+        LIMIT 1
+      `);
       if (schoolResult.rows.length > 0) {
         additionalData.assigned_school = schoolResult.rows[0];
       }

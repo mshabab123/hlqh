@@ -5,7 +5,10 @@
       "Bash(curl:*)",
       "Bash(npm run dev:*)",
       "Bash(psql:*)",
-      "Bash(npm start)"
+      "Bash(npm start)",
+      "Bash(npm run:*)",
+      "Bash(npm restart)",
+      "Bash(npm install:*)"
     ],
     "deny": [],
     "ask": [],
