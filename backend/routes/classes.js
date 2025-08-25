@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { body, validationResult } = require('express-validator');
+const { calculateMemorizedPages, TOTAL_QURAN_PAGES } = require('../utils/quranData');
 
 // Import authentication middleware
 const { authenticateToken: requireAuth } = require('../middleware/auth');
@@ -58,8 +59,8 @@ const updateStudentMemorizationProgress = async (studentId) => {
     }
     
     // Find the most advanced memorization point
-    let maxSurahId = 114; // Start from الناس (highest number)
-    let maxAyah = 1;
+    let maxSurahId = null;
+    let maxAyah = 0;
     
     for (const grade of grades.rows) {
       const startRef = grade.start_reference.split(':');
@@ -72,12 +73,18 @@ const updateStudentMemorizationProgress = async (studentId) => {
         
         if (startSurahId && endSurahId && endAyah) {
           // Lower surah ID means more advanced (البقرة=2 is more advanced than الناس=114)
-          if (endSurahId < maxSurahId || (endSurahId === maxSurahId && endAyah > maxAyah)) {
+          if (maxSurahId === null || endSurahId < maxSurahId || (endSurahId === maxSurahId && endAyah > maxAyah)) {
             maxSurahId = endSurahId;
             maxAyah = endAyah;
           }
         }
       }
+    }
+    
+    // If no valid memorization found, don't update
+    if (maxSurahId === null) {
+      console.log('No valid memorization references found for student:', studentId);
+      return;
     }
     
     // Update student's memorization progress
@@ -651,9 +658,9 @@ router.get('/:id/student/:studentId/profile', requireAuth, async (req, res) => {
   try {
     const { id: classId, studentId } = req.params;
     
-    // Get student goal information
-    const studentGoal = await db.query(`
-      SELECT target_surah_id, target_ayah_number
+    // Get student information including memorization progress and goal
+    const studentInfo = await db.query(`
+      SELECT target_surah_id, target_ayah_number, memorized_surah_id, memorized_ayah_number
       FROM students
       WHERE id = $1
     `, [studentId]);
@@ -675,10 +682,29 @@ router.get('/:id/student/:studentId/profile', requireAuth, async (req, res) => {
       ORDER BY g.date_graded DESC, g.created_at DESC
     `, [classId, studentId]);
     
+    const studentData = studentInfo.rows[0] || {};
+    
+    // Calculate memorized pages
+    const memorizedPages = calculateMemorizedPages(
+      studentData.memorized_surah_id, 
+      studentData.memorized_ayah_number
+    );
+    
+    const pagesPercentage = memorizedPages > 0 ? 
+      Math.round((memorizedPages / TOTAL_QURAN_PAGES) * 100 * 100) / 100 : 0;
+    
     res.json({
       courses: courses.rows,
       grades: grades.rows,
-      goal: studentGoal.rows[0] || null
+      goal: studentData.target_surah_id ? {
+        target_surah_id: studentData.target_surah_id,
+        target_ayah_number: studentData.target_ayah_number
+      } : null,
+      memorized_surah_id: studentData.memorized_surah_id,
+      memorized_ayah_number: studentData.memorized_ayah_number,
+      memorized_pages: memorizedPages,
+      total_pages: TOTAL_QURAN_PAGES,
+      pages_percentage: pagesPercentage
     });
     
   } catch (error) {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
+import axios from "../utils/axiosConfig";
 import { 
   AiOutlineUser, 
   AiOutlineEdit, 
@@ -63,9 +63,7 @@ const RoleEditModal = ({ user, onClose, onUpdate }) => {
 
   const fetchRoles = async () => {
     try {
-      const response = await axios.get(`${API_BASE}/api/user-management/roles`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
+      const response = await axios.get(`${API_BASE}/api/user-management/roles`);
       setRoles(response.data.roles);
     } catch (error) {
       console.error('Error fetching roles:', error);
@@ -74,9 +72,7 @@ const RoleEditModal = ({ user, onClose, onUpdate }) => {
 
   const fetchSchools = async () => {
     try {
-      const response = await axios.get(`${API_BASE}/api/schools`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
+      const response = await axios.get(`${API_BASE}/api/schools`);
       setSchools(response.data.schools || []);
     } catch (error) {
       console.error('Error fetching schools:', error);
@@ -93,9 +89,7 @@ const RoleEditModal = ({ user, onClose, onUpdate }) => {
         school_id: ['administrator', 'supervisor', 'teacher'].includes(selectedRole) ? selectedSchoolId : null
       };
 
-      await axios.put(`${API_BASE}/api/user-management/users/${user.id}/role`, updateData, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
+      await axios.put(`${API_BASE}/api/user-management/users/${user.id}/role`, updateData);
 
       onUpdate();
       onClose();
@@ -339,9 +333,7 @@ export default function UserManagement() {
       if (roleFilter !== 'all') params.append('role', roleFilter);
       if (statusFilter !== 'all') params.append('status', statusFilter);
 
-      const response = await axios.get(`${API_BASE}/api/user-management/users?${params}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
+      const response = await axios.get(`${API_BASE}/api/user-management/users?${params}`);
       
       setUsers(response.data.users || []);
       setPagination(response.data.pagination);
@@ -366,8 +358,7 @@ export default function UserManagement() {
     try {
       const newStatus = !user.is_active;
       await axios.put(`${API_BASE}/api/user-management/users/${user.id}/status`, 
-        { is_active: newStatus },
-        { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
+        { is_active: newStatus }
       );
       
       fetchUsers();

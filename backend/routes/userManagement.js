@@ -163,7 +163,7 @@ router.put('/users/:id/role',
   [
     body('role').isIn(['admin', 'administrator', 'supervisor', 'teacher', 'parent', 'student'])
       .withMessage('Invalid role'),
-    body('school_id').optional().isNumeric().withMessage('Invalid school ID')
+    body('school_id').optional().isUUID().withMessage('Invalid school ID')
   ],
   async (req, res) => {
     try {

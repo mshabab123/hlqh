@@ -93,7 +93,7 @@ const requireSchoolAccess = async (req, res, next) => {
       userSchoolId = result.rows[0]?.school_id;
     }
 
-    if (userSchoolId !== parseInt(targetSchoolId)) {
+    if (userSchoolId !== targetSchoolId) {
       return res.status(403).json({ 
         error: 'Access denied: Different school',
         userSchool: userSchoolId,

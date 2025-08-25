@@ -267,6 +267,7 @@ router.post('/manage', (req, res, next) => {
   next();
 }, auth, [
   body('id')
+    .optional()
     .isLength({ min: 10, max: 10 })
     .withMessage('رقم الهوية يجب أن يكون 10 أرقام')
     .isNumeric()
@@ -288,7 +289,7 @@ router.post('/manage', (req, res, next) => {
       });
     }
 
-    const {
+    let {
       id, first_name, second_name, third_name, last_name,
       email, phone, address, date_of_birth, school_level,
       school_id, class_id, notes, status = 'active',
@@ -299,11 +300,24 @@ router.post('/manage', (req, res, next) => {
     await client.query('BEGIN');
 
     try {
-      // Check if user already exists
-      const existingUser = await client.query('SELECT id FROM users WHERE id = $1', [id]);
-      if (existingUser.rows.length > 0) {
-        await client.query('ROLLBACK');
-        return res.status(400).json({ error: 'رقم الهوية مستخدم من قبل' });
+      // Generate ID if not provided
+      if (!id) {
+        // Generate a unique 10-digit ID
+        let isUnique = false;
+        while (!isUnique) {
+          id = Math.floor(1000000000 + Math.random() * 9000000000).toString();
+          const existingUser = await client.query('SELECT id FROM users WHERE id = $1', [id]);
+          if (existingUser.rows.length === 0) {
+            isUnique = true;
+          }
+        }
+      } else {
+        // Check if provided ID already exists
+        const existingUser = await client.query('SELECT id FROM users WHERE id = $1', [id]);
+        if (existingUser.rows.length > 0) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: 'رقم الهوية مستخدم من قبل' });
+        }
       }
 
       // Create user record with default password
@@ -415,21 +429,26 @@ router.put('/:id', (req, res, next) => {
     
     // Check if trying to activate student without school assignment
     if (req.body.status === 'active') {
-      // Get current student data to check school assignment
-      const studentCheck = await db.query(`
-        SELECT s.id, se.class_id, c.school_id 
-        FROM students s
-        LEFT JOIN student_enrollments se ON s.id = se.student_id AND se.status = 'enrolled'
-        LEFT JOIN classes c ON se.class_id = c.id
-        WHERE s.id = $1
-      `, [id]);
+      // If we're also assigning a school/class in this request, allow activation
+      const isAssigningSchool = req.body.school_id || req.body.class_id;
+      
+      if (!isAssigningSchool) {
+        // Only check current assignment if we're not assigning in this request
+        const studentCheck = await db.query(`
+          SELECT s.id, se.class_id, c.school_id 
+          FROM students s
+          LEFT JOIN student_enrollments se ON s.id = se.student_id AND se.status = 'enrolled'
+          LEFT JOIN classes c ON se.class_id = c.id
+          WHERE s.id = $1
+        `, [id]);
 
-      if (studentCheck.rows.length > 0) {
-        const studentData = studentCheck.rows[0];
-        if (!studentData.school_id) {
-          return res.status(400).json({ 
-            error: 'لا يمكن تفعيل الطالب بدون تعيينه إلى مدرسة. يرجى تحديد المدرسة أولاً.' 
-          });
+        if (studentCheck.rows.length > 0) {
+          const studentData = studentCheck.rows[0];
+          if (!studentData.school_id) {
+            return res.status(400).json({ 
+              error: 'لا يمكن تفعيل الطالب بدون تعيينه إلى مدرسة. يرجى تحديد المدرسة أولاً.' 
+            });
+          }
         }
       }
     }
@@ -445,44 +464,122 @@ router.put('/:id', (req, res, next) => {
     await client.query('BEGIN');
 
     try {
-      // Check if student exists
-      const existingStudent = await client.query('SELECT id FROM students WHERE id = $1', [id]);
+      // Check if student exists and get current data
+      const existingStudentQuery = `
+        SELECT s.*, u.first_name, u.second_name, u.third_name, u.last_name, 
+               u.email, u.phone, u.address, u.date_of_birth
+        FROM students s
+        JOIN users u ON s.id = u.id
+        WHERE s.id = $1
+      `;
+      const existingStudent = await client.query(existingStudentQuery, [id]);
       if (existingStudent.rows.length === 0) {
         await client.query('ROLLBACK');
         return res.status(404).json({ error: 'الطالب غير موجود' });
       }
-
-      // Update user record (including is_active based on status)
-      const userQuery = `
-        UPDATE users 
-        SET first_name = $1, second_name = $2, third_name = $3, last_name = $4,
-            email = $5, phone = $6, address = $7, date_of_birth = $8, 
-            is_active = $9, updated_at = CURRENT_TIMESTAMP
-        WHERE id = $10
-      `;
       
-      const isActive = status === 'active';
-      await client.query(userQuery, [
-        first_name, second_name, third_name, last_name,
-        email || null, phone || null, address || null, date_of_birth || null, 
-        isActive, id
-      ]);
+      const currentData = existingStudent.rows[0];
 
-      // Update student record
-      const studentQuery = `
-        UPDATE students 
-        SET school_level = $1, status = $2, notes = $3,
-            memorized_surah_id = $4, memorized_ayah_number = $5,
-            target_surah_id = $6, target_ayah_number = $7
-        WHERE id = $8
-      `;
+      // Update user record (only update fields that are provided)
+      const userFields = [];
+      const userValues = [];
+      let paramCounter = 1;
+
+      if (first_name !== undefined) {
+        userFields.push(`first_name = $${paramCounter++}`);
+        userValues.push(first_name);
+      }
+      if (second_name !== undefined) {
+        userFields.push(`second_name = $${paramCounter++}`);
+        userValues.push(second_name);
+      }
+      if (third_name !== undefined) {
+        userFields.push(`third_name = $${paramCounter++}`);
+        userValues.push(third_name);
+      }
+      if (last_name !== undefined) {
+        userFields.push(`last_name = $${paramCounter++}`);
+        userValues.push(last_name);
+      }
+      if (email !== undefined) {
+        userFields.push(`email = $${paramCounter++}`);
+        userValues.push(email || null);
+      }
+      if (phone !== undefined) {
+        userFields.push(`phone = $${paramCounter++}`);
+        userValues.push(phone || null);
+      }
+      if (address !== undefined) {
+        userFields.push(`address = $${paramCounter++}`);
+        userValues.push(address || null);
+      }
+      if (date_of_birth !== undefined) {
+        userFields.push(`date_of_birth = $${paramCounter++}`);
+        userValues.push(date_of_birth || null);
+      }
+      if (status !== undefined) {
+        const isActive = status === 'active';
+        userFields.push(`is_active = $${paramCounter++}`);
+        userValues.push(isActive);
+      }
       
-      await client.query(studentQuery, [
-        school_level, status, notes || null,
-        memorized_surah_id || null, memorized_ayah_number || null,
-        target_surah_id || null, target_ayah_number || null,
-        id
-      ]);
+      // Always update the timestamp
+      userFields.push(`updated_at = CURRENT_TIMESTAMP`);
+      userValues.push(id);
+
+      if (userFields.length > 1) { // More than just timestamp
+        const userQuery = `
+          UPDATE users 
+          SET ${userFields.join(', ')}
+          WHERE id = $${paramCounter}
+        `;
+        await client.query(userQuery, userValues);
+      }
+
+      // Update student record (only update fields that are provided)
+      const studentFields = [];
+      const studentValues = [];
+      let studentParamCounter = 1;
+
+      if (school_level !== undefined) {
+        studentFields.push(`school_level = $${studentParamCounter++}`);
+        studentValues.push(school_level);
+      }
+      if (status !== undefined) {
+        studentFields.push(`status = $${studentParamCounter++}`);
+        studentValues.push(status);
+      }
+      if (notes !== undefined) {
+        studentFields.push(`notes = $${studentParamCounter++}`);
+        studentValues.push(notes || null);
+      }
+      if (memorized_surah_id !== undefined) {
+        studentFields.push(`memorized_surah_id = $${studentParamCounter++}`);
+        studentValues.push(memorized_surah_id || null);
+      }
+      if (memorized_ayah_number !== undefined) {
+        studentFields.push(`memorized_ayah_number = $${studentParamCounter++}`);
+        studentValues.push(memorized_ayah_number || null);
+      }
+      if (target_surah_id !== undefined) {
+        studentFields.push(`target_surah_id = $${studentParamCounter++}`);
+        studentValues.push(target_surah_id || null);
+      }
+      if (target_ayah_number !== undefined) {
+        studentFields.push(`target_ayah_number = $${studentParamCounter++}`);
+        studentValues.push(target_ayah_number || null);
+      }
+      
+      studentValues.push(id);
+
+      if (studentFields.length > 0) {
+        const studentQuery = `
+          UPDATE students 
+          SET ${studentFields.join(', ')}
+          WHERE id = $${studentParamCounter}
+        `;
+        await client.query(studentQuery, studentValues);
+      }
 
       // Handle class/school assignment changes
       if (class_id !== undefined || school_id !== undefined) {

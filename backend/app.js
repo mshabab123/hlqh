@@ -21,6 +21,7 @@ app.use('/api/classes', require('./routes/classes'));
 app.use('/api/semesters', require('./routes/semesters')); // Semester management
 app.use('/api/courses', require('./routes/courses')); // Course management  
 app.use('/api/grades', require('./routes/grades')); // Grade management
+app.use('/api/attendance', require('./routes/attendance')); // Attendance management
 app.use('/api/user-management', require('./routes/userManagement')); // User management (Admin only)
 
 // Default route

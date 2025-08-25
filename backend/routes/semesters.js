@@ -65,7 +65,7 @@ router.post('/', auth, async (req, res) => {
       return res.status(403).json({ message: 'ليس لديك صلاحية لإنشاء فصل دراسي' });
     }
 
-    const { type, year, start_date, end_date, display_name, school_id } = req.body;
+    const { type, year, start_date, end_date, display_name, school_id, weekend_days, vacation_days } = req.body;
 
     // Validate required school_id
     if (!school_id) {
@@ -89,8 +89,8 @@ router.post('/', auth, async (req, res) => {
     }
 
     const result = await pool.query(
-      'INSERT INTO semesters (school_id, type, year, start_date, end_date, display_name, created_at) VALUES ($1, $2, $3, $4, $5, $6, NOW()) RETURNING *',
-      [school_id, type, year, start_date, end_date, display_name]
+      'INSERT INTO semesters (school_id, type, year, start_date, end_date, display_name, weekend_days, vacation_days, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW()) RETURNING *',
+      [school_id, type, year, start_date, end_date, display_name, JSON.stringify(weekend_days || [5, 6]), JSON.stringify(vacation_days || [])]
     );
 
     res.status(201).json(result.rows[0]);
@@ -109,7 +109,7 @@ router.put('/:id', auth, async (req, res) => {
     }
 
     const { id } = req.params;
-    const { type, year, start_date, end_date, display_name, school_id } = req.body;
+    const { type, year, start_date, end_date, display_name, school_id, weekend_days, vacation_days } = req.body;
 
     // If school_id is provided, validate it
     if (school_id) {
@@ -130,8 +130,8 @@ router.put('/:id', auth, async (req, res) => {
     }
 
     const result = await pool.query(
-      'UPDATE semesters SET type = $1, year = $2, start_date = $3, end_date = $4, display_name = $5, school_id = $6, updated_at = NOW() WHERE id = $7 RETURNING *',
-      [type, year, start_date, end_date, display_name, school_id, id]
+      'UPDATE semesters SET type = $1, year = $2, start_date = $3, end_date = $4, display_name = $5, school_id = $6, weekend_days = $7, vacation_days = $8, updated_at = NOW() WHERE id = $9 RETURNING *',
+      [type, year, start_date, end_date, display_name, school_id, JSON.stringify(weekend_days || [5, 6]), JSON.stringify(vacation_days || []), id]
     );
 
     if (result.rows.length === 0) {

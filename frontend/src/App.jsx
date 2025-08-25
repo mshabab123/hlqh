@@ -13,6 +13,7 @@ import StudentManagement from "./pages/StudentManagement";
 import UserManagement from "./pages/UserManagement";
 import SemesterManagement from "./pages/SemesterManagement";
 import StudentGrading from "./pages/StudentGrading";
+import AttendanceManagement from "./pages/AttendanceManagement";
 import ClassCourseManagement from "./pages/ClassCourseManagement";
 import About from "./pages/About";
 import Home from "./pages/home";
@@ -135,6 +136,16 @@ export default function App() {
               <ProtectedRoute requiredRole={["admin", "administrator", "teacher"]}>
                 <Layout>
                   <StudentGrading />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/attendance"
+            element={
+              <ProtectedRoute requiredRole={["admin", "administrator", "teacher"]}>
+                <Layout>
+                  <AttendanceManagement />
                 </Layout>
               </ProtectedRoute>
             }

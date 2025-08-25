@@ -14,6 +14,8 @@ const SemesterManagement = () => {
   const [editingCourse, setEditingCourse] = useState(null);
   const [editingSemester, setEditingSemester] = useState(null);
   const [detailsSemester, setDetailsSemester] = useState(null);
+  const [newVacationDate, setNewVacationDate] = useState("");
+  const [showVacationCalendar, setShowVacationCalendar] = useState(false);
   
   const [newSemester, setNewSemester] = useState({
     name: "",
@@ -21,7 +23,9 @@ const SemesterManagement = () => {
     year: new Date().getFullYear(),
     start_date: "",
     end_date: "",
-    school_id: ""
+    school_id: "",
+    weekend_days: [5, 6], // Friday=5, Saturday=6 (ISO weekdays)
+    vacation_days: []
   });
 
   const [courseForm, setCourseForm] = useState({
@@ -161,7 +165,9 @@ const SemesterManagement = () => {
         start_date: "",
         end_date: "",
         display_name: "",
-        school_id: ""
+        school_id: "",
+        weekend_days: [5, 6],
+        vacation_days: []
       });
       setShowAddModal(false);
       setEditingSemester(null);
@@ -273,6 +279,85 @@ const SemesterManagement = () => {
     return diffDays;
   };
 
+  const calculateWorkingDays = (startDate, endDate, weekendDays = [5, 6], vacationDays = []) => {
+    if (!startDate || !endDate) return { total: 0, working: 0 };
+    
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const vacationSet = new Set(vacationDays);
+    
+    let totalDays = 0;
+    let workingDays = 0;
+    let currentDate = new Date(start);
+    
+    while (currentDate <= end) {
+      totalDays++;
+      
+      // Get day of week (0=Sunday, 1=Monday, ..., 6=Saturday)
+      // Convert to ISO day (1=Monday, ..., 7=Sunday)
+      const dayOfWeek = currentDate.getDay();
+      const isoDayOfWeek = dayOfWeek === 0 ? 7 : dayOfWeek;
+      
+      const isWeekend = weekendDays.includes(isoDayOfWeek);
+      const isVacation = vacationSet.has(currentDate.toISOString().split('T')[0]);
+      
+      if (!isWeekend && !isVacation) {
+        workingDays++;
+      }
+      
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    
+    return { total: totalDays, working: workingDays };
+  };
+
+  const addVacationDay = (date) => {
+    const vacationDays = newSemester.vacation_days || [];
+    if (!date || vacationDays.includes(date)) return;
+    
+    setNewSemester({
+      ...newSemester,
+      vacation_days: [...vacationDays, date].sort()
+    });
+    setNewVacationDate("");
+  };
+
+  const removeVacationDay = (date) => {
+    setNewSemester({
+      ...newSemester,
+      vacation_days: (newSemester.vacation_days || []).filter(d => d !== date)
+    });
+  };
+
+  const toggleWeekendDay = (dayNumber) => {
+    const weekendDays = [...(newSemester.weekend_days || [5, 6])];
+    const index = weekendDays.indexOf(dayNumber);
+    
+    if (index > -1) {
+      weekendDays.splice(index, 1);
+    } else {
+      weekendDays.push(dayNumber);
+    }
+    
+    setNewSemester({
+      ...newSemester,
+      weekend_days: weekendDays.sort()
+    });
+  };
+
+  const getWeekdayName = (dayNumber) => {
+    const days = {
+      1: 'الاثنين',
+      2: 'الثلاثاء', 
+      3: 'الأربعاء',
+      4: 'الخميس',
+      5: 'الجمعة',
+      6: 'السبت',
+      7: 'الأحد'
+    };
+    return days[dayNumber] || '';
+  };
+
   const handleShowDetails = (semester) => {
     setDetailsSemester(semester);
     setShowDetailsModal(true);
@@ -307,7 +392,9 @@ const SemesterManagement = () => {
       start_date: semester.start_date ? semester.start_date.split('T')[0] : "",
       end_date: semester.end_date ? semester.end_date.split('T')[0] : "",
       display_name: semester.display_name || "",
-      school_id: semester.school_id || selectedSchool
+      school_id: semester.school_id || selectedSchool,
+      weekend_days: semester.weekend_days || [5, 6],
+      vacation_days: semester.vacation_days || []
     });
     setEditingSemester(semester);
     setShowAddModal(true);
@@ -371,7 +458,9 @@ const SemesterManagement = () => {
                   start_date: "",
                   end_date: "",
                   display_name: "",
-                  school_id: selectedSchool
+                  school_id: selectedSchool,
+                  weekend_days: [5, 6],
+                  vacation_days: []
                 });
                 setShowAddModal(true);
               }}
@@ -616,19 +705,19 @@ const SemesterManagement = () => {
 
       {/* Add Semester Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-8 max-w-md w-full mx-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl p-4 sm:p-6 md:p-8 max-w-md w-full mx-auto my-8">
             <h2 className="text-2xl font-bold mb-6 text-gray-800">
               {editingSemester ? 'تعديل الفصل الدراسي' : 'إضافة فصل دراسي جديد'}
             </h2>
             
-            <div className="space-y-4">
+            <div className="space-y-4 max-h-[70vh] overflow-y-auto px-1">
               <div>
-                <label className="block text-gray-700 font-semibold mb-2">نوع الفصل:</label>
+                <label className="block text-gray-700 font-semibold mb-2 text-sm sm:text-base">نوع الفصل:</label>
                 <select
                   value={newSemester.type}
                   onChange={(e) => setNewSemester({...newSemester, type: e.target.value})}
-                  className="w-full p-3 border border-gray-300 rounded-lg"
+                  className="w-full p-2 sm:p-3 border border-gray-300 rounded-lg text-sm sm:text-base"
                 >
                   <option value="first">الأول</option>
                   <option value="second">الثاني</option>
@@ -637,43 +726,141 @@ const SemesterManagement = () => {
               </div>
 
               <div>
-                <label className="block text-gray-700 font-semibold mb-2">السنة:</label>
+                <label className="block text-gray-700 font-semibold mb-2 text-sm sm:text-base">السنة:</label>
                 <input
                   type="number"
                   value={newSemester.year}
                   onChange={(e) => setNewSemester({...newSemester, year: parseInt(e.target.value)})}
-                  className="w-full p-3 border border-gray-300 rounded-lg"
+                  className="w-full p-2 sm:p-3 border border-gray-300 rounded-lg text-sm sm:text-base"
                   min="2020"
                   max="2050"
                 />
               </div>
 
               <div>
-                <label className="block text-gray-700 font-semibold mb-2">تاريخ البداية:</label>
+                <label className="block text-gray-700 font-semibold mb-2 text-sm sm:text-base">تاريخ البداية:</label>
                 <input
                   type="date"
                   value={newSemester.start_date}
                   onChange={(e) => setNewSemester({...newSemester, start_date: e.target.value})}
-                  className="w-full p-3 border border-gray-300 rounded-lg"
+                  className="w-full p-2 sm:p-3 border border-gray-300 rounded-lg text-sm sm:text-base"
                 />
               </div>
 
               <div>
-                <label className="block text-gray-700 font-semibold mb-2">تاريخ النهاية:</label>
+                <label className="block text-gray-700 font-semibold mb-2 text-sm sm:text-base">تاريخ النهاية:</label>
                 <input
                   type="date"
                   value={newSemester.end_date}
                   onChange={(e) => setNewSemester({...newSemester, end_date: e.target.value})}
-                  className="w-full p-3 border border-gray-300 rounded-lg"
+                  className="w-full p-2 sm:p-3 border border-gray-300 rounded-lg text-sm sm:text-base"
                 />
+              </div>
+
+              {/* Working Days Calculation */}
+              {newSemester.start_date && newSemester.end_date && (
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  {(() => {
+                    const daysInfo = calculateWorkingDays(
+                      newSemester.start_date,
+                      newSemester.end_date,
+                      newSemester.weekend_days || [5, 6],
+                      newSemester.vacation_days || []
+                    );
+                    return (
+                      <div className="text-sm">
+                        <div className="flex justify-between mb-2">
+                          <span>إجمالي الأيام:</span>
+                          <span className="font-bold">{daysInfo.total} يوم</span>
+                        </div>
+                        <div className="flex justify-between mb-2">
+                          <span>أيام العمل:</span>
+                          <span className="font-bold text-green-600">{daysInfo.working} يوم</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>أيام العطل:</span>
+                          <span className="font-bold text-red-600">{daysInfo.total - daysInfo.working} يوم</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {/* Weekend Days Selection */}
+              <div>
+                <label className="block text-gray-700 font-semibold mb-2 text-sm sm:text-base">أيام نهاية الأسبوع:</label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1 sm:gap-2">
+                  {[1, 2, 3, 4, 5, 6, 7].map(dayNum => (
+                    <label key={dayNum} className="flex items-center gap-1 sm:gap-2 p-1 sm:p-2 border rounded hover:bg-gray-50 text-xs sm:text-sm">
+                      <input
+                        type="checkbox"
+                        checked={newSemester.weekend_days && newSemester.weekend_days.includes(dayNum)}
+                        onChange={() => toggleWeekendDay(dayNum)}
+                        className="w-3 h-3 sm:w-4 sm:h-4"
+                      />
+                      <span className="text-xs sm:text-sm">{getWeekdayName(dayNum)}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Vacation Days Management */}
+              <div>
+                <label className="block text-gray-700 font-semibold mb-2 text-sm sm:text-base">أيام العطل والإجازات:</label>
+                
+                {/* Add vacation day */}
+                <div className="flex gap-1 sm:gap-2 mb-3">
+                  <input
+                    type="date"
+                    value={newVacationDate}
+                    onChange={(e) => setNewVacationDate(e.target.value)}
+                    className="flex-1 p-1.5 sm:p-2 border border-gray-300 rounded text-xs sm:text-sm"
+                    min={newSemester.start_date}
+                    max={newSemester.end_date}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => addVacationDay(newVacationDate)}
+                    disabled={!newVacationDate}
+                    className="px-2 sm:px-4 py-1.5 sm:py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50 text-xs sm:text-sm"
+                  >
+                    إضافة
+                  </button>
+                </div>
+
+                {/* Vacation days list */}
+                {newSemester.vacation_days && newSemester.vacation_days.length > 0 && (
+                  <div className="max-h-32 overflow-y-auto border rounded p-2 bg-gray-50">
+                    {newSemester.vacation_days.map(date => (
+                      <div key={date} className="flex justify-between items-center py-1">
+                        <span className="text-sm">
+                          {new Date(date + 'T00:00:00').toLocaleDateString('ar-EG', {
+                            weekday: 'long',
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric'
+                          })}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => removeVacationDay(date)}
+                          className="text-red-500 hover:text-red-700 text-sm"
+                        >
+                          حذف
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
-            <div className="flex gap-4 mt-6">
+            <div className="flex gap-2 sm:gap-4 mt-4 sm:mt-6">
               <button
                 onClick={handleAddSemester}
                 disabled={loading}
-                className="flex-1 bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                className="flex-1 bg-blue-600 text-white py-2 sm:py-3 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 text-sm sm:text-base"
               >
                 {loading ? "جارٍ الحفظ..." : editingSemester ? "حفظ التعديلات" : "إضافة الفصل"}
               </button>
@@ -688,10 +875,12 @@ const SemesterManagement = () => {
                     start_date: "",
                     end_date: "",
                     display_name: "",
-                    school_id: ""
+                    school_id: "",
+                    weekend_days: [5, 6],
+                    vacation_days: []
                   });
                 }}
-                className="flex-1 bg-gray-500 text-white py-3 rounded-lg hover:bg-gray-600 transition-colors"
+                className="flex-1 bg-gray-500 text-white py-2 sm:py-3 rounded-lg hover:bg-gray-600 transition-colors text-sm sm:text-base"
               >
                 إلغاء
               </button>
