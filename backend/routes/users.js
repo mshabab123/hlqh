@@ -11,6 +11,21 @@ const registerLimiter = rateLimit({
   message: { error: "لقد تجاوزت الحد المسموح لمحاولات التسجيل. حاول لاحقًا." }
 });
 
+// GET all users
+router.get('/', async (req, res) => {
+  let client;
+  try {
+    client = await db.connect();
+    const result = await client.query('SELECT id, first_name, second_name, third_name, last_name, email, phone, address, created_at FROM users');
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'خطأ في استرجاع المستخدمين' });
+  } finally {
+    if (client) client.release();
+  }
+});
+
   router.post(
   '/',registerLimiter,
   [
