@@ -1,6 +1,6 @@
 import { Routes, Route, useLocation } from "react-router-dom";
 import ProtectedRoute from "./components/ProtectedRoute";
-import Login from "./pages/Login";
+import Login from "./pages/login";
 import Registration from "./pages/registration";
 import ParentRegistration from "./pages/ParentRegistration";
 import StudentRegistration from "./pages/StudentRegistration";
