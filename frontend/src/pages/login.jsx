@@ -38,11 +38,11 @@ export default function Login() {
         localStorage.setItem("user", JSON.stringify(res.data.user));
         
         // Check if user is inactive
-        if (res.data.account_status === 'pending_activation' || res.data.limited_access) {
+        if (res.data.account_status === 'pending_activation' || res.data.limited_access || res.data.user.is_active === false) {
           setWarning(res.data.warning || "حسابك قيد المراجعة من الإدارة");
           setLoading(false);
-          // Still navigate to home but with limited access
-          navigate("/Home");
+          // Redirect inactive users directly to about page
+          navigate("/about");
         } else {
           setLoading(false);
           navigate("/Home");
@@ -117,6 +117,16 @@ export default function Login() {
           )}
           {loading ? "جارٍ تسجيل الدخول..." : "تسجيل الدخول"}
         </button>
+
+        {/* Forgot Password Link */}
+        <div className="mt-4 text-center">
+          <Link
+            to="/forgot-password"
+            className="text-[var(--color-primary-600)] hover:text-[var(--color-primary-700)] text-sm font-medium hover:underline transition-colors"
+          >
+            هل نسيت كلمة المرور؟
+          </Link>
+        </div>
 
         {/* Register link */}
         <div className="mt-4 text-center text-gray-700">

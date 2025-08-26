@@ -3,19 +3,124 @@ const router = express.Router();
 const pool = require('../db');
 const { authenticateToken: auth } = require('../middleware/auth');
 
+// Function to automatically mark attendance when a grade is entered
+const markAttendanceForGradeEntry = async (studentId, semesterId, markedBy) => {
+  try {
+    // Get the student's class
+    const classResult = await pool.query(`
+      SELECT c.id as class_id 
+      FROM students s
+      JOIN student_enrollments se ON s.id = se.student_id
+      JOIN classes c ON se.class_id = c.id
+      WHERE s.id = $1 AND se.status = 'enrolled'
+      ORDER BY se.enrollment_date DESC
+      LIMIT 1
+    `, [studentId]);
+    
+    if (classResult.rows.length === 0) {
+      throw new Error('Student class not found');
+    }
+    
+    const classId = classResult.rows[0].class_id;
+    
+    // Get semester dates to find today's session
+    const semesterResult = await pool.query(`
+      SELECT start_date, end_date 
+      FROM semesters 
+      WHERE id = $1
+    `, [semesterId]);
+    
+    if (semesterResult.rows.length === 0) {
+      throw new Error('Semester not found');
+    }
+    
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+    const semesterStart = semesterResult.rows[0].start_date;
+    const semesterEnd = semesterResult.rows[0].end_date;
+    
+    // Check if today is within the semester
+    if (today < semesterStart || today > semesterEnd) {
+      console.log('Grade entry date is outside semester range, skipping attendance marking');
+      return;
+    }
+    
+    // Find or create today's session for this class
+    let sessionResult = await pool.query(`
+      SELECT id FROM class_sessions 
+      WHERE class_id = $1 AND session_date = $2
+    `, [classId, today]);
+    
+    let sessionId;
+    
+    if (sessionResult.rows.length === 0) {
+      // Create a session for today if it doesn't exist
+      // Try to get class schedule for today's day of week
+      const dayOfWeek = new Date(today).getDay(); // 0=Sunday, 1=Monday, etc.
+      
+      const scheduleResult = await pool.query(`
+        SELECT start_time, end_time 
+        FROM class_schedules 
+        WHERE class_id = $1 AND day_of_week = $2 AND is_active = true
+        LIMIT 1
+      `, [classId, dayOfWeek]);
+      
+      let startTime = '09:00';
+      let endTime = '11:00';
+      
+      if (scheduleResult.rows.length > 0) {
+        startTime = scheduleResult.rows[0].start_time;
+        endTime = scheduleResult.rows[0].end_time;
+      }
+      
+      // Create the session
+      const newSessionResult = await pool.query(`
+        INSERT INTO class_sessions (class_id, session_date, start_time, end_time, status, created_by, notes)
+        VALUES ($1, $2, $3, $4, 'completed', $5, 'Auto-created for grade entry')
+        RETURNING id
+      `, [classId, today, startTime, endTime, markedBy]);
+      
+      sessionId = newSessionResult.rows[0].id;
+    } else {
+      sessionId = sessionResult.rows[0].id;
+    }
+    
+    // Mark attendance as present (or update existing record)
+    await pool.query(`
+      INSERT INTO attendance_records (session_id, student_id, status, marked_by, notes, is_manual, grade_based)
+      VALUES ($1, $2, 'present', $3, 'Auto-marked based on grade entry', false, true)
+      ON CONFLICT (session_id, student_id) 
+      DO UPDATE SET 
+        status = CASE 
+          WHEN attendance_records.status = 'absent_unexcused' THEN 'present'
+          ELSE attendance_records.status 
+        END,
+        grade_based = true,
+        updated_at = CURRENT_TIMESTAMP
+    `, [sessionId, studentId, markedBy]);
+    
+    console.log(`Attendance auto-marked as present for student ${studentId} on ${today}`);
+    
+  } catch (error) {
+    console.error('Error in markAttendanceForGradeEntry:', error);
+    throw error;
+  }
+};
+
 // Get grades for a semester and class
 router.get('/semester/:semesterId/class/:classId', auth, async (req, res) => {
   try {
     const { semesterId, classId } = req.params;
     
     const result = await pool.query(`
-      SELECT g.*, s.first_name, s.last_name, c.name as course_name
+      SELECT g.*, u.first_name, u.last_name, c.name as course_name
       FROM grades g
       JOIN students s ON g.student_id = s.id
+      JOIN users u ON s.id = u.id
       JOIN semester_courses c ON g.course_id = c.id
-      JOIN student_classes sc ON s.id = sc.student_id
-      WHERE g.semester_id = $1 AND sc.class_id = $2
-      ORDER BY s.first_name, s.last_name, c.name
+      JOIN student_enrollments se ON s.id = se.student_id
+      WHERE g.class_id = $2 AND se.class_id = $2 AND se.status = 'enrolled'
+        AND (g.semester_id = $1 OR g.semester_id IS NULL)
+      ORDER BY u.first_name, u.last_name, c.name
     `, [semesterId, classId]);
     
     res.json(result.rows);
@@ -57,13 +162,25 @@ router.post('/', auth, async (req, res) => {
       student_id,
       course_id,
       semester_id,
+      class_id,
       score,
       from_surah,
       from_ayah,
       to_surah,
       to_ayah,
-      notes
+      notes,
+      // Also accept new format fields
+      grade_value,
+      max_grade,
+      grade_type,
+      start_reference,
+      end_reference
     } = req.body;
+
+    // Use the appropriate field values (support both old and new formats)
+    const gradeValue = grade_value || score;
+    const startRef = start_reference || (from_surah && from_ayah ? `${from_surah}:${from_ayah}` : null);
+    const endRef = end_reference || (to_surah && to_ayah ? `${to_surah}:${to_ayah}` : null);
 
     // Check if grade already exists
     const existingGrade = await pool.query(
@@ -76,24 +193,33 @@ router.post('/', auth, async (req, res) => {
       // Update existing grade
       result = await pool.query(`
         UPDATE grades SET 
-          score = $1, 
-          from_surah = $2, 
-          from_ayah = $3, 
-          to_surah = $4, 
-          to_ayah = $5, 
+          grade_value = $1, 
+          max_grade = $2,
+          class_id = $3,
+          start_reference = $4, 
+          end_reference = $5, 
           notes = $6, 
           updated_at = NOW()
         WHERE student_id = $7 AND course_id = $8 AND semester_id = $9 
         RETURNING *
-      `, [score, from_surah, from_ayah, to_surah, to_ayah, notes, student_id, course_id, semester_id]);
+      `, [gradeValue, max_grade || 100, class_id, startRef, endRef, notes, student_id, course_id, semester_id]);
     } else {
       // Create new grade
       result = await pool.query(`
         INSERT INTO grades (
-          student_id, course_id, semester_id, score, 
-          from_surah, from_ayah, to_surah, to_ayah, notes, created_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW()) RETURNING *
-      `, [student_id, course_id, semester_id, score, from_surah, from_ayah, to_surah, to_ayah, notes]);
+          student_id, course_id, semester_id, class_id, grade_value, max_grade,
+          grade_type, start_reference, end_reference, notes, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW()) RETURNING *
+      `, [student_id, course_id, semester_id, class_id, gradeValue, max_grade || 100, grade_type || 'test', startRef, endRef, notes]);
+    }
+
+    // Automatically mark attendance as present when grade is entered
+    // This implements the automatic absence calculation system
+    try {
+      await markAttendanceForGradeEntry(student_id, semester_id, req.user.id);
+    } catch (attendanceError) {
+      console.warn('Warning: Failed to auto-mark attendance:', attendanceError);
+      // Don't fail the grade entry if attendance marking fails
     }
 
     res.json(result.rows[0]);
@@ -118,23 +244,51 @@ router.put('/:id', auth, async (req, res) => {
       from_ayah,
       to_surah,
       to_ayah,
-      notes
+      notes,
+      // Also accept new format fields
+      grade_value,
+      max_grade,
+      class_id,
+      start_reference,
+      end_reference
     } = req.body;
+
+    // Use the appropriate field values (support both old and new formats)
+    const gradeValue = grade_value || score;
+    const startRef = start_reference || (from_surah && from_ayah ? `${from_surah}:${from_ayah}` : null);
+    const endRef = end_reference || (to_surah && to_ayah ? `${to_surah}:${to_ayah}` : null);
 
     const result = await pool.query(`
       UPDATE grades SET 
-        score = $1, 
-        from_surah = $2, 
-        from_ayah = $3, 
-        to_surah = $4, 
-        to_ayah = $5, 
+        grade_value = $1, 
+        max_grade = $2,
+        class_id = $3,
+        start_reference = $4, 
+        end_reference = $5, 
         notes = $6, 
         updated_at = NOW()
       WHERE id = $7 RETURNING *
-    `, [score, from_surah, from_ayah, to_surah, to_ayah, notes, id]);
+    `, [gradeValue, max_grade || 100, class_id, startRef, endRef, notes, id]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ message: 'الدرجة غير موجودة' });
+    }
+
+    // Get the grade details to mark attendance
+    const gradeDetails = await pool.query(`
+      SELECT student_id, semester_id FROM grades WHERE id = $1
+    `, [id]);
+
+    if (gradeDetails.rows.length > 0) {
+      try {
+        await markAttendanceForGradeEntry(
+          gradeDetails.rows[0].student_id, 
+          gradeDetails.rows[0].semester_id, 
+          req.user.id
+        );
+      } catch (attendanceError) {
+        console.warn('Warning: Failed to auto-mark attendance on grade update:', attendanceError);
+      }
     }
 
     res.json(result.rows[0]);
@@ -174,18 +328,19 @@ router.get('/class/:classId/semester/:semesterId/summary', auth, async (req, res
     const result = await pool.query(`
       SELECT 
         s.id as student_id,
-        s.first_name,
-        s.last_name,
-        COALESCE(SUM(g.score * c.percentage / 100), 0) as total_score,
+        u.first_name,
+        u.last_name,
+        COALESCE(SUM(g.grade_value * c.percentage / 100), 0) as total_score,
         COUNT(g.id) as graded_courses,
         (SELECT COUNT(*) FROM semester_courses WHERE semester_id = $1) as total_courses
       FROM students s
-      JOIN student_classes sc ON s.id = sc.student_id
+      JOIN users u ON s.id = u.id
+      JOIN student_enrollments se ON s.id = se.student_id
       LEFT JOIN grades g ON s.id = g.student_id AND g.semester_id = $1
       LEFT JOIN semester_courses c ON g.course_id = c.id
-      WHERE sc.class_id = $2 AND s.is_active = true
-      GROUP BY s.id, s.first_name, s.last_name
-      ORDER BY total_score DESC, s.first_name, s.last_name
+      WHERE se.class_id = $2 AND se.status = 'enrolled' AND u.is_active = true
+      GROUP BY s.id, u.first_name, u.last_name
+      ORDER BY total_score DESC, u.first_name, u.last_name
     `, [semesterId, classId]);
     
     res.json(result.rows);

@@ -30,7 +30,7 @@ router.get('/', auth, async (req, res) => {
     }
     
     const result = await pool.query(query, params);
-    res.json(result.rows);
+    res.json({ semesters: result.rows });
   } catch (error) {
     console.error('Error fetching semesters:', error);
     res.status(500).json({ message: 'خطأ في جلب الفصول الدراسية' });

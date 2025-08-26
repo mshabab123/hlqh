@@ -2,6 +2,8 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const router = express.Router();
 const db = require('../db');
+const { authenticateToken } = require('../middleware/auth');
+const { requireRole } = require('../middleware/rbac');
 const { body, validationResult } = require('express-validator');
 
 const rateLimit = require('express-rate-limit');
@@ -104,34 +106,46 @@ router.post('/', registerLimiter, parentValidationRules, async (req, res) => {
       `, [id, selfSchoolLevel]);
     }
 
-    // Process child IDs - create relationships with existing students or mark for future
-    const validChildIds = childIds.filter(childId => childId && childId.trim() !== '');
+    // Process child IDs - ensure it's an array and handle multiple IDs
+    let childIdArray = [];
+    if (Array.isArray(childIds)) {
+      childIdArray = childIds;
+    } else if (typeof childIds === 'string') {
+      // Handle comma-separated string
+      childIdArray = childIds.split(',').map(id => id.trim());
+    }
+    
+    const validChildIds = childIdArray.filter(childId => childId && childId.toString().trim().length === 10);
+    console.log(`Processing ${validChildIds.length} child IDs for parent ${id}`);
     
     for (const childId of validChildIds) {
+      const trimmedChildId = childId.toString().trim();
+      
       // Check if student already exists
       const studentCheck = await client.query(
         'SELECT id FROM students WHERE id = $1', 
-        [childId]
+        [trimmedChildId]
       );
 
+      // Create relationship regardless of whether student exists (constraints removed)
+      await client.query(`
+        INSERT INTO parent_student_relationships (parent_id, student_id, is_primary, relationship_type, is_pending)
+        VALUES ($1, $2, true, 'parent', $3)
+        ON CONFLICT (parent_id, student_id) DO UPDATE 
+        SET is_pending = $3
+      `, [id, trimmedChildId, studentCheck.rows.length === 0]);
+      
       if (studentCheck.rows.length > 0) {
-        // Student exists, create relationship
-        await client.query(`
-          INSERT INTO parent_student_relationships (parent_id, student_id, is_primary)
-          VALUES ($1, $2, true)
-          ON CONFLICT (parent_id, student_id) DO NOTHING
-        `, [id, childId]);
-
-        // Update student's parent_id if not set
+        // Student exists, update their parent_id if not set
         await client.query(`
           UPDATE students 
           SET parent_id = $1 
           WHERE id = $2 AND parent_id IS NULL
-        `, [id, childId]);
+        `, [id, trimmedChildId]);
+        console.log(`Linked existing student ${trimmedChildId} to parent ${id}`);
       } else {
-        // Student doesn't exist yet, we could create a pending relationship
-        // Or just log this for future reference when student registers
-        console.log(`Child ID ${childId} not found, will be linked when student registers`);
+        // Student doesn't exist yet - relationship created for future
+        console.log(`Created pending relationship for future student ${trimmedChildId} with parent ${id}`);
       }
     }
 
@@ -141,6 +155,7 @@ router.post('/', registerLimiter, parentValidationRules, async (req, res) => {
       message: '✅ تم تسجيل طلب ولي الأمر بنجاح. سيتم مراجعة طلبك وإشعارك عند تفعيل الحساب.',
       parentId: id,
       linkedChildren: validChildIds.length,
+      childIds: validChildIds,
       isAlsoStudent: registerSelf,
       status: 'pending_activation',
       note: 'الحساب غير مفعل حتى موافقة الإدارة'
@@ -322,6 +337,190 @@ router.delete('/:id/unlink-child/:childId', async (req, res) => {
     res.status(500).json({ error: 'حدث خطأ أثناء إلغاء ربط الطالب' });
   } finally {
     client.release();
+  }
+});
+
+// ============== MANAGEMENT ENDPOINTS (Admin/Supervisor only) ==============
+
+// GET /api/parents/management/list - Get all parents for management
+router.get('/management/list', authenticateToken, requireRole('supervisor'), async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT 
+        u.id,
+        u.first_name,
+        u.second_name,
+        u.third_name,
+        u.last_name,
+        u.email,
+        u.phone,
+        u.is_active,
+        u.created_at,
+        u.updated_at,
+        p.neighborhood
+      FROM users u
+      JOIN parents p ON u.id = p.id
+      ORDER BY u.created_at DESC
+    `);
+
+    res.json({
+      success: true,
+      parents: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching parents for management:', error);
+    res.status(500).json({
+      success: false,
+      error: 'خطأ في تحميل بيانات أولياء الأمور'
+    });
+  }
+});
+
+// GET /api/parents/management/:parentId/students - Get students for a specific parent
+router.get('/management/:parentId/students', authenticateToken, requireRole('supervisor'), async (req, res) => {
+  try {
+    const { parentId } = req.params;
+
+    const result = await db.query(`
+      SELECT 
+        s.id,
+        u.first_name,
+        u.second_name,
+        u.third_name,
+        u.last_name,
+        s.age,
+        s.school_level,
+        s.created_at,
+        c.name as class_name,
+        se.enrollment_date,
+        psr.relationship_type,
+        psr.is_primary
+      FROM parent_student_relationships psr
+      JOIN students s ON psr.student_id = s.id
+      JOIN users u ON s.id = u.id
+      LEFT JOIN student_enrollments se ON s.id = se.student_id AND se.status = 'enrolled'
+      LEFT JOIN classes c ON se.class_id = c.id
+      WHERE psr.parent_id = $1
+      ORDER BY u.first_name, u.last_name
+    `, [parentId]);
+
+    res.json({
+      success: true,
+      students: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching parent students:', error);
+    res.status(500).json({
+      success: false,
+      error: 'خطأ في تحميل بيانات الطلاب'
+    });
+  }
+});
+
+// PUT /api/parents/management/:parentId/toggle-status - Toggle parent activation status
+router.put('/management/:parentId/toggle-status', authenticateToken, requireRole('supervisor'), async (req, res) => {
+  try {
+    const { parentId } = req.params;
+    const { is_active } = req.body;
+
+    const result = await db.query(`
+      UPDATE users 
+      SET is_active = $1, updated_at = NOW()
+      WHERE id = $2 AND id IN (SELECT id FROM parents)
+      RETURNING id, first_name, second_name, third_name, last_name, email, is_active
+    `, [is_active, parentId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'ولي الأمر غير موجود'
+      });
+    }
+
+    const parent = result.rows[0];
+    
+    res.json({
+      success: true,
+      message: is_active ? 'تم تفعيل ولي الأمر بنجاح' : 'تم إلغاء تفعيل ولي الأمر بنجاح',
+      parent: parent
+    });
+  } catch (error) {
+    console.error('Error updating parent status:', error);
+    res.status(500).json({
+      success: false,
+      error: 'خطأ في تحديث حالة ولي الأمر'
+    });
+  }
+});
+
+// GET /api/parents/management/stats - Get parent statistics
+router.get('/management/stats', authenticateToken, requireRole('supervisor'), async (req, res) => {
+  try {
+    const stats = await db.query(`
+      SELECT 
+        COUNT(*) as total_parents,
+        COUNT(CASE WHEN u.is_active = true THEN 1 END) as active_parents,
+        COUNT(CASE WHEN u.is_active = false THEN 1 END) as inactive_parents
+      FROM users u
+      JOIN parents p ON u.id = p.id
+    `);
+
+    // Get students count for all parents
+    const studentsStats = await db.query(`
+      SELECT 
+        COUNT(DISTINCT psr.student_id) as total_students,
+        COUNT(DISTINCT psr.parent_id) as parents_with_students
+      FROM parent_student_relationships psr
+      JOIN users u ON psr.parent_id = u.id
+      JOIN parents p ON u.id = p.id
+    `);
+
+    res.json({
+      success: true,
+      stats: {
+        ...stats.rows[0],
+        ...studentsStats.rows[0]
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching parent statistics:', error);
+    res.status(500).json({
+      success: false,
+      error: 'خطأ في تحميل إحصائيات أولياء الأمور'
+    });
+  }
+});
+
+// PUT /api/parents/management/bulk-status - Bulk activate/deactivate parents
+router.put('/management/bulk-status', authenticateToken, requireRole('admin'), async (req, res) => {
+  try {
+    const { parentIds, is_active } = req.body;
+
+    if (!Array.isArray(parentIds) || parentIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'يجب تحديد أولياء الأمور المراد تحديث حالتهم'
+      });
+    }
+
+    const result = await db.query(`
+      UPDATE users 
+      SET is_active = $1, updated_at = NOW()
+      WHERE id = ANY($2) AND id IN (SELECT id FROM parents)
+      RETURNING id, first_name, second_name, third_name, last_name, email, is_active
+    `, [is_active, parentIds]);
+
+    res.json({
+      success: true,
+      message: `تم تحديث حالة ${result.rows.length} من أولياء الأمور`,
+      updated_parents: result.rows
+    });
+  } catch (error) {
+    console.error('Error bulk updating parent status:', error);
+    res.status(500).json({
+      success: false,
+      error: 'خطأ في تحديث حالة أولياء الأمور'
+    });
   }
 });
 

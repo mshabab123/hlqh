@@ -30,7 +30,7 @@ export default function ClassManagement() {
     school_id: "",
     semester_id: "",
     school_level: "",
-    teacher_id: "",
+    teacher_ids: [],
     max_students: 20,
     is_active: true
   });
@@ -100,11 +100,26 @@ export default function ClassManagement() {
   const handleAddClass = async (e) => {
     e.preventDefault();
     try {
-      await axios.post(`${API_BASE}/api/classes`, newClass, {
+      // First create the class
+      const response = await axios.post(`${API_BASE}/api/classes`, {
+        ...newClass,
+        teacher_id: newClass.teacher_ids?.length > 0 ? newClass.teacher_ids[0] : null // Keep backward compatibility
+      }, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token')}`
         }
       });
+      
+      // If we have teachers selected, assign them using the new API
+      if (newClass.teacher_ids?.length > 0 && response.data.classId) {
+        await axios.post(`${API_BASE}/api/classes/${response.data.classId}/teachers`, {
+          teacher_ids: newClass.teacher_ids
+        }, {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+      }
       
       setShowAddModal(false);
       setNewClass({
@@ -112,7 +127,7 @@ export default function ClassManagement() {
         school_id: "",
         semester_id: "",
         school_level: "",
-        teacher_id: "",
+        teacher_ids: [],
         max_students: 20,
         is_active: true
       });
@@ -125,11 +140,26 @@ export default function ClassManagement() {
   const handleEditClass = async (e) => {
     e.preventDefault();
     try {
-      await axios.put(`${API_BASE}/api/classes/${editingClass.id}`, editingClass, {
+      // First update the class basic info
+      await axios.put(`${API_BASE}/api/classes/${editingClass.id}`, {
+        ...editingClass,
+        teacher_id: editingClass.teacher_ids?.length > 0 ? editingClass.teacher_ids[0] : null // Keep backward compatibility
+      }, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token')}`
         }
       });
+      
+      // Update teacher assignments using the new API
+      if (editingClass.teacher_ids !== undefined) {
+        await axios.post(`${API_BASE}/api/classes/${editingClass.id}/teachers`, {
+          teacher_ids: editingClass.teacher_ids || []
+        }, {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+      }
       
       setEditingClass(null);
       fetchClasses();
@@ -216,7 +246,37 @@ export default function ClassManagement() {
             
             <div className="space-y-2 text-sm text-gray-600 mb-4">
               <p><strong>مجمع الحلقات:</strong> {classItem.school_name}</p>
-              {classItem.teacher_name && <p><strong>المعلم:</strong> {classItem.teacher_name}</p>}
+              
+              {/* Display assigned teachers */}
+              {(() => {
+                const assignedTeachers = classItem.assigned_teacher_names || [];
+                const legacyTeacher = classItem.teacher_name;
+                
+                if (assignedTeachers.length > 0) {
+                  return (
+                    <div>
+                      <p className="font-medium text-green-700 mb-2">
+                        المعلمون المكلفون ({assignedTeachers.length}):
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {assignedTeachers.map((teacherName, index) => (
+                          <span 
+                            key={index} 
+                            className="inline-block px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full"
+                          >
+                            {teacherName}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                } else if (legacyTeacher) {
+                  return <p><strong>المعلم:</strong> {legacyTeacher}</p>;
+                } else {
+                  return <p className="text-amber-600"><strong>المعلمون:</strong> لم يتم التعيين</p>;
+                }
+              })()}
+              
               <p><strong>الحد الأقصى:</strong> {classItem.max_students} طالب</p>
             </div>
             
@@ -231,7 +291,10 @@ export default function ClassManagement() {
               {canManageClassWithContext(classItem) && (
                 <>
                   <button
-                    onClick={() => setEditingClass(classItem)}
+                    onClick={() => setEditingClass({
+                      ...classItem,
+                      teacher_ids: classItem.assigned_teacher_ids || []
+                    })}
                     className="flex items-center gap-1 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
                   >
                     <AiOutlineEdit /> تعديل

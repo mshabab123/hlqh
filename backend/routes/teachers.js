@@ -3,6 +3,8 @@ const bcrypt = require('bcryptjs');
 const router = express.Router();
 const db = require('../db');
 const { body, validationResult } = require('express-validator');
+const { authenticateToken } = require('../middleware/auth');
+const { requireRole, ROLES } = require('../middleware/rbac');
 
 const rateLimit = require('express-rate-limit');
 const registerLimiter = rateLimit({
@@ -307,10 +309,18 @@ router.get('/', async (req, res) => {
             THEN NULL
             ELSE t.qualifications 
           END
-        END as actual_qualifications
+        END as actual_qualifications,
+        COALESCE(
+          ARRAY_AGG(DISTINCT tca.class_id) FILTER (WHERE tca.class_id IS NOT NULL),
+          ARRAY[]::UUID[]
+        ) as class_ids
       FROM users u
       JOIN ${tableName} t ON u.id = t.id
+      LEFT JOIN teacher_class_assignments tca ON u.id = tca.teacher_id AND tca.is_active = TRUE
       ${whereClause}
+      GROUP BY u.id, u.first_name, u.second_name, u.third_name, u.last_name,
+               u.email, u.phone, u.address, u.is_active, u.created_at, 
+               t.specialization, t.hire_date, t.status, t.qualifications
       ORDER BY u.is_active DESC, u.first_name, u.last_name
     `;
 
@@ -464,6 +474,182 @@ router.patch('/:id/activate', async (req, res) => {
   } catch (err) {
     console.error('Toggle teacher activation error:', err);
     res.status(500).json({ error: 'حدث خطأ أثناء تغيير حالة التفعيل' });
+  }
+});
+
+// POST /api/teachers/:id/classes - Assign multiple classes to teacher
+router.post('/:id/classes', async (req, res) => {
+  const client = await db.connect();
+  try {
+    const { id } = req.params;
+    const { class_ids = [] } = req.body; // Array of class IDs
+
+    await client.query('BEGIN');
+
+    // Check if teacher exists
+    const teacherCheck = await client.query('SELECT id FROM teachers WHERE id = $1', [id]);
+    if (teacherCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'المعلم غير موجود' });
+    }
+
+    // Remove all existing assignments for this teacher
+    await client.query('DELETE FROM teacher_class_assignments WHERE teacher_id = $1', [id]);
+
+    // Add new assignments
+    if (class_ids.length > 0) {
+      for (const classId of class_ids) {
+        // Verify class exists
+        const classCheck = await client.query('SELECT id FROM classes WHERE id = $1', [classId]);
+        if (classCheck.rows.length > 0) {
+          await client.query(`
+            INSERT INTO teacher_class_assignments (teacher_id, class_id)
+            VALUES ($1, $2)
+            ON CONFLICT (teacher_id, class_id) DO NOTHING
+          `, [id, classId]);
+        }
+      }
+    }
+
+    await client.query('COMMIT');
+    
+    res.json({ 
+      message: '✅ تم تحديث تعيينات الحلقات للمعلم بنجاح',
+      teacherId: id,
+      assignedClasses: class_ids.length
+    });
+
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Assign teacher classes error:', err);
+    res.status(500).json({ error: 'حدث خطأ أثناء تعيين الحلقات للمعلم' });
+  } finally {
+    client.release();
+  }
+});
+
+// GET /api/teachers/my-classes - Get classes for authenticated teacher
+router.get('/my-classes', authenticateToken, async (req, res) => {
+  try {
+    const teacherId = req.user.id;
+    const userRole = req.user.role;
+    
+    // Check if user is a teacher
+    if (userRole !== 'teacher' && userRole !== 'administrator' && userRole !== 'supervisor' && userRole !== 'admin') {
+      return res.status(403).json({ error: 'غير مسموح - هذه الصفحة للمعلمين فقط' });
+    }
+    
+    const result = await db.query(`
+      SELECT 
+        c.id, 
+        c.name, 
+        c.max_students, 
+        c.school_level,
+        c.room_number,
+        c.is_active,
+        s.name as school_name,
+        s.id as school_id,
+        sem.display_name as semester_name,
+        sem.id as semester_id,
+        (SELECT COUNT(*) FROM student_enrollments se WHERE se.class_id = c.id AND se.status = 'enrolled') as enrolled_students
+      FROM teacher_class_assignments tca
+      JOIN classes c ON tca.class_id = c.id
+      JOIN schools s ON c.school_id = s.id
+      LEFT JOIN semesters sem ON c.semester_id = sem.id
+      WHERE tca.teacher_id = $1 AND tca.is_active = TRUE AND c.is_active = TRUE
+      ORDER BY s.name, c.name
+    `, [teacherId]);
+
+    res.json({ 
+      success: true,
+      classes: result.rows,
+      teacherId: teacherId,
+      totalClasses: result.rows.length
+    });
+
+  } catch (err) {
+    console.error('Get teacher classes error:', err);
+    res.status(500).json({ error: 'حدث خطأ أثناء جلب الحلقات الخاصة بك' });
+  }
+});
+
+// GET /api/teachers/my-classes/:classId/students - Get students in a class for authenticated teacher
+router.get('/my-classes/:classId/students', authenticateToken, async (req, res) => {
+  try {
+    const teacherId = req.user.id;
+    const { classId } = req.params;
+    
+    // Verify teacher is assigned to this class
+    const classCheck = await db.query(`
+      SELECT c.id, c.name 
+      FROM teacher_class_assignments tca
+      JOIN classes c ON tca.class_id = c.id
+      WHERE tca.teacher_id = $1 AND tca.class_id = $2 AND tca.is_active = TRUE
+    `, [teacherId, classId]);
+    
+    if (classCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'غير مسموح - لست مسؤولاً عن هذه الحلقة' });
+    }
+    
+    // Get students in the class
+    const studentsResult = await db.query(`
+      SELECT 
+        u.id,
+        u.first_name,
+        u.second_name,
+        u.third_name,
+        u.last_name,
+        u.phone,
+        u.email,
+        s.school_level,
+        s.memorized_surah_id,
+        s.memorized_ayah_number,
+        s.target_surah_id,
+        s.target_ayah_number,
+        se.enrollment_date,
+        se.final_grade
+      FROM student_enrollments se
+      JOIN students s ON se.student_id = s.id
+      JOIN users u ON s.id = u.id
+      WHERE se.class_id = $1 AND se.status = 'enrolled'
+      ORDER BY u.first_name, u.last_name
+    `, [classId]);
+    
+    res.json({
+      success: true,
+      className: classCheck.rows[0].name,
+      students: studentsResult.rows,
+      totalStudents: studentsResult.rows.length
+    });
+    
+  } catch (err) {
+    console.error('Get class students error:', err);
+    res.status(500).json({ error: 'حدث خطأ أثناء جلب طلاب الحلقة' });
+  }
+});
+
+// GET /api/teachers/:id/classes - Get classes assigned to teacher (admin use)
+router.get('/:id/classes', authenticateToken, requireRole(ROLES.ADMINISTRATOR), async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await db.query(`
+      SELECT 
+        c.id, c.name, c.max_students, c.school_level,
+        s.name as school_name,
+        sem.display_name as semester_name
+      FROM teacher_class_assignments tca
+      JOIN classes c ON tca.class_id = c.id
+      JOIN schools s ON c.school_id = s.id
+      LEFT JOIN semesters sem ON c.semester_id = sem.id
+      WHERE tca.teacher_id = $1 AND tca.is_active = TRUE
+      ORDER BY c.name
+    `, [id]);
+
+    res.json({ classes: result.rows });
+
+  } catch (err) {
+    console.error('Get teacher classes error:', err);
+    res.status(500).json({ error: 'حدث خطأ أثناء جلب حلقات المعلم' });
   }
 });
 

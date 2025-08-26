@@ -22,8 +22,14 @@ const Sidebar = () => {
   };
 
   // Check if user has access to a specific route
-  const hasAccess = (requiredRoles) => {
+  const hasAccess = (requiredRoles, path) => {
     if (!user || !user.role) return false;
+    
+    // For inactive users, only allow access to about and profile
+    if (user.is_active === false) {
+      return path === "/about" || path === "/profile";
+    }
+    
     if (!requiredRoles) return true; // No role requirement
     if (Array.isArray(requiredRoles)) {
       return requiredRoles.includes(user.role);
@@ -36,6 +42,12 @@ const Sidebar = () => {
     {
       title: "الرئيسية",
       items: [
+        {
+          title: "حول النظام",
+          path: "/about",
+          icon: "📋",
+          roles: null
+        },
         {
           title: "الصفحة الرئيسية",
           path: "/home",
@@ -72,15 +84,15 @@ const Sidebar = () => {
           roles: ["admin", "supervisor"]
         },
         {
+          title: "إدارة أولياء الأمور",
+          path: "/parents",
+          icon: "👨‍👩‍👧‍👦",
+          roles: ["admin", "supervisor"]
+        },
+        {
           title: "إدارة المديرين",
           path: "/administrators",
           icon: "👔",
-          roles: ["admin"]
-        },
-        {
-          title: "إدارة الصلاحيات",
-          path: "/user-management",
-          icon: "🔐",
           roles: ["admin"]
         },
         {
@@ -110,6 +122,12 @@ const Sidebar = () => {
           title: "الحضور والغياب",
           path: "/attendance",
           icon: "📋",
+          roles: ["admin", "administrator", "teacher"]
+        },
+        {
+          title: "نظام الحضور",
+          path: "/attendance-system",
+          icon: "✅",
           roles: ["admin", "administrator", "teacher"]
         },
         {
@@ -150,7 +168,7 @@ const Sidebar = () => {
     //   ]
     // },
     {
-      title: "الملف الشخصي والتقارير",
+      title: "الملف الشخصي",
       items: [
         {
           title: "الملف الشخصي",
@@ -163,12 +181,6 @@ const Sidebar = () => {
           path: "/children",
           icon: "👨‍👩‍👧‍👦",
           roles: ["parent"]
-        },
-        {
-          title: "التقارير",
-          path: "/reports",
-          icon: "📈",
-          roles: ["admin", "supervisor", "administrator", "teacher"]
         }
       ]
     },
@@ -263,7 +275,7 @@ const Sidebar = () => {
         <nav className="flex-1 p-4">
           {menuSections.map((section, sectionIndex) => {
             // Filter items based on user permissions
-            const accessibleItems = section.items.filter(item => hasAccess(item.roles));
+            const accessibleItems = section.items.filter(item => hasAccess(item.roles, item.path));
             
             if (accessibleItems.length === 0) return null;
 

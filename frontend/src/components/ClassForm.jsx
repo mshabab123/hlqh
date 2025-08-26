@@ -81,22 +81,40 @@ const ClassForm = ({ classData, onSubmit, onCancel, isEditing = false, onClassCh
         
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium mb-1">المعلم</label>
-            <select
-              value={classData.teacher_id || ""}
-              onChange={(e) => onClassChange({...classData, teacher_id: e.target.value})}
-              className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              disabled={!classData.school_id}
-            >
-              <option value="">اختر المعلم</option>
-              {getFilteredTeachers(classData.school_id).map(teacher => (
-                <option key={teacher.id} value={teacher.id}>
-                  {teacher.first_name} {teacher.last_name}
-                </option>
-              ))}
-            </select>
-            {!classData.school_id && (
-              <p className="text-sm text-gray-500 mt-1">يرجى اختيار مجمع الحلقات أولاً</p>
+            <label className="block text-sm font-medium mb-1">المعلمون</label>
+            {!classData.school_id ? (
+              <div className="w-full p-3 border rounded-lg bg-gray-50 text-gray-500">
+                يرجى اختيار مجمع الحلقات أولاً
+              </div>
+            ) : (
+              <div className="max-h-32 overflow-y-auto border rounded-lg p-2">
+                {getFilteredTeachers(classData.school_id).length === 0 ? (
+                  <p className="text-sm text-gray-500 p-2">لا توجد معلمون متاحون</p>
+                ) : (
+                  getFilteredTeachers(classData.school_id).map(teacher => (
+                    <label key={teacher.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={classData.teacher_ids?.includes(teacher.id) || false}
+                        onChange={(e) => {
+                          const currentIds = classData.teacher_ids || [];
+                          const newIds = e.target.checked
+                            ? [...currentIds, teacher.id]
+                            : currentIds.filter(id => id !== teacher.id);
+                          onClassChange({...classData, teacher_ids: newIds});
+                        }}
+                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                      />
+                      <span className="text-sm">
+                        {teacher.first_name} {teacher.last_name}
+                        {teacher.specialization && (
+                          <span className="text-gray-500"> - {teacher.specialization}</span>
+                        )}
+                      </span>
+                    </label>
+                  ))
+                )}
+              </div>
             )}
           </div>
           

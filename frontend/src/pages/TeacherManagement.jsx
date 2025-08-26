@@ -5,7 +5,7 @@ import { AiOutlinePlus, AiOutlineEdit, AiOutlineDelete, AiOutlineEye, AiOutlineC
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
 // TeacherForm component for add/edit
-const TeacherForm = ({ teacher, onSubmit, onCancel, isEditing = false, onTeacherChange, schools, getFilteredSchools }) => (
+const TeacherForm = ({ teacher, onSubmit, onCancel, isEditing = false, onTeacherChange, schools, getFilteredSchools, classes = [] }) => (
   <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
     <div className="bg-white p-6 rounded-xl shadow-xl max-w-2xl w-full m-4 max-h-[90vh] overflow-y-auto">
       <h3 className="text-xl font-bold mb-4 text-[var(--color-primary-700)]">
@@ -165,6 +165,45 @@ const TeacherForm = ({ teacher, onSubmit, onCancel, isEditing = false, onTeacher
           />
         </div>
         
+        {isEditing && (
+          <div>
+            <label className="block text-sm font-medium mb-1">الحلقات المسندة</label>
+            <div className="space-y-2 max-h-40 overflow-y-auto border rounded-lg p-3">
+              {classes
+                .filter(cls => cls.school_id === teacher.school_id)
+                .map(cls => (
+                  <label key={cls.id} className="flex items-center gap-2 hover:bg-gray-50 p-1 rounded cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={teacher.class_ids?.includes(cls.id) || false}
+                      onChange={(e) => {
+                        const currentIds = teacher.class_ids || [];
+                        const newIds = e.target.checked
+                          ? [...currentIds, cls.id]
+                          : currentIds.filter(id => id !== cls.id);
+                        onTeacherChange({...teacher, class_ids: newIds});
+                      }}
+                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    />
+                    <span className="text-sm">
+                      {cls.name}
+                      {cls.teacher_id === teacher.id && 
+                        <span className="text-xs text-green-600 mr-1">(حالياً)</span>
+                      }
+                      {cls.teacher_id && cls.teacher_id !== teacher.id && 
+                        <span className="text-xs text-orange-600 mr-1">(معلم آخر)</span>
+                      }
+                    </span>
+                  </label>
+                ))
+              }
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              يمكنك تعيين المعلم لعدة حلقات أو تركه بدون حلقة
+            </p>
+          </div>
+        )}
+        
         <div className="flex justify-end gap-2 pt-4">
           <button
             type="button"
@@ -188,6 +227,7 @@ const TeacherForm = ({ teacher, onSubmit, onCancel, isEditing = false, onTeacher
 export default function TeacherManagement() {
   const [teachers, setTeachers] = useState([]);
   const [schools, setSchools] = useState([]);
+  const [classes, setClasses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
@@ -216,6 +256,7 @@ export default function TeacherManagement() {
   useEffect(() => {
     fetchTeachers();
     fetchSchools();
+    fetchClasses();
   }, [selectedSchool, activeFilter]);
 
   const fetchTeachers = async () => {
@@ -252,6 +293,19 @@ export default function TeacherManagement() {
       setSchools(response.data.schools || []);
     } catch (err) {
       console.error('Error fetching schools:', err);
+    }
+  };
+
+  const fetchClasses = async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/api/classes`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      setClasses(response.data.classes || response.data || []);
+    } catch (err) {
+      console.error('Error fetching classes:', err);
     }
   };
 
@@ -308,8 +362,24 @@ export default function TeacherManagement() {
         }
       });
       
+      // Handle multiple class assignments using new API
+      if (editingTeacher.class_ids !== undefined) {
+        const selectedIds = editingTeacher.class_ids || [];
+        
+        
+        // Use new teacher-class assignment API
+        await axios.post(`${API_BASE}/api/teachers/${editingTeacher.id}/classes`, {
+          class_ids: selectedIds
+        }, {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+      }
+      
       setEditingTeacher(null);
       fetchTeachers();
+      fetchClasses(); // Refresh classes to reflect changes
     } catch (err) {
       setError(err.response?.data?.error || "فشل في تحديث المعلم");
     }
@@ -442,13 +512,59 @@ export default function TeacherManagement() {
               <p><strong>الجوال:</strong> {teacher.phone}</p>
               {teacher.specialization && <p><strong>التخصص:</strong> {teacher.specialization}</p>}
               {teacher.actual_qualifications && <p><strong>المؤهلات:</strong> {teacher.actual_qualifications}</p>}
+              
+              {/* Display assigned classes */}
+              {(() => {
+                // Check if teacher has class_ids array (multiple assignments) or is assigned to classes via teacher_id
+                const teacherClassIds = teacher.class_ids || [];
+                const teacherClasses = classes.filter(cls => 
+                  teacherClassIds.includes(cls.id) || cls.teacher_id === teacher.id
+                );
+                
+                
+                if (teacherClasses.length > 0) {
+                  return (
+                    <div className="mt-3 p-2 bg-green-50 rounded-lg border border-green-200">
+                      <p className="font-medium text-green-800 text-xs mb-2">
+                        الحلقات المدرسة ({teacherClasses.length}):
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {teacherClasses.map(cls => (
+                          <span 
+                            key={cls.id} 
+                            className="inline-block px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full"
+                          >
+                            {cls.name}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                } else {
+                  return (
+                    <div className="mt-3 p-2 bg-gray-50 rounded-lg border border-gray-200">
+                      <p className="text-gray-600 text-xs text-center">
+                        لا يدرس أي حلقة حالياً
+                      </p>
+                    </div>
+                  );
+                }
+              })()}
             </div>
             
             <div className="flex gap-2 flex-wrap">
               {canManageTeacher(teacher) && (
                 <>
                   <button
-                    onClick={() => setEditingTeacher(teacher)}
+                    onClick={() => {
+                      // Find all classes assigned to this teacher
+                      const teacherClasses = classes.filter(cls => cls.teacher_id === teacher.id);
+                      const classIds = teacherClasses.map(cls => cls.id);
+                      setEditingTeacher({
+                        ...teacher,
+                        class_ids: classIds
+                      });
+                    }}
                     className="flex items-center gap-1 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
                   >
                     <AiOutlineEdit /> تعديل
@@ -494,6 +610,7 @@ export default function TeacherManagement() {
           onTeacherChange={setNewTeacher}
           schools={schools}
           getFilteredSchools={getFilteredSchools}
+          classes={classes}
         />
       )}
 
@@ -506,6 +623,7 @@ export default function TeacherManagement() {
           onTeacherChange={setEditingTeacher}
           schools={schools}
           getFilteredSchools={getFilteredSchools}
+          classes={classes}
         />
       )}
     </div>

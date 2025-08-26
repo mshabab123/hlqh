@@ -14,19 +14,27 @@ import {
   AiOutlineFileText,
   AiOutlineBank,
   AiOutlineAppstore,
+  AiOutlineInfoCircle,
+  AiOutlinePhone,
+  AiOutlineMail,
 } from "react-icons/ai";
 
-const getNavLinks = (userRole) => {
+const getNavLinks = (userRole, isActive) => {
+  // For inactive users, only show about and profile
+  if (!isActive) {
+    return [
+      { to: "/about", label: "حول النظام", icon: <AiOutlineFileText /> },
+      { to: "/profile", label: "الملف الشخصي", icon: <AiOutlineUser /> },
+    ];
+  }
+
+  // For active users, show full navigation
   const baseLinks = [
     { to: "/home", label: "الرئيسية", icon: <AiOutlineHome /> },
     { to: "/dashboard", label: "لوحة التحكم", icon: <AiOutlineDashboard /> },
     { to: "/children", label: "الأبناء", icon: <AiOutlineTeam /> },
-    { to: "/reports", label: "التقارير", icon: <AiOutlineFileText /> },
     { to: "/profile", label: "الملف الشخصي", icon: <AiOutlineUser /> },
   ];
-
-  // All management links have been moved to the home page cards
-  // Keep only basic navigation in the navbar
 
   return baseLinks;
 };
@@ -38,15 +46,22 @@ export default function AuthNavbar() {
   const [user, setUser] = useState(null);
   const [notifications, setNotifications] = useState(3); // Mock notifications count
   const [navLinks, setNavLinks] = useState([]);
+  const [showInactiveModal, setShowInactiveModal] = useState(false);
 
   useEffect(() => {
     const userData = localStorage.getItem("user");
     if (userData) {
       const parsedUser = JSON.parse(userData);
       setUser(parsedUser);
-      setNavLinks(getNavLinks(parsedUser.role || parsedUser.user_type));
+      const isActive = parsedUser.is_active !== false; // Default to true if undefined
+      setNavLinks(getNavLinks(parsedUser.role || parsedUser.user_type, isActive));
+      
+      // Show modal for inactive users, but only on certain pages
+      if (parsedUser.is_active === false && location.pathname !== "/about") {
+        setShowInactiveModal(true);
+      }
     }
-  }, []);
+  }, [location.pathname]);
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -59,6 +74,70 @@ export default function AuthNavbar() {
   };
 
   return (
+    <>
+      {/* Inactive Account Modal */}
+      {showInactiveModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4" dir="rtl">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 transform animate-pulse">
+            <div className="bg-orange-500 text-white p-6 rounded-t-2xl text-center">
+              <div className="flex items-center justify-center gap-3 mb-4">
+                <AiOutlineBell className="text-4xl" />
+                <h2 className="text-2xl font-bold">حسابك غير مفعل</h2>
+              </div>
+              <p className="text-lg font-semibold mb-2">
+                للوصول إلى جميع خدمات المنصة
+              </p>
+              <p className="text-base opacity-90">
+                يجب تفعيل حسابك أولاً
+              </p>
+            </div>
+            
+            <div className="p-6 text-center">
+              <p className="text-gray-700 mb-4">
+                يرجى التواصل مع إدارة النظام لتفعيل حسابك
+              </p>
+              
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
+                <h3 className="font-bold mb-3 text-orange-800 flex items-center justify-center gap-2">
+                  <AiOutlineInfoCircle />
+                  معلومات التواصل
+                </h3>
+                <div className="space-y-2 text-sm text-gray-700">
+                  <div className="flex items-center justify-center gap-2">
+                    <AiOutlinePhone className="text-orange-600" />
+                    <span>+966 5 33 69 33 55</span>
+                  </div>
+                  <div className="flex items-center justify-center gap-2">
+                    <AiOutlineMail className="text-orange-600" />
+                    <span>malrizah@gmail.com</span>
+                  </div>
+                </div>
+                <p className="text-xs mt-2 text-gray-500">
+                  Contact administrator to activate your account
+                </p>
+              </div>
+              
+              <button
+                onClick={() => setShowInactiveModal(false)}
+                className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 px-6 rounded-lg transition-colors mb-2"
+              >
+                حسناً أكمل التصفح
+              </button>
+              
+              <button
+                onClick={() => {
+                  setShowInactiveModal(false);
+                  navigate("/about");
+                }}
+                className="w-full bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-6 rounded-lg transition-colors text-sm"
+              >
+                اذهب لصفحة حول النظام
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     <nav className="w-full bg-gradient-to-l from-[var(--color-primary-100)] via-[var(--color-primary-400)] to-[var(--color-primary-700)] text-white shadow-xl sticky top-0 z-50" dir="rtl">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between py-4">
@@ -193,5 +272,6 @@ export default function AuthNavbar() {
         </div>
       </div>
     </nav>
+    </>
   );
 }

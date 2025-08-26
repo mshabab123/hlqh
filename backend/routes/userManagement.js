@@ -401,4 +401,156 @@ router.get('/permissions/:userId', authenticateToken, requireRole(ROLES.ADMIN), 
   }
 });
 
+// GET /api/user-management/all-users - Get all users for password management (Admin only)
+router.get('/all-users', authenticateToken, requireRole(ROLES.ADMIN), async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT 
+        id, first_name, second_name, third_name, last_name,
+        email, phone, role, is_active
+      FROM users 
+      ORDER BY role, first_name, last_name
+    `);
+    
+    res.json({ users: result.rows });
+
+  } catch (error) {
+    console.error('Get all users error:', error);
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+// GET /api/user-management/password-reset-users - Get users for password reset based on role
+router.get('/password-reset-users', authenticateToken, async (req, res) => {
+  try {
+    const userRole = req.user.role;
+    const userId = req.user.id;
+    
+    let query;
+    let params = [];
+    
+    if (userRole === 'admin') {
+      // Admin can reset passwords for all users
+      query = `
+        SELECT 
+          id, first_name, second_name, third_name, last_name,
+          email, phone, role, is_active
+        FROM users 
+        ORDER BY role, first_name, last_name
+      `;
+    } else if (userRole === 'administrator') {
+      // Administrator can only reset passwords for students in their school
+      query = `
+        SELECT DISTINCT
+          u.id, u.first_name, u.second_name, u.third_name, u.last_name,
+          u.email, u.phone, u.role, u.is_active
+        FROM users u
+        JOIN students s ON u.id = s.id
+        JOIN classes c ON s.class_id = c.id
+        JOIN administrators a ON c.school_id = a.school_id
+        WHERE u.role = 'student' 
+          AND a.id = $1
+          AND u.is_active = true
+        ORDER BY u.first_name, u.last_name
+      `;
+      params = [userId];
+    } else {
+      // Other roles don't have password reset permissions
+      return res.status(403).json({ error: 'Access denied: insufficient permissions' });
+    }
+    
+    const result = await db.query(query, params);
+    res.json({ users: result.rows });
+
+  } catch (error) {
+    console.error('Get password reset users error:', error);
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+// POST /api/user-management/reset-password - Reset user password (Admin and Administrator)
+router.post('/reset-password', 
+  authenticateToken,
+  [
+    body('userId').notEmpty().withMessage('User ID is required'),
+    body('newPassword').isLength({ min: 6 }).withMessage('Password must be at least 6 characters')
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ 
+          error: 'Validation failed',
+          details: errors.array() 
+        });
+      }
+
+      const { userId, newPassword } = req.body;
+      const currentUserId = req.user.id;
+      const currentUserRole = req.user.role;
+
+      // Check if user exists
+      const userResult = await db.query(
+        'SELECT id, first_name, last_name, email, role FROM users WHERE id = $1',
+        [userId]
+      );
+
+      if (userResult.rows.length === 0) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      const targetUser = userResult.rows[0];
+
+      // Authorization check
+      if (currentUserRole === 'administrator') {
+        // Administrator can only reset passwords for students in their school
+        if (targetUser.role !== 'student') {
+          return res.status(403).json({ error: 'Administrators can only reset student passwords' });
+        }
+
+        // Check if the student belongs to administrator's school
+        const schoolCheck = await db.query(`
+          SELECT 1
+          FROM users u
+          JOIN students s ON u.id = s.id
+          JOIN classes c ON s.class_id = c.id
+          JOIN administrators a ON c.school_id = a.school_id
+          WHERE u.id = $1 AND a.id = $2
+        `, [userId, currentUserId]);
+
+        if (schoolCheck.rows.length === 0) {
+          return res.status(403).json({ error: 'You can only reset passwords for students in your school' });
+        }
+      } else if (currentUserRole !== 'admin') {
+        return res.status(403).json({ error: 'Access denied: insufficient permissions' });
+      }
+
+      // Hash the new password
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+      // Update the password
+      await db.query(
+        'UPDATE users SET password = $1 WHERE id = $2',
+        [hashedPassword, userId]
+      );
+
+      // Log the password reset action (for security audit)
+      console.log(`Password reset for user ${userId} (${targetUser.email}) by ${currentUserRole} ${currentUserId} at ${new Date().toISOString()}`);
+
+      res.json({ 
+        message: 'Password reset successfully',
+        user: {
+          id: targetUser.id,
+          name: `${targetUser.first_name} ${targetUser.last_name}`,
+          email: targetUser.email
+        }
+      });
+
+    } catch (error) {
+      console.error('Reset password error:', error);
+      res.status(500).json({ error: 'Failed to reset password' });
+    }
+  }
+);
+
 module.exports = router;

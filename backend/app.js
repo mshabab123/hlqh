@@ -23,6 +23,11 @@ app.use('/api/courses', require('./routes/courses')); // Course management
 app.use('/api/grades', require('./routes/grades')); // Grade management
 app.use('/api/attendance', require('./routes/attendance')); // Attendance management
 app.use('/api/user-management', require('./routes/userManagement')); // User management (Admin only)
+app.use('/api/database', require('./routes/database')); // Database management (Admin only)
+app.use('/api/dashboard', require('./routes/dashboard')); // Dashboard statistics
+app.use('/api/profile', require('./routes/profile')); // User profile management
+app.use('/api/forgot-password', require('./routes/forgotPassword')); // Password reset
+app.use('/api/attendance-system', require('./routes/attendanceSystem')); // Attendance system
 
 // Default route
 app.get('/', (req, res) => {

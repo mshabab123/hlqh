@@ -81,7 +81,7 @@ router.post('/', registerLimiter, studentValidationRules, async (req, res) => {
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
     `, [id, first_name, second_name, third_name, last_name, email || null, phone || null, hashedPassword, date_of_birth, false]);
 
-    // Check if parent exists before setting parent_id
+    // Handle parent linking - create relationships even if parent doesn't exist yet (constraints removed)
     let validParentId = null;
     if (parent_id) {
       const parentCheck = await client.query(
@@ -89,10 +89,21 @@ router.post('/', registerLimiter, studentValidationRules, async (req, res) => {
         [parent_id]
       );
       
+      // Create relationship regardless of whether parent exists (constraints removed)
+      await client.query(`
+        INSERT INTO parent_student_relationships (parent_id, student_id, is_primary, relationship_type, is_pending)
+        VALUES ($1, $2, true, 'parent', $3)
+        ON CONFLICT (parent_id, student_id) DO UPDATE 
+        SET is_pending = $3
+      `, [parent_id, id, parentCheck.rows.length === 0]);
+      
       if (parentCheck.rows.length > 0) {
+        // Parent exists - set validParentId for students table
         validParentId = parent_id;
+        console.log(`Linked student ${id} to existing parent ${parent_id}`);
       } else {
-        console.log(`Parent ID ${parent_id} not found, student registered without parent link`);
+        // Parent doesn't exist yet - relationship created for future
+        console.log(`Created pending relationship for future parent ${parent_id} with student ${id}`);
       }
     }
 
@@ -102,15 +113,6 @@ router.post('/', registerLimiter, studentValidationRules, async (req, res) => {
         id, school_level, parent_id, status
       ) VALUES ($1, $2, $3, $4)
     `, [id, school_level, validParentId, 'inactive']);
-
-    // If parent exists, create parent-student relationship
-    if (validParentId) {
-      await client.query(`
-        INSERT INTO parent_student_relationships (parent_id, student_id, is_primary)
-        VALUES ($1, $2, true)
-        ON CONFLICT (parent_id, student_id) DO NOTHING
-      `, [validParentId, id]);
-    }
 
     await client.query('COMMIT');
     
@@ -739,6 +741,41 @@ router.get('/:id/attendance', async (req, res) => {
   } catch (err) {
     console.error('Get attendance error:', err);
     res.status(500).json({ error: 'حدث خطأ أثناء جلب سجل الحضور' });
+  }
+});
+
+// GET /api/students/available - Get students available for parent linking
+router.get('/available', auth, async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT 
+        u.id,
+        u.first_name,
+        u.second_name,
+        u.third_name,
+        u.last_name,
+        s.age,
+        s.school_level,
+        c.name as class_name,
+        se.enrollment_date
+      FROM users u
+      JOIN students s ON u.id = s.id
+      LEFT JOIN student_enrollments se ON s.id = se.student_id AND se.status = 'enrolled'
+      LEFT JOIN classes c ON se.class_id = c.id
+      WHERE u.is_active = true 
+      ORDER BY u.first_name, u.last_name
+    `);
+
+    res.json({
+      success: true,
+      students: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching available students:', error);
+    res.status(500).json({
+      success: false,
+      error: 'خطأ في تحميل الطلاب المتاحين'
+    });
   }
 });
 

@@ -529,20 +529,61 @@ const SemesterManagement = () => {
                       {(() => {
                         const totalDays = calculateDays(semester.start_date, semester.end_date);
                         const daysInfo = getDaysRemaining(semester);
+                        const workDaysInfo = calculateWorkingDays(
+                          semester.start_date, 
+                          semester.end_date, 
+                          semester.weekend_days || [5, 6], 
+                          semester.vacation_days || []
+                        );
+                        
+                        // Calculate remaining working days if semester is current
+                        let remainingWorkDays = 0;
+                        if (daysInfo?.status === 'current') {
+                          const today = new Date();
+                          today.setHours(0, 0, 0, 0);
+                          const remainingWorkDaysInfo = calculateWorkingDays(
+                            today.toISOString().split('T')[0],
+                            semester.end_date,
+                            semester.weekend_days || [5, 6],
+                            semester.vacation_days || []
+                          );
+                          remainingWorkDays = remainingWorkDaysInfo.working;
+                        }
                         
                         return (
                           <div className="space-y-2">
                             {/* Main days info */}
                             <div className="bg-gray-50 rounded-lg p-3">
-                              <div className="flex items-center justify-between text-sm">
-                                <div className="flex items-center gap-1">
-                                  <span className="text-blue-600 font-medium">📅</span>
-                                  <span className="text-gray-700">إجمالي: </span>
-                                  <span className="font-semibold text-gray-800">{totalDays || 0} يوم</span>
+                              <div className="flex flex-col gap-2">
+                                <div className="flex items-center justify-between text-sm">
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-blue-600 font-medium">📅</span>
+                                    <span className="text-gray-700">إجمالي: </span>
+                                    <span className="font-semibold text-gray-800">{totalDays || 0} يوم</span>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-green-600 font-medium">💼</span>
+                                    <span className="text-gray-700">أيام عمل: </span>
+                                    <span className="font-semibold text-green-800">{workDaysInfo.working || 0} يوم</span>
+                                  </div>
                                 </div>
                                 
+                                {/* Show remaining work days for current semester */}
+                                {daysInfo?.status === 'current' && (
+                                  <div className="flex items-center justify-between text-sm">
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-orange-600 font-medium">⏳</span>
+                                      <span className="text-gray-700">أيام عمل متبقية: </span>
+                                      <span className="font-semibold text-orange-700">{remainingWorkDays} يوم</span>
+                                    </div>
+                                    <div className="text-xs text-gray-500">
+                                      ({Math.round((remainingWorkDays / workDaysInfo.working) * 100)}% من أيام العمل)
+                                    </div>
+                                  </div>
+                                )}
+                                
                                 {daysInfo && (
-                                  <div className="flex items-center gap-1">
+                                  <div className="flex items-center gap-1 pt-2 border-t border-gray-200">
                                     <span className={`text-sm ${
                                       daysInfo.status === 'upcoming' ? 'text-blue-600' :
                                       daysInfo.status === 'current' ? 'text-green-600' : 'text-gray-500'
@@ -561,29 +602,29 @@ const SemesterManagement = () => {
                                   </div>
                                 )}
                               </div>
-                              
-                              {/* Progress bar for current semesters */}
-                              {daysInfo?.status === 'current' && totalDays && (
-                                <div className="mt-2">
-                                  <div className="w-full bg-gray-200 rounded-full h-1.5">
-                                    {(() => {
-                                      const elapsed = totalDays - daysInfo.days;
-                                      const progress = (elapsed / totalDays) * 100;
-                                      return (
-                                        <div 
-                                          className="bg-green-500 h-1.5 rounded-full transition-all duration-300"
-                                          style={{ width: `${Math.min(progress, 100)}%` }}
-                                        />
-                                      );
-                                    })()}
-                                  </div>
-                                  <div className="flex justify-between text-xs text-gray-500 mt-1">
-                                    <span>مر {totalDays - daysInfo.days} يوم</span>
-                                    <span>{Math.round(((totalDays - daysInfo.days) / totalDays) * 100)}%</span>
-                                  </div>
-                                </div>
-                              )}
                             </div>
+                              
+                            {/* Progress bar for current semesters */}
+                            {daysInfo?.status === 'current' && totalDays && (
+                              <div className="mt-2">
+                                <div className="w-full bg-gray-200 rounded-full h-1.5">
+                                  {(() => {
+                                    const elapsed = totalDays - daysInfo.days;
+                                    const progress = (elapsed / totalDays) * 100;
+                                    return (
+                                      <div 
+                                        className="bg-green-500 h-1.5 rounded-full transition-all duration-300"
+                                        style={{ width: `${Math.min(progress, 100)}%` }}
+                                      />
+                                    );
+                                  })()}
+                                </div>
+                                <div className="flex justify-between text-xs text-gray-500 mt-1">
+                                  <span>مر {totalDays - daysInfo.days} يوم</span>
+                                  <span>{Math.round(((totalDays - daysInfo.days) / totalDays) * 100)}%</span>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         );
                       })()}

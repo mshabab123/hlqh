@@ -1,16 +1,14 @@
-import { useLocation } from "react-router-dom";
+import SidebarMenu from "./SidebarMenu";
 
-const Layout = ({ children }) => {
-  const location = useLocation();
-  const isLoggedIn = !!localStorage.getItem("token");
-  const noSidebarRoutes = ["/Login", "/", "/registration", "/parent-registration", "/student-registration", "/TeacherRegister", "/about"];
-  const showSidebar = isLoggedIn && !noSidebarRoutes.includes(location.pathname);
-
+const Layout = ({ children, showSidebar = false }) => {
   return (
-    <div className={`min-h-screen transition-all duration-300 ${showSidebar ? 'pr-16 lg:pr-72' : ''}`}>
-      <main className="p-4 lg:p-6">
-        {children}
-      </main>
+    <div className="min-h-screen" dir="rtl">
+      <div className={`flex ${showSidebar ? 'gap-0' : ''}`}>
+        {showSidebar && <SidebarMenu />}
+        <main className={`flex-1 p-4 lg:p-6 ${showSidebar ? 'lg:mr-64' : ''}`}>
+          {children}
+        </main>
+      </div>
     </div>
   );
 };

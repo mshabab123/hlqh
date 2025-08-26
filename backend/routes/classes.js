@@ -133,11 +133,21 @@ router.get('/', requireAuth, async (req, res) => {
         c.is_active, c.created_at, c.school_id, c.semester_id,
         s.name as school_name,
         sem.display_name as semester_name,
-        CASE WHEN u.id IS NOT NULL THEN CONCAT(u.first_name, ' ', u.last_name) ELSE NULL END as teacher_name
+        CASE WHEN u.id IS NOT NULL THEN CONCAT(u.first_name, ' ', u.last_name) ELSE NULL END as teacher_name,
+        COALESCE(
+          ARRAY_AGG(DISTINCT tca.teacher_id) FILTER (WHERE tca.teacher_id IS NOT NULL),
+          ARRAY[]::VARCHAR[]
+        ) as assigned_teacher_ids,
+        COALESCE(
+          ARRAY_AGG(DISTINCT CONCAT(tu.first_name, ' ', tu.last_name)) FILTER (WHERE tu.id IS NOT NULL),
+          ARRAY[]::TEXT[]
+        ) as assigned_teacher_names
       FROM classes c
       LEFT JOIN schools s ON c.school_id = s.id
       LEFT JOIN semesters sem ON c.semester_id = sem.id
       LEFT JOIN users u ON c.room_number = u.id
+      LEFT JOIN teacher_class_assignments tca ON c.id = tca.class_id AND tca.is_active = TRUE
+      LEFT JOIN users tu ON tca.teacher_id = tu.id
       WHERE 1=1
     `;
     
@@ -156,6 +166,7 @@ router.get('/', requireAuth, async (req, res) => {
       paramIndex++;
     }
 
+    query += ` GROUP BY c.id, c.name, c.max_students, c.room_number, c.school_level, c.is_active, c.created_at, c.school_id, c.semester_id, s.name, sem.display_name, u.id, u.first_name, u.last_name`;
     query += ` ORDER BY c.created_at DESC`;
 
     const result = await db.query(query, params);
@@ -554,12 +565,22 @@ router.post('/:id/grades', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'البيانات المطلوبة: معرف الطالب، معرف المادة، والدرجة' });
     }
     
-    // Always insert new grade (allow multiple entries per course)
+    // Get class info to obtain semester_id
+    const classInfo = await db.query('SELECT semester_id FROM classes WHERE id = $1', [classId]);
+    if (classInfo.rows.length === 0) {
+      return res.status(404).json({ error: 'الحلقة غير موجودة' });
+    }
+    
+    const semesterId = classInfo.rows[0].semester_id;
+    
+    // Always insert new grade (allow multiple entries per course) with semester_id
     const result = await db.query(`
-      INSERT INTO grades (student_id, class_id, course_id, grade_type, grade_value, max_grade, notes, start_reference, end_reference, date_graded)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+      INSERT INTO grades (
+        student_id, course_id, semester_id, class_id, grade_value, max_grade,
+        grade_type, start_reference, end_reference, notes, date_graded
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
       RETURNING *
-    `, [student_id, classId, course_id, grade_type || 'assignment', grade_value, max_grade || 100, notes, start_reference, end_reference]);
+    `, [student_id, course_id, semesterId, classId, grade_value, max_grade || 100, grade_type || 'assignment', start_reference, end_reference, notes]);
     
     // If this is a memorization grade with Quran references, update student's overall progress
     if (start_reference && end_reference && grade_type === 'memorization') {
@@ -710,6 +731,81 @@ router.get('/:id/student/:studentId/profile', requireAuth, async (req, res) => {
   } catch (error) {
     console.error('Error fetching student profile:', error);
     res.status(500).json({ error: 'حدث خطأ في جلب ملف الطالب' });
+  }
+});
+
+// POST /api/classes/:id/teachers - Assign multiple teachers to class
+router.post('/:id/teachers', async (req, res) => {
+  const client = await db.connect();
+  try {
+    const { id } = req.params;
+    const { teacher_ids = [] } = req.body; // Array of teacher IDs
+
+    await client.query('BEGIN');
+
+    // Check if class exists
+    const classCheck = await client.query('SELECT id FROM classes WHERE id = $1', [id]);
+    if (classCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'الحلقة غير موجودة' });
+    }
+
+    // Remove all existing assignments for this class
+    await client.query('DELETE FROM teacher_class_assignments WHERE class_id = $1', [id]);
+
+    // Add new assignments
+    if (teacher_ids.length > 0) {
+      for (const teacherId of teacher_ids) {
+        // Verify teacher exists
+        const teacherCheck = await client.query('SELECT id FROM teachers WHERE id = $1', [teacherId]);
+        if (teacherCheck.rows.length > 0) {
+          await client.query(`
+            INSERT INTO teacher_class_assignments (teacher_id, class_id)
+            VALUES ($1, $2)
+            ON CONFLICT (teacher_id, class_id) DO NOTHING
+          `, [teacherId, id]);
+        }
+      }
+    }
+
+    await client.query('COMMIT');
+    
+    res.json({ 
+      message: '✅ تم تحديث تعيينات المعلمين للحلقة بنجاح',
+      classId: id,
+      assignedTeachers: teacher_ids.length
+    });
+
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Assign class teachers error:', err);
+    res.status(500).json({ error: 'حدث خطأ أثناء تعيين المعلمين للحلقة' });
+  } finally {
+    client.release();
+  }
+});
+
+// GET /api/classes/:id/teachers - Get teachers assigned to class
+router.get('/:id/teachers', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await db.query(`
+      SELECT 
+        u.id, u.first_name, u.second_name, u.third_name, u.last_name,
+        u.email, u.phone, u.is_active,
+        t.specialization
+      FROM teacher_class_assignments tca
+      JOIN teachers t ON tca.teacher_id = t.id
+      JOIN users u ON t.id = u.id
+      WHERE tca.class_id = $1 AND tca.is_active = TRUE
+      ORDER BY u.first_name, u.last_name
+    `, [id]);
+
+    res.json({ teachers: result.rows });
+
+  } catch (err) {
+    console.error('Get class teachers error:', err);
+    res.status(500).json({ error: 'حدث خطأ أثناء جلب معلمي الحلقة' });
   }
 });
 

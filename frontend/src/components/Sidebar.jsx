@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { 
   AiOutlineHome, 
@@ -22,7 +22,7 @@ import {
   FaUserTie 
 } from "react-icons/fa";
 
-const Sidebar = () => {
+const Sidebar = ({ isOpen, setIsOpen }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
@@ -35,6 +35,18 @@ const Sidebar = () => {
       setUser(JSON.parse(stored));
     }
   }, []);
+
+  // Close sidebar with ESC key on mobile
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === 'Escape' && window.innerWidth < 1024) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [setIsOpen]);
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -56,6 +68,7 @@ const Sidebar = () => {
   const menuSections = [
     {
       title: "الرئيسية",
+      icon: <AiOutlineHome className="text-lg" />,
       items: [
         {
           title: "الصفحة الرئيسية",
@@ -72,37 +85,44 @@ const Sidebar = () => {
       ]
     },
     {
-      title: "إدارة النظام",
+      title: "الإدارة",
+      icon: <AiOutlineSetting className="text-lg" />,
       items: [
         {
-          title: "إدارة مجمعات الحلقات",
+          title: "مجمعات الحلقات",
           path: "/schools",
           icon: FaSchool,
           roles: ["admin"]
         },
         {
-          title: "إدارة الحلقات",
+          title: "الحلقات",
           path: "/classes",
           icon: FaUsers,
           roles: ["admin", "administrator"]
         },
         {
-          title: "إدارة المعلمين",
+          title: "المعلمين",
           path: "/teachers",
           icon: FaChalkboardTeacher,
-          roles: ["admin", "supervisor"]
+          roles: ["admin", "supervisor", "administrator"]
         },
         {
-          title: "إدارة المديرين",
+          title: "المديرين",
           path: "/administrators",
           icon: FaUserTie,
           roles: ["admin"]
         },
         {
-          title: "إدارة الطلاب",
+          title: "الطلاب",
           path: "/students",
           icon: FaUserGraduate,
           roles: ["admin", "supervisor", "administrator", "teacher"]
+        },
+        {
+          title: "أولياء الأمور",
+          path: "/parents",
+          icon: AiOutlineTeam,
+          roles: ["admin", "supervisor", "administrator"]
         }
       ]
     },
@@ -136,7 +156,8 @@ const Sidebar = () => {
     //   ]
     // },
     {
-      title: "الملف الشخصي والتقارير",
+      title: "الشخصي",
+      icon: <AiOutlineUser className="text-lg" />,
       items: [
         {
           title: "الملف الشخصي",
@@ -159,7 +180,8 @@ const Sidebar = () => {
       ]
     },
     {
-      title: "معلومات أخرى",
+      title: "عام",
+      icon: <AiOutlineBook className="text-lg" />,
       items: [
         {
           title: "حول المنصة",
@@ -184,18 +206,19 @@ const Sidebar = () => {
   return (
     <>
       {/* Overlay for mobile */}
-      {!isCollapsed && (
+      {isOpen && (
         <div 
           className="fixed inset-0 bg-black bg-opacity-50 lg:hidden z-40"
-          onClick={() => setIsCollapsed(true)}
+          onClick={() => setIsOpen(false)}
         />
       )}
       
       {/* Sidebar */}
       <div className={`
-        fixed top-0 right-0 h-full bg-gradient-to-b from-[var(--color-primary-700)] to-[var(--color-primary-900)] text-white shadow-2xl z-50 transition-all duration-300 ease-in-out
-        ${isCollapsed ? 'w-0 lg:w-16' : 'w-80 lg:w-72'}
-        ${isCollapsed ? 'overflow-hidden' : 'overflow-y-auto'}
+        fixed top-0 right-0 h-full bg-gradient-to-b from-[var(--color-primary-700)] to-[var(--color-primary-900)] text-white shadow-2xl z-50 transition-transform duration-300 ease-in-out
+        ${!isOpen ? 'translate-x-full lg:translate-x-0' : 'translate-x-0'}
+        ${isCollapsed ? 'lg:w-16' : 'w-80 lg:w-72'}
+        overflow-y-auto
       `} dir="rtl">
         
         {/* Header */}
@@ -216,7 +239,14 @@ const Sidebar = () => {
           </div>
           
           <button
-            onClick={() => setIsCollapsed(!isCollapsed)}
+            onClick={() => {
+              // On mobile, close sidebar; on desktop, toggle collapse
+              if (window.innerWidth < 1024) {
+                setIsOpen(false);
+              } else {
+                setIsCollapsed(!isCollapsed);
+              }
+            }}
             className="p-2 rounded-lg hover:bg-white/10 transition-colors"
           >
             {isCollapsed ? <AiOutlineMenu /> : <AiOutlineClose />}
@@ -257,11 +287,18 @@ const Sidebar = () => {
             if (accessibleItems.length === 0) return null;
 
             return (
-              <div key={sectionIndex} className="mb-6">
-                {!isCollapsed && (
-                  <h3 className="text-xs font-bold text-white/50 uppercase tracking-wider mb-3 px-2">
-                    {section.title}
-                  </h3>
+              <div key={sectionIndex} className={`${isCollapsed ? 'mb-4' : 'mb-6'}`}>
+                {!isCollapsed ? (
+                  <div className="flex items-center gap-2 mb-3 px-3 text-white/60">
+                    {section.icon}
+                    <h3 className="text-xs font-bold uppercase tracking-wider">
+                      {section.title}
+                    </h3>
+                  </div>
+                ) : (
+                  <div className="flex justify-center mb-2 text-white/40" title={section.title}>
+                    {React.cloneElement(section.icon, { className: "text-sm" })}
+                  </div>
                 )}
                 
                 <ul className="space-y-1">
@@ -273,6 +310,12 @@ const Sidebar = () => {
                       <li key={itemIndex}>
                         <Link
                           to={item.path}
+                          onClick={() => {
+                            // Close sidebar on mobile when clicking a link
+                            if (window.innerWidth < 1024) {
+                              setIsOpen(false);
+                            }
+                          }}
                           className={`
                             flex items-center gap-3 px-3 py-3 rounded-lg transition-all duration-200 group
                             ${isActive 
