@@ -263,31 +263,35 @@ const NavigationSidebar = ({ isOpen, setIsOpen, className = "" }) => {
       {/* Overlay for mobile */}
       {isOpen && (
         <div 
-          className="fixed inset-0 bg-black bg-opacity-50 lg:hidden z-40"
+          className="fixed inset-0 bg-black bg-opacity-50 lg:hidden z-30"
           onClick={() => setIsOpen(false)}
         />
       )}
       
       {/* Sidebar */}
       <div className={`
-        fixed top-0 right-0 h-full bg-white shadow-2xl z-40 transition-all duration-300 ease-in-out
-        text-gray-800 border-l border-gray-200
+        fixed top-0 right-0 h-full shadow-2xl transition-all duration-300 ease-in-out
+        text-white border-l border-primary-400/20
         ${!isOpen ? 'translate-x-full lg:translate-x-0' : 'translate-x-0'}
         ${isCollapsed ? 'lg:w-20' : 'w-80 lg:w-72'}
-        overflow-hidden flex flex-col
+        overflow-hidden flex flex-col z-40 lg:z-10
         ${className}
-      `} dir="rtl">
+      `} 
+      style={{
+        background: 'linear-gradient(180deg, var(--color-primary-600), var(--color-primary-800), var(--color-primary-900))',
+      }}
+      dir="rtl">
         
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50">
+        <div className="flex items-center justify-between p-4 border-b border-white/20 bg-primary-700/30">
           <div className={`flex items-center gap-3 ${isCollapsed ? 'hidden lg:flex' : ''}`}>
-            <div className="h-10 w-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-lg">
+            <div className="h-10 w-10 bg-gradient-to-br from-primary-400 to-primary-500 rounded-full flex items-center justify-center shadow-lg">
               <AiOutlineBook className="text-white text-lg" />
             </div>
             {!isCollapsed && (
               <div>
-                <h1 className="font-bold text-lg text-gray-800">منصة الحلقات</h1>
-                <p className="text-xs text-gray-600">نظام إدارة الحلقات القرآنية</p>
+                <h1 className="font-bold text-lg text-white">منصة الحلقات</h1>
+                <p className="text-xs text-primary-100">نظام إدارة الحلقات القرآنية</p>
               </div>
             )}
           </div>
@@ -300,34 +304,34 @@ const NavigationSidebar = ({ isOpen, setIsOpen, className = "" }) => {
                 setIsCollapsed(!isCollapsed);
               }
             }}
-            className="p-2 rounded-lg hover:bg-gray-200 transition-colors"
+            className="p-2 rounded-lg hover:bg-white/10 transition-colors"
             title={isCollapsed ? "توسيع الشريط الجانبي" : "طي الشريط الجانبي"}
           >
             {isCollapsed ? 
-              <AiOutlineMenu className="text-gray-600 text-lg" /> : 
-              <AiOutlineClose className="text-gray-600 text-lg" />
+              <AiOutlineMenu className="text-white text-lg" /> : 
+              <AiOutlineClose className="text-white text-lg" />
             }
           </button>
         </div>
 
         {/* User Info */}
         {!isCollapsed && (
-          <div className="p-4 border-b border-gray-200 bg-gray-50">
+          <div className="p-4 border-b border-white/20 bg-primary-800/30">
             <div className="flex items-center gap-3">
-              <div className="bg-gradient-to-br from-blue-500 to-purple-600 p-3 rounded-full shadow-lg">
+              <div className="bg-gradient-to-br from-primary-400 to-primary-500 p-3 rounded-full shadow-lg">
                 <AiOutlineUser className="text-white text-xl" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="font-semibold text-gray-800 truncate">
+                <p className="font-semibold text-white truncate">
                   {user.first_name} {user.last_name}
                 </p>
-                <p className="text-sm text-gray-600 truncate">
+                <p className="text-sm text-primary-100 truncate">
                   {getRoleName(user.role)}
                 </p>
                 {user.is_active === false && (
                   <div className="flex items-center gap-1 mt-1">
-                    <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                    <span className="text-xs text-red-600">حساب غير مفعل</span>
+                    <div className="w-2 h-2 bg-red-400 rounded-full"></div>
+                    <span className="text-xs text-red-300">حساب غير مفعل</span>
                   </div>
                 )}
               </div>
@@ -336,7 +340,7 @@ const NavigationSidebar = ({ isOpen, setIsOpen, className = "" }) => {
         )}
 
         {/* Navigation Menu */}
-        <nav className="flex-1 overflow-y-auto p-4 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+        <nav className="flex-1 overflow-y-auto p-4 scrollbar-thin scrollbar-thumb-primary-400/40 scrollbar-track-primary-900/20">
           {menuSections.map((section, sectionIndex) => {
             const accessibleItems = section.items.filter(item => hasAccess(item.roles));
             
@@ -345,14 +349,14 @@ const NavigationSidebar = ({ isOpen, setIsOpen, className = "" }) => {
             return (
               <div key={sectionIndex} className={`${isCollapsed ? 'mb-4' : 'mb-6'}`}>
                 {!isCollapsed ? (
-                  <div className="flex items-center gap-2 mb-3 px-3 text-gray-500">
+                  <div className="flex items-center gap-2 mb-3 px-3 text-primary-200/80">
                     <section.icon className="text-base" />
                     <h3 className="text-xs font-bold uppercase tracking-wider">
                       {section.title}
                     </h3>
                   </div>
                 ) : (
-                  <div className="flex justify-center mb-2 text-gray-400" title={section.title}>
+                  <div className="flex justify-center mb-2 text-primary-300/60" title={section.title}>
                     <section.icon className="text-base" />
                   </div>
                 )}
@@ -374,8 +378,8 @@ const NavigationSidebar = ({ isOpen, setIsOpen, className = "" }) => {
                           className={`
                             flex items-center gap-3 px-3 py-3 rounded-lg transition-all duration-200 group
                             ${isActive 
-                              ? 'bg-gradient-to-r from-blue-50 to-purple-50 text-blue-700 border-r-2 border-blue-500 shadow-md' 
-                              : 'text-gray-600 hover:bg-gray-100 hover:text-gray-800'
+                              ? 'bg-gradient-to-r from-primary-400/20 to-primary-300/15 text-white border-r-2 border-primary-400 shadow-lg' 
+                              : 'text-primary-100/90 hover:bg-white/10 hover:text-white'
                             }
                             ${isCollapsed ? 'justify-center px-2' : ''}
                           `}
@@ -383,7 +387,7 @@ const NavigationSidebar = ({ isOpen, setIsOpen, className = "" }) => {
                         >
                           <IconComponent className={`
                             ${isCollapsed ? 'text-xl' : 'text-lg'} 
-                            ${isActive ? 'text-blue-600' : 'text-gray-500 group-hover:text-gray-700'}
+                            ${isActive ? 'text-primary-300' : 'text-primary-200/70 group-hover:text-primary-100'}
                             transition-colors duration-200
                           `} />
                           {!isCollapsed && (
@@ -392,7 +396,7 @@ const NavigationSidebar = ({ isOpen, setIsOpen, className = "" }) => {
                             </span>
                           )}
                           {isActive && !isCollapsed && (
-                            <div className="w-2 h-2 bg-blue-500 rounded-full shadow-sm"></div>
+                            <div className="w-2 h-2 bg-primary-400 rounded-full shadow-sm"></div>
                           )}
                         </Link>
                       </li>
@@ -405,12 +409,12 @@ const NavigationSidebar = ({ isOpen, setIsOpen, className = "" }) => {
         </nav>
 
         {/* Logout Button */}
-        <div className="p-4 border-t border-gray-200 bg-gray-50">
+        <div className="p-4 border-t border-white/20 bg-primary-800/30">
           <button
             onClick={handleLogout}
             className={`
               w-full flex items-center gap-3 px-3 py-3 rounded-lg 
-              bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 
+              bg-gradient-to-r from-red-500/80 to-red-600/80 hover:from-red-500 hover:to-red-600 
               transition-all duration-200 text-white font-medium shadow-lg
               ${isCollapsed ? 'justify-center px-2' : ''}
               group

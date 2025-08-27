@@ -23,31 +23,27 @@ const Layout = ({ children }) => {
   }, []);
 
   return (
-    <div className="min-h-screen flex" dir="rtl">
+    <div className="min-h-screen" dir="rtl">
       <NavigationSidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
       
+      {/* Mobile menu button - Always visible on mobile */}
+      <button
+        onClick={() => setSidebarOpen(!sidebarOpen)}
+        className="lg:hidden fixed top-4 right-4 z-50 p-3 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white rounded-xl shadow-xl transition-all duration-200 flex items-center justify-center"
+        style={{ width: '48px', height: '48px' }}
+      >
+        {sidebarOpen ? (
+          <AiOutlineClose className="text-xl" />
+        ) : (
+          <AiOutlineMenu className="text-xl" />
+        )}
+      </button>
+      
       <main className={`
-        flex-1 transition-all duration-300 min-h-screen
+        min-h-screen transition-all duration-300
         ${sidebarOpen ? 'lg:mr-72' : 'lg:mr-20'}
+        pt-16 lg:pt-0
       `}>
-        {/* Mobile menu button - Always visible on mobile */}
-        <div className="lg:hidden">
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="fixed top-4 right-4 z-50 p-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-xl transition-all duration-200 flex items-center justify-center"
-            style={{ width: '48px', height: '48px' }}
-          >
-            {sidebarOpen ? (
-              <AiOutlineClose className="text-xl" />
-            ) : (
-              <AiOutlineMenu className="text-xl" />
-            )}
-          </button>
-          
-          {/* Mobile header space */}
-          <div className="h-20"></div>
-        </div>
-        
         {/* Main content */}
         <div className="p-4 lg:p-6">
           {children}
