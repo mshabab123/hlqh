@@ -80,7 +80,7 @@ export default function App() {
             path="/schools"
             element={
               <ProtectedRoute requiredRole="admin">
-                <Layout showSidebar={true}>
+                <Layout>
                   <SchoolManagement />
                 </Layout>
               </ProtectedRoute>
@@ -90,7 +90,7 @@ export default function App() {
             path="/classes"
             element={
               <ProtectedRoute requiredRole={["admin", "administrator"]}>
-                <Layout showSidebar={true}>
+                <Layout>
                   <ClassManagement />
                 </Layout>
               </ProtectedRoute>
@@ -100,7 +100,7 @@ export default function App() {
             path="/teachers"
             element={
               <ProtectedRoute requiredRole={["admin", "supervisor"]}>
-                <Layout showSidebar={true}>
+                <Layout>
                   <TeacherManagement />
                 </Layout>
               </ProtectedRoute>
@@ -110,7 +110,7 @@ export default function App() {
             path="/parents"
             element={
               <ProtectedRoute requiredRole={["admin", "supervisor"]}>
-                <Layout showSidebar={true}>
+                <Layout>
                   <ParentManagement />
                 </Layout>
               </ProtectedRoute>
@@ -140,7 +140,7 @@ export default function App() {
             path="/students"
             element={
               <ProtectedRoute>
-                <Layout showSidebar={true}>
+                <Layout>
                   <StudentManagement />
                 </Layout>
               </ProtectedRoute>
@@ -230,7 +230,7 @@ export default function App() {
             path="/dashboard"
             element={
               <ProtectedRoute>
-                <Layout showSidebar={true}>
+                <Layout>
                   <Dashboard />
                 </Layout>
               </ProtectedRoute>
