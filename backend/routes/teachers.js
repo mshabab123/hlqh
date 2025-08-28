@@ -258,19 +258,19 @@ router.get('/', async (req, res) => {
     switch (user_type) {
       case 'teacher':
         tableName = 'teachers';
-        additionalFields = 't.specialization, t.hire_date, t.status';
+        additionalFields = "'teacher' as role_type";
         break;
       case 'admin':
         tableName = 'admins';
-        additionalFields = 't.role, t.hire_date, t.status, t.permissions';
+        additionalFields = "'admin' as role_type";
         break;
       case 'administrator':
         tableName = 'administrators';
-        additionalFields = 't.role, t.hire_date, t.status, t.permissions';
+        additionalFields = "'administrator' as role_type";
         break;
       case 'supervisor':
         tableName = 'supervisors';
-        additionalFields = 't.role, t.hire_date, t.status, t.permissions, t.supervised_areas';
+        additionalFields = "'supervisor' as role_type";
         break;
       default:
         return res.status(400).json({ error: 'نوع المستخدم غير صحيح' });
@@ -320,7 +320,7 @@ router.get('/', async (req, res) => {
       ${whereClause}
       GROUP BY u.id, u.first_name, u.second_name, u.third_name, u.last_name,
                u.email, u.phone, u.address, u.is_active, u.created_at, 
-               t.specialization, t.hire_date, t.status, t.qualifications
+               t.qualifications
       ORDER BY u.is_active DESC, u.first_name, u.last_name
     `;
 

@@ -16,7 +16,8 @@ import {
   AiOutlineLock,
   AiOutlineInfoCircle,
   AiOutlineUserAdd,
-  AiOutlineCheckCircle
+  AiOutlineCheckCircle,
+  AiOutlineCrown
 } from "react-icons/ai";
 import { 
   FaChalkboardTeacher, 
@@ -123,6 +124,13 @@ const NavigationSidebar = ({ isOpen, setIsOpen, className = "" }) => {
           icon: FaUserTie,
           roles: ["admin"],
           description: "إدارة مديري المجمعات"
+        },
+        {
+          title: "مديري المنصة",
+          path: "/admin-roots",
+          icon: AiOutlineCrown,
+          roles: ["admin"],
+          description: "إدارة مديري المنصة وصلاحياتهم"
         },
         {
           title: "إدارة المستخدمين",

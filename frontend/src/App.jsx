@@ -9,6 +9,7 @@ import SchoolManagement from "./pages/SchoolManagement";
 import ClassManagement from "./pages/ClassManagement";
 import TeacherManagement from "./pages/TeacherManagement";
 import AdministratorManagement from "./pages/AdministratorManagement";
+import AdminRoots from "./pages/AdminRoots";
 import ParentManagement from "./pages/ParentManagement";
 import StudentManagement from "./pages/StudentManagement";
 import UserManagement from "./pages/UserManagement";
@@ -122,6 +123,16 @@ export default function App() {
               <ProtectedRoute requiredRole="admin">
                 <Layout>
                   <AdministratorManagement />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin-roots"
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <Layout>
+                  <AdminRoots />
                 </Layout>
               </ProtectedRoute>
             }

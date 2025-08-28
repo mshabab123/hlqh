@@ -1,341 +1,166 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { AiOutlinePlus, AiOutlineEdit, AiOutlineDelete, AiOutlineEye, AiOutlineCheck, AiOutlineClose, AiOutlineUser } from "react-icons/ai";
+import { AiOutlinePlus } from "react-icons/ai";
+import AdministratorForm from "../components/AdministratorForm";
+import AdministratorCard from "../components/AdministratorCard";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "";
-
-// AdministratorForm component for add/edit
-const AdministratorForm = ({ administrator, onSubmit, onCancel, isEditing = false, onAdministratorChange }) => (
-  <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-    <div className="bg-white p-6 rounded-xl shadow-xl max-w-2xl w-full m-4 max-h-[90vh] overflow-y-auto">
-      <h3 className="text-xl font-bold mb-4 text-[var(--color-primary-700)]">
-        {isEditing ? "تعديل مدير المجمع" : "إضافة مدير مجمع جديد"}
-      </h3>
-      
-      <form onSubmit={onSubmit} className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">رقم الهوية *</label>
-            <input
-              type="text"
-              value={administrator.id}
-              onChange={(e) => onAdministratorChange({...administrator, id: e.target.value})}
-              className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              pattern="[0-9]{10}"
-              maxLength="10"
-              required
-              disabled={isEditing}
-            />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium mb-1">الدور الإداري *</label>
-            <select
-              value={administrator.role || "administrator"}
-              onChange={(e) => onAdministratorChange({...administrator, role: e.target.value})}
-              className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-            >
-              <option value="administrator">مدير</option>
-              <option value="assistant_admin">مساعد مدير</option>
-              <option value="coordinator">منسق</option>
-              <option value="supervisor">مشرف</option>
-            </select>
-          </div>
-        </div>
-        
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">الاسم الأول *</label>
-            <input
-              type="text"
-              value={administrator.first_name}
-              onChange={(e) => onAdministratorChange({...administrator, first_name: e.target.value})}
-              className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-            />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium mb-1">الاسم الثاني *</label>
-            <input
-              type="text"
-              value={administrator.second_name}
-              onChange={(e) => onAdministratorChange({...administrator, second_name: e.target.value})}
-              className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-            />
-          </div>
-        </div>
-        
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">اسم الجد *</label>
-            <input
-              type="text"
-              value={administrator.third_name}
-              onChange={(e) => onAdministratorChange({...administrator, third_name: e.target.value})}
-              className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-            />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium mb-1">اسم العائلة *</label>
-            <input
-              type="text"
-              value={administrator.last_name}
-              onChange={(e) => onAdministratorChange({...administrator, last_name: e.target.value})}
-              className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-            />
-          </div>
-        </div>
-        
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">البريد الإلكتروني *</label>
-            <input
-              type="email"
-              value={administrator.email}
-              onChange={(e) => onAdministratorChange({...administrator, email: e.target.value})}
-              className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-            />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium mb-1">رقم الجوال *</label>
-            <input
-              type="text"
-              value={administrator.phone}
-              onChange={(e) => onAdministratorChange({...administrator, phone: e.target.value})}
-              className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              pattern="^05[0-9]{8}$"
-              placeholder="05xxxxxxxx"
-              required
-            />
-          </div>
-        </div>
-        
-        {!isEditing && (
-          <div>
-            <label className="block text-sm font-medium mb-1">كلمة المرور *</label>
-            <input
-              type="password"
-              value={administrator.password}
-              onChange={(e) => onAdministratorChange({...administrator, password: e.target.value})}
-              className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              minLength="6"
-              required
-            />
-          </div>
-        )}
-        
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">الراتب</label>
-            <input
-              type="number"
-              value={administrator.salary || ""}
-              onChange={(e) => onAdministratorChange({...administrator, salary: e.target.value})}
-              className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              min="0"
-              step="100"
-              placeholder="0"
-            />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium mb-1">العنوان</label>
-            <input
-              type="text"
-              value={administrator.address || ""}
-              onChange={(e) => onAdministratorChange({...administrator, address: e.target.value})}
-              className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-        </div>
-        
-        <div>
-          <label className="block text-sm font-medium mb-1">المؤهلات</label>
-          <textarea
-            value={administrator.qualifications || ""}
-            onChange={(e) => onAdministratorChange({...administrator, qualifications: e.target.value})}
-            className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            rows="3"
-            placeholder="الشهادات والمؤهلات العلمية والإدارية..."
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium mb-1">الصلاحيات</label>
-          <textarea
-            value={administrator.permissions || ""}
-            onChange={(e) => onAdministratorChange({...administrator, permissions: e.target.value})}
-            className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            rows="3"
-            placeholder="صلاحيات المدير في النظام (JSON format أو وصف نصي)..."
-          />
-        </div>
-        
-        <div className="flex justify-end gap-2 pt-4">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
-          >
-            إلغاء
-          </button>
-          <button
-            type="submit"
-            className="px-4 py-2 bg-[var(--color-primary-500)] text-white rounded-lg hover:bg-[var(--color-primary-600)]"
-          >
-            {isEditing ? "تحديث" : "إضافة"}
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-);
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 export default function AdministratorManagement() {
   const [administrators, setAdministrators] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [showAddModal, setShowAddModal] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [showForm, setShowForm] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
   const [editingAdministrator, setEditingAdministrator] = useState(null);
-  const [userRole, setUserRole] = useState("admin"); // TODO: Get from auth context
-  const [activeFilter, setActiveFilter] = useState("all"); // "all", "active", "inactive"
-  const [roleFilter, setRoleFilter] = useState("all"); // Filter by role
-  
-  const [newAdministrator, setNewAdministrator] = useState({
-    id: "",
+  const [selectedAdministrator, setSelectedAdministrator] = useState(null);
+
+  const [currentAdministrator, setCurrentAdministrator] = useState({
     first_name: "",
-    second_name: "",
-    third_name: "",
     last_name: "",
     email: "",
     phone: "",
-    password: "",
     address: "",
     role: "administrator",
-    salary: "",
-    qualifications: "",
     permissions: "",
-    user_type: "administrator"
+    is_active: true
   });
 
   useEffect(() => {
     fetchAdministrators();
-  }, [activeFilter, roleFilter]);
+  }, []);
 
   const fetchAdministrators = async () => {
     try {
       setLoading(true);
-      const params = new URLSearchParams({ user_type: 'administrator' });
-      if (activeFilter !== "all") {
-        params.append('is_active', activeFilter === "active" ? 'true' : 'false');
-      }
-      if (roleFilter !== "all") {
-        params.append('role', roleFilter);
-      }
       
-      const response = await axios.get(`${API_BASE}/api/administrators?${params.toString()}`, {
+      // Fetch all users with administrator-type roles
+      const response = await axios.get(`${API_BASE}/api/users`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token')}`
         }
       });
-      setAdministrators(response.data.administrators || []);
+      
+      let allUsers = [];
+      // Handle different response formats
+      if (Array.isArray(response.data)) {
+        allUsers = response.data;
+      } else if (response.data.users && Array.isArray(response.data.users)) {
+        allUsers = response.data.users;
+      } else if (response.data.data && Array.isArray(response.data.data)) {
+        allUsers = response.data.data;
+      }
+      
+      // Filter for administrator-type roles
+      const adminRoles = ['administrator', 'admin', 'supervisor', 'assistant_admin', 'coordinator'];
+      let filteredAdmins = allUsers.filter(user => 
+        adminRoles.includes(user.role?.toLowerCase())
+      );
+
+      setAdministrators(filteredAdmins);
+      setError("");
     } catch (err) {
+      console.error("Error fetching administrators:", err);
       setError(err.response?.data?.error || "فشل في تحميل مديري المجمعات");
+      setAdministrators([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleAddAdministrator = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    try {
-      await axios.post(`${API_BASE}/api/administrators`, newAdministrator, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      
-      setShowAddModal(false);
-      setNewAdministrator({
-        id: "",
-        first_name: "",
-        second_name: "",
-        third_name: "",
-        last_name: "",
-        email: "",
-        phone: "",
-        password: "",
-        address: "",
-        role: "administrator",
-        salary: "",
-        qualifications: "",
-        permissions: "",
-        user_type: "administrator"
-      });
-      fetchAdministrators();
-    } catch (err) {
-      setError(err.response?.data?.error || "فشل في إضافة مدير المجمع");
-    }
-  };
+    const formData = new FormData(e.target);
+    
+    const administratorData = {
+      first_name: formData.get('first_name'),
+      last_name: formData.get('last_name'),
+      email: formData.get('email'),
+      phone: formData.get('phone'),
+      address: formData.get('address'),
+      role: formData.get('role'),
+      permissions: formData.get('permissions'),
+      is_active: formData.get('is_active') === 'on'
+    };
 
-  const handleEditAdministrator = async (e) => {
-    e.preventDefault();
-    try {
-      const updateData = {
-        first_name: editingAdministrator.first_name,
-        second_name: editingAdministrator.second_name,
-        third_name: editingAdministrator.third_name,
-        last_name: editingAdministrator.last_name,
-        email: editingAdministrator.email,
-        phone: editingAdministrator.phone,
-        address: editingAdministrator.address,
-        role: editingAdministrator.role,
-        salary: editingAdministrator.salary,
-        qualifications: editingAdministrator.qualifications,
-        permissions: editingAdministrator.permissions
-      };
+    // Add password fields for new administrator
+    if (!editingAdministrator) {
+      administratorData.password = formData.get('password');
+      administratorData.confirm_password = formData.get('confirm_password');
       
-      await axios.put(`${API_BASE}/api/administrators/${editingAdministrator.id}`, updateData, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      
-      setEditingAdministrator(null);
-      fetchAdministrators();
-    } catch (err) {
-      setError(err.response?.data?.error || "فشل في تحديث مدير المجمع");
+      if (administratorData.password !== administratorData.confirm_password) {
+        setError("كلمتا المرور غير متطابقتين");
+        return;
+      }
     }
-  };
 
-  const handleDeleteAdministrator = async (administratorId) => {
-    if (window.confirm("هل أنت متأكد من حذف مدير المجمع هذا؟")) {
-      try {
-        await axios.delete(`${API_BASE}/api/administrators/${administratorId}`, {
+    try {
+      if (editingAdministrator) {
+        await axios.put(
+          `${API_BASE}/api/users/${editingAdministrator.id || editingAdministrator.user_id}`, 
+          administratorData, {
           headers: {
             Authorization: `Bearer ${localStorage.getItem('token')}`
           }
         });
-        fetchAdministrators();
-      } catch (err) {
-        setError(err.response?.data?.error || "فشل في حذف مدير المجمع");
+      } else {
+        await axios.post(`${API_BASE}/api/users`, administratorData, {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token')}`
+          }
+        });
       }
+      
+      setShowForm(false);
+      setEditingAdministrator(null);
+      setCurrentAdministrator({
+        first_name: "",
+        last_name: "",
+        email: "",
+        phone: "",
+        address: "",
+        role: "administrator",
+        permissions: "",
+        is_active: true
+      });
+      fetchAdministrators();
+      setError("");
+    } catch (err) {
+      setError(err.response?.data?.error || "فشل في حفظ بيانات المدير");
     }
   };
 
-  const toggleActivation = async (administratorId, currentStatus) => {
+  const handleAdd = () => {
+    setEditingAdministrator(null);
+    setCurrentAdministrator({
+      first_name: "",
+      last_name: "",
+      email: "",
+      phone: "",
+      address: "",
+      role: "administrator",
+      permissions: "",
+      is_active: true
+    });
+    setShowForm(true);
+  };
+
+  const handleEdit = (administrator) => {
+    setEditingAdministrator(administrator);
+    setCurrentAdministrator(administrator);
+    setShowForm(true);
+  };
+
+  const handleView = (administrator) => {
+    setSelectedAdministrator(administrator);
+    setShowDetails(true);
+  };
+
+  const handleToggleActive = async (administratorId) => {
     try {
-      await axios.patch(`${API_BASE}/api/administrators/${administratorId}/activate`, {
-        is_active: !currentStatus
-      }, {
+      await axios.patch(`${API_BASE}/api/users/${administratorId}/toggle-active`, {}, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token')}`
         }
@@ -346,168 +171,213 @@ export default function AdministratorManagement() {
     }
   };
 
-  const getRoleDisplayName = (role) => {
-    const roleNames = {
-      administrator: "مدير مجمع",
-      assistant_admin: "مساعد مدير مجمع",
-      coordinator: "منسق",
-      supervisor: "مشرف"
-    };
-    return roleNames[role] || role;
+  const handleDeleteAdministrator = async (administratorId) => {
+    if (window.confirm("هل أنت متأكد من حذف هذا المدير؟")) {
+      try {
+        await axios.delete(`${API_BASE}/api/users/${administratorId}`, {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+        fetchAdministrators();
+      } catch (err) {
+        setError(err.response?.data?.error || "فشل في حذف المدير");
+      }
+    }
   };
+
+  // Filter administrators based on search and status
+  const filteredAdministrators = administrators.filter(admin => {
+    const matchesSearch = admin.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         admin.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         admin.email?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === "all" || 
+                         (statusFilter === "active" && admin.is_active) ||
+                         (statusFilter === "inactive" && !admin.is_active);
+    return matchesSearch && matchesStatus;
+  });
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="text-lg">جاري التحميل...</div>
+      <div className="p-8">
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto" dir="rtl">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-[var(--color-primary-700)]">إدارة مديري المجمعات</h1>
+    <div className="p-8">
+      <div className="flex justify-between items-center mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-800">إدارة مديري المجمعات</h1>
+          <p className="text-gray-600 mt-2">إدارة وتتبع مديري المجمعات والمشرفين</p>
+        </div>
         <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 bg-[var(--color-primary-500)] text-white px-4 py-2 rounded-lg hover:bg-[var(--color-primary-600)]"
+          onClick={handleAdd}
+          className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors"
         >
-          <AiOutlinePlus /> إضافة مدير مجمع جديد
+          <AiOutlinePlus />
+          إضافة مدير جديد
         </button>
       </div>
 
-      {/* Filters */}
-      <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium mb-2">تصفية حسب الدور:</label>
-          <select
-            value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value)}
-            className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">جميع الأدوار</option>
-            <option value="administrator">مدير مجمع</option>
-            <option value="assistant_admin">مساعد مدير مجمع</option>
-            <option value="coordinator">منسق</option>
-            <option value="supervisor">مشرف</option>
-          </select>
-        </div>
-        
-        <div>
-          <label className="block text-sm font-medium mb-2">تصفية حسب الحالة:</label>
-          <select
-            value={activeFilter}
-            onChange={(e) => setActiveFilter(e.target.value)}
-            className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">جميع مديري المجمعات</option>
-            <option value="active">مديري المجمعات النشطين</option>
-            <option value="inactive">مديري المجمعات غير النشطين</option>
-          </select>
-        </div>
-      </div>
-
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
           {error}
         </div>
       )}
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {administrators.map((administrator) => (
-          <div key={administrator.id} className="bg-white rounded-lg shadow-md p-6 border">
-            <div className="flex justify-between items-start mb-4">
-              <div className="flex items-center gap-3">
-                <div className="bg-[var(--color-primary-100)] p-3 rounded-full">
-                  <AiOutlineUser className="text-[var(--color-primary-700)] text-xl" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-[var(--color-primary-700)]">
-                    {administrator.first_name} {administrator.last_name}
-                  </h3>
-                  <p className="text-sm text-gray-600">{getRoleDisplayName(administrator.role)}</p>
-                </div>
-              </div>
-              <div className="flex gap-2 flex-col">
-                <span className={`px-2 py-1 rounded text-xs text-center ${
-                  administrator.is_active 
-                    ? 'bg-green-100 text-green-800' 
-                    : 'bg-red-100 text-red-800'
-                }`}>
-                  {administrator.is_active ? 'نشط' : 'غير نشط'}
-                </span>
-                <span className="px-2 py-1 rounded text-xs bg-purple-100 text-purple-800 text-center">
-                  مدير مجمع
-                </span>
-              </div>
-            </div>
-            
-            <div className="space-y-2 text-sm text-gray-600 mb-4">
-              <p><strong>رقم الهوية:</strong> {administrator.id}</p>
-              <p><strong>البريد:</strong> {administrator.email}</p>
-              <p><strong>الجوال:</strong> {administrator.phone}</p>
-              {administrator.salary && <p><strong>الراتب:</strong> {Number(administrator.salary).toLocaleString()} ريال</p>}
-              {administrator.qualifications && <p><strong>المؤهلات:</strong> {administrator.qualifications}</p>}
-              {administrator.hire_date && (
-                <p><strong>تاريخ التوظيف:</strong> {new Date(administrator.hire_date).toLocaleDateString('ar-SA')}</p>
-              )}
-            </div>
-            
-            <div className="flex gap-2 flex-wrap">
-              <button
-                onClick={() => setEditingAdministrator(administrator)}
-                className="flex items-center gap-1 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
-              >
-                <AiOutlineEdit /> تعديل
-              </button>
-              
-              <button
-                onClick={() => toggleActivation(administrator.id, administrator.is_active)}
-                className={`flex items-center gap-1 px-3 py-1 rounded text-white text-sm ${
-                  administrator.is_active 
-                    ? 'bg-orange-500 hover:bg-orange-600' 
-                    : 'bg-green-500 hover:bg-green-600'
-                }`}
-              >
-                {administrator.is_active ? <AiOutlineClose /> : <AiOutlineCheck />}
-                {administrator.is_active ? 'إلغاء التفعيل' : 'تفعيل'}
-              </button>
-              
-              <button
-                onClick={() => handleDeleteAdministrator(administrator.id)}
-                className="flex items-center gap-1 px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-sm"
-              >
-                <AiOutlineDelete /> حذف
-              </button>
+      {/* Search and Filter Controls */}
+      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              البحث
+            </label>
+            <input
+              type="text"
+              placeholder="ابحث بالاسم أو البريد الإلكتروني..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              حالة الحساب
+            </label>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+            >
+              <option value="all">جميع الحسابات</option>
+              <option value="active">المفعلة</option>
+              <option value="inactive">غير المفعلة</option>
+            </select>
+          </div>
+
+          <div className="flex items-end">
+            <div className="text-sm text-gray-600">
+              إجمالي المديرين: {filteredAdministrators.length}
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Administrator Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {filteredAdministrators.map(admin => (
+          <AdministratorCard
+            key={admin.id || admin.user_id}
+            administrator={admin}
+            onView={handleView}
+            onEdit={handleEdit}
+            onToggleActive={handleToggleActive}
+            onDelete={handleDeleteAdministrator}
+          />
         ))}
       </div>
 
-      {administrators.length === 0 && (
+      {filteredAdministrators.length === 0 && (
         <div className="text-center py-12">
-          <p className="text-gray-500 text-lg">لا توجد مديري مجمعات مسجلين</p>
+          <p className="text-gray-500 text-lg">لا توجد مديرين مطابقين لمعايير البحث</p>
         </div>
       )}
 
-      {showAddModal && (
-        <AdministratorForm
-          administrator={newAdministrator}
-          onSubmit={handleAddAdministrator}
-          onCancel={() => setShowAddModal(false)}
-          isEditing={false}
-          onAdministratorChange={setNewAdministrator}
-        />
-      )}
+      {/* Administrator Form Modal */}
+      <AdministratorForm
+        isOpen={showForm}
+        onClose={() => {
+          setShowForm(false);
+          setEditingAdministrator(null);
+        }}
+        onSubmit={handleSubmit}
+        administrator={currentAdministrator}
+        isEditing={!!editingAdministrator}
+      />
 
-      {editingAdministrator && (
-        <AdministratorForm
-          administrator={editingAdministrator}
-          onSubmit={handleEditAdministrator}
-          onCancel={() => setEditingAdministrator(null)}
-          isEditing={true}
-          onAdministratorChange={setEditingAdministrator}
-        />
+      {/* Administrator Details Modal */}
+      {showDetails && selectedAdministrator && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-gray-800">تفاصيل المدير</h2>
+              <button
+                onClick={() => setShowDetails(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">الاسم الأول</label>
+                  <p className="text-gray-900">{selectedAdministrator.first_name}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">اسم العائلة</label>
+                  <p className="text-gray-900">{selectedAdministrator.last_name}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">البريد الإلكتروني</label>
+                  <p className="text-gray-900">{selectedAdministrator.email}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">رقم الهاتف</label>
+                  <p className="text-gray-900">{selectedAdministrator.phone || "غير محدد"}</p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">الدور الوظيفي</label>
+                <p className="text-gray-900">
+                  {selectedAdministrator.role === 'admin' ? 'مدير عام' :
+                   selectedAdministrator.role === 'administrator' ? 'مدير مجمع' :
+                   selectedAdministrator.role === 'supervisor' ? 'مشرف' : selectedAdministrator.role}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">العنوان</label>
+                <p className="text-gray-900">{selectedAdministrator.address || "غير محدد"}</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">الصلاحيات</label>
+                <p className="text-gray-900">{selectedAdministrator.permissions || "غير محدد"}</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">حالة الحساب</label>
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                  selectedAdministrator.is_active
+                    ? 'bg-green-100 text-green-800'
+                    : 'bg-red-100 text-red-800'
+                }`}>
+                  {selectedAdministrator.is_active ? 'مفعل' : 'غير مفعل'}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex justify-end mt-6">
+              <button
+                onClick={() => setShowDetails(false)}
+                className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600"
+              >
+                إغلاق
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

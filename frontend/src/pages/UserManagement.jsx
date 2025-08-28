@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import axios from "../utils/axiosConfig";
+import axios from "axios";
 import { 
   AiOutlineUser, 
   AiOutlineEdit, 
@@ -9,75 +9,65 @@ import {
   AiOutlineSafety,
   AiOutlineWarning,
   AiOutlinePlus,
-  AiOutlineSearch
+  AiOutlineSearch,
+  AiOutlineFilter,
+  AiOutlineDelete,
+  AiOutlineUserSwitch
 } from "react-icons/ai";
+import { FaUserGraduate, FaChalkboardTeacher, FaUserTie, FaUsers, FaCrown } from "react-icons/fa";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
 // Role display names and colors
 const ROLE_CONFIG = {
   admin: { 
-    name: 'مدير النظام', 
+    name: 'مدير عام', 
     color: 'bg-red-500 text-white',
+    icon: FaCrown,
     level: 5 
   },
   administrator: { 
-    name: 'مدير مدرسة', 
+    name: 'مدير مجمع', 
     color: 'bg-purple-500 text-white',
+    icon: FaUserTie,
     level: 4 
   },
   supervisor: { 
     name: 'مشرف', 
     color: 'bg-blue-500 text-white',
+    icon: FaUsers,
     level: 3 
   },
   teacher: { 
     name: 'معلم', 
     color: 'bg-green-500 text-white',
+    icon: FaChalkboardTeacher,
     level: 2 
   },
   parent: { 
     name: 'ولي أمر', 
     color: 'bg-orange-500 text-white',
+    icon: AiOutlineUser,
     level: 1 
   },
   student: { 
     name: 'طالب', 
     color: 'bg-gray-500 text-white',
+    icon: FaUserGraduate,
     level: 0 
   }
 };
 
 // Role Edit Modal Component
-const RoleEditModal = ({ user, onClose, onUpdate }) => {
+const RoleEditModal = ({ user, onClose, onUpdate, schools, classes }) => {
   const [selectedRole, setSelectedRole] = useState(user.role);
   const [selectedSchoolId, setSelectedSchoolId] = useState(user.school_id || '');
-  const [schools, setSchools] = useState([]);
+  const [selectedClassId, setSelectedClassId] = useState(user.class_id || '');
   const [loading, setLoading] = useState(false);
-  const [roles, setRoles] = useState([]);
 
-  useEffect(() => {
-    fetchRoles();
-    fetchSchools();
-  }, []);
-
-  const fetchRoles = async () => {
-    try {
-      const response = await axios.get(`${API_BASE}/api/user-management/roles`);
-      setRoles(response.data.roles);
-    } catch (error) {
-      console.error('Error fetching roles:', error);
-    }
-  };
-
-  const fetchSchools = async () => {
-    try {
-      const response = await axios.get(`${API_BASE}/api/schools`);
-      setSchools(response.data.schools || []);
-    } catch (error) {
-      console.error('Error fetching schools:', error);
-    }
-  };
+  // Debug logging
+  console.log('RoleEditModal - schools received:', schools);
+  console.log('RoleEditModal - classes received:', classes);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -86,10 +76,15 @@ const RoleEditModal = ({ user, onClose, onUpdate }) => {
     try {
       const updateData = { 
         role: selectedRole,
-        school_id: ['administrator', 'supervisor', 'teacher'].includes(selectedRole) ? selectedSchoolId : null
+        school_id: ['administrator', 'supervisor', 'teacher', 'student'].includes(selectedRole) ? selectedSchoolId || null : null,
+        class_id: ['teacher', 'student'].includes(selectedRole) ? selectedClassId || null : null
       };
 
-      await axios.put(`${API_BASE}/api/user-management/users/${user.id}/role`, updateData);
+      await axios.put(`${API_BASE}/api/users/${user.id || user.user_id}`, updateData, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        }
+      });
 
       onUpdate();
       onClose();
@@ -101,7 +96,11 @@ const RoleEditModal = ({ user, onClose, onUpdate }) => {
     }
   };
 
-  const requiresSchool = ['administrator', 'supervisor', 'teacher'].includes(selectedRole);
+  const requiresSchool = ['administrator', 'supervisor', 'teacher', 'student'].includes(selectedRole);
+  const requiresClass = ['teacher', 'student'].includes(selectedRole);
+
+  // Filter classes based on selected school
+  const filteredClasses = classes.filter(cls => cls.school_id == selectedSchoolId);
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
@@ -113,7 +112,7 @@ const RoleEditModal = ({ user, onClose, onUpdate }) => {
 
         <div className="mb-4 p-4 bg-gray-50 rounded-lg">
           <h4 className="font-semibold mb-2">معلومات المستخدم:</h4>
-          <p><strong>الاسم:</strong> {user.first_name} {user.second_name} {user.third_name} {user.last_name}</p>
+          <p><strong>الاسم:</strong> {user.first_name} {user.last_name}</p>
           <p><strong>الإيميل:</strong> {user.email}</p>
           <p><strong>الصلاحية الحالية:</strong> 
             <span className={`ml-2 px-2 py-1 rounded text-sm ${ROLE_CONFIG[user.role]?.color}`}>
@@ -127,64 +126,89 @@ const RoleEditModal = ({ user, onClose, onUpdate }) => {
             <label className="block text-sm font-medium mb-2">الصلاحية الجديدة:</label>
             <select
               value={selectedRole}
-              onChange={(e) => setSelectedRole(e.target.value)}
+              onChange={(e) => {
+                setSelectedRole(e.target.value);
+                // Reset school and class when changing role
+                if (!['administrator', 'supervisor', 'teacher', 'student'].includes(e.target.value)) {
+                  setSelectedSchoolId('');
+                  setSelectedClassId('');
+                }
+              }}
               className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             >
-              {roles.map(role => (
-                <option key={role.name} value={role.name}>
-                  {role.displayName} - {role.description}
-                </option>
-              ))}
+              <option value="admin">مدير عام</option>
+              <option value="administrator">مدير مجمع</option>
+              <option value="supervisor">مشرف</option>
+              <option value="teacher">معلم</option>
+              <option value="parent">ولي أمر</option>
+              <option value="student">طالب</option>
             </select>
           </div>
 
           {requiresSchool && (
             <div>
-              <label className="block text-sm font-medium mb-2">المدرسة المخصصة:</label>
+              <label className="block text-sm font-medium mb-2">المجمع المخصص:</label>
               <select
                 value={selectedSchoolId}
-                onChange={(e) => setSelectedSchoolId(e.target.value)}
+                onChange={(e) => {
+                  setSelectedSchoolId(e.target.value);
+                  setSelectedClassId(''); // Reset class when school changes
+                }}
                 className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               >
-                <option value="">اختر المدرسة</option>
-                {schools.map(school => (
-                  <option key={school.id} value={school.id}>
-                    {school.name}
-                  </option>
-                ))}
+                <option value="">اختر المجمع</option>
+                {schools && schools.length > 0 ? (
+                  schools.map(school => (
+                    <option key={school.id} value={school.id}>
+                      {school.name}
+                    </option>
+                  ))
+                ) : (
+                  <option value="" disabled>لا توجد مجمعات متاحة</option>
+                )}
               </select>
             </div>
           )}
 
-          {/* Role Permissions Preview */}
-          {selectedRole && (
-            <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-              <h5 className="font-semibold mb-2">صلاحيات هذا الدور:</h5>
-              <ul className="list-disc list-inside text-sm space-y-1">
-                {roles.find(r => r.name === selectedRole)?.permissions.map((permission, index) => (
-                  <li key={index}>{permission}</li>
-                ))}
-              </ul>
+          {requiresClass && selectedSchoolId && (
+            <div>
+              <label className="block text-sm font-medium mb-2">الحلقة المخصصة:</label>
+              <select
+                value={selectedClassId}
+                onChange={(e) => setSelectedClassId(e.target.value)}
+                className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">اختر الحلقة (اختياري)</option>
+                {filteredClasses && filteredClasses.length > 0 ? (
+                  filteredClasses.map(cls => (
+                    <option key={cls.id} value={cls.id}>
+                      {cls.name} - المستوى {cls.level}
+                    </option>
+                  ))
+                ) : (
+                  <option value="" disabled>لا توجد حلقات متاحة</option>
+                )}
+              </select>
             </div>
           )}
 
-          <div className="flex gap-3 pt-4 border-t">
-            <button
-              type="submit"
-              disabled={loading}
-              className="bg-[var(--color-primary-700)] text-white px-6 py-3 rounded-lg hover:bg-[var(--color-primary-800)] transition-colors flex items-center gap-2 disabled:opacity-50"
-            >
-              <AiOutlineCheck />
-              {loading ? 'جاري الحفظ...' : 'حفظ التغييرات'}
-            </button>
+          <div className="flex gap-3 pt-4">
             <button
               type="button"
               onClick={onClose}
-              className="bg-gray-500 text-white px-6 py-3 rounded-lg hover:bg-gray-600 transition-colors"
+              className="flex-1 py-2 px-4 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+              disabled={loading}
             >
               إلغاء
+            </button>
+            <button
+              type="submit"
+              className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+              disabled={loading}
+            >
+              {loading ? 'جاري التحديث...' : 'تحديث الصلاحية'}
             </button>
           </div>
         </form>
@@ -193,8 +217,18 @@ const RoleEditModal = ({ user, onClose, onUpdate }) => {
   );
 };
 
-// User Details Modal Component
-const UserDetailsModal = ({ user, onClose }) => {
+// User Details Modal
+const UserDetailsModal = ({ user, onClose, schools, classes }) => {
+  const getUserSchoolName = (schoolId) => {
+    const school = schools.find(s => s.id == schoolId);
+    return school ? school.name : 'غير محدد';
+  };
+
+  const getUserClassName = (classId) => {
+    const cls = classes.find(c => c.id == classId);
+    return cls ? `${cls.name} - المستوى ${cls.level}` : 'غير محدد';
+  };
+
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
       <div className="bg-white p-6 rounded-xl shadow-xl max-w-2xl w-full m-4 max-h-[90vh] overflow-y-auto">
@@ -206,74 +240,72 @@ const UserDetailsModal = ({ user, onClose }) => {
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <strong>الاسم الكامل:</strong>
-              <p>{user.first_name} {user.second_name} {user.third_name} {user.last_name}</p>
+              <label className="block text-sm font-medium text-gray-700 mb-1">الاسم الأول</label>
+              <p className="text-gray-900">{user.first_name}</p>
             </div>
             <div>
-              <strong>رقم الهوية:</strong>
-              <p>{user.id}</p>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <strong>البريد الإلكتروني:</strong>
-              <p>{user.email || "غير محدد"}</p>
-            </div>
-            <div>
-              <strong>الهاتف:</strong>
-              <p>{user.phone || "غير محدد"}</p>
+              <label className="block text-sm font-medium text-gray-700 mb-1">اسم العائلة</label>
+              <p className="text-gray-900">{user.last_name}</p>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <strong>الصلاحية:</strong>
-              <span className={`px-2 py-1 rounded text-sm ${ROLE_CONFIG[user.role]?.color}`}>
+              <label className="block text-sm font-medium text-gray-700 mb-1">البريد الإلكتروني</label>
+              <p className="text-gray-900">{user.email}</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">رقم الهاتف</label>
+              <p className="text-gray-900">{user.phone || 'غير محدد'}</p>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">الصلاحية</label>
+            <div className="flex items-center gap-2">
+              <span className={`px-3 py-1 rounded-full text-sm font-medium ${ROLE_CONFIG[user.role]?.color}`}>
                 {ROLE_CONFIG[user.role]?.name}
               </span>
             </div>
-            <div>
-              <strong>حالة الحساب:</strong>
-              <span className={`px-2 py-1 rounded text-sm ${
-                user.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-              }`}>
-                {user.is_active ? 'نشط' : 'غير نشط'}
-              </span>
-            </div>
           </div>
 
-          {user.school_name && (
+          {user.school_id && (
             <div>
-              <strong>المدرسة:</strong>
-              <p>{user.school_name}</p>
+              <label className="block text-sm font-medium text-gray-700 mb-1">المجمع</label>
+              <p className="text-gray-900">{getUserSchoolName(user.school_id)}</p>
             </div>
           )}
 
-          {user.employment_status && (
+          {user.class_id && (
             <div>
-              <strong>حالة التوظيف:</strong>
-              <span className={`px-2 py-1 rounded text-sm ${
-                user.employment_status === 'active' ? 'bg-green-100 text-green-800' :
-                user.employment_status === 'on_leave' ? 'bg-yellow-100 text-yellow-800' :
-                'bg-red-100 text-red-800'
-              }`}>
-                {user.employment_status === 'active' ? 'نشط' :
-                 user.employment_status === 'on_leave' ? 'في إجازة' : 'غير نشط'}
-              </span>
+              <label className="block text-sm font-medium text-gray-700 mb-1">الحلقة</label>
+              <p className="text-gray-900">{getUserClassName(user.class_id)}</p>
             </div>
           )}
 
           <div>
-            <strong>تاريخ الانضمام:</strong>
-            <p>{new Date(user.created_at).toLocaleDateString('ar-SA')}</p>
+            <label className="block text-sm font-medium text-gray-700 mb-1">حالة الحساب</label>
+            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+              user.is_active
+                ? 'bg-green-100 text-green-800'
+                : 'bg-red-100 text-red-800'
+            }`}>
+              {user.is_active ? 'مفعل' : 'غير مفعل'}
+            </span>
           </div>
+
+          {user.address && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">العنوان</label>
+              <p className="text-gray-900">{user.address}</p>
+            </div>
+          )}
         </div>
 
         <div className="flex justify-end mt-6">
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
+            className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600"
           >
             إغلاق
           </button>
@@ -283,64 +315,439 @@ const UserDetailsModal = ({ user, onClose }) => {
   );
 };
 
+// Profile Edit Modal Component
+const ProfileEditModal = ({ isOpen, user, onClose, onSubmit }) => {
+  if (!isOpen || !user) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-bold text-gray-800">
+            تعديل الملف الشخصي
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700"
+          >
+            <AiOutlineClose size={24} />
+          </button>
+        </div>
+
+        <form onSubmit={onSubmit} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                الاسم الأول *
+              </label>
+              <input
+                type="text"
+                name="first_name"
+                defaultValue={user.first_name || ""}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                الاسم الثاني
+              </label>
+              <input
+                type="text"
+                name="second_name"
+                defaultValue={user.second_name || ""}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                اسم الجد
+              </label>
+              <input
+                type="text"
+                name="third_name"
+                defaultValue={user.third_name || ""}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                اسم العائلة *
+              </label>
+              <input
+                type="text"
+                name="last_name"
+                defaultValue={user.last_name || ""}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                البريد الإلكتروني *
+              </label>
+              <input
+                type="email"
+                name="email"
+                defaultValue={user.email || ""}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                رقم الهاتف
+              </label>
+              <input
+                type="tel"
+                name="phone"
+                defaultValue={user.phone || ""}
+                pattern="^05\d{8}$"
+                placeholder="05xxxxxxxx"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                تاريخ الميلاد
+              </label>
+              <input
+                type="date"
+                name="date_of_birth"
+                defaultValue={user.date_of_birth ? user.date_of_birth.split('T')[0] : ""}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                المستوى التعليمي
+              </label>
+              <select
+                name="school_level"
+                defaultValue={user.school_level || ""}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">اختر المستوى التعليمي</option>
+                <option value="elementary">ابتدائي</option>
+                <option value="middle">متوسط</option>
+                <option value="high">ثانوي</option>
+                <option value="university">جامعي</option>
+                <option value="graduate">اكمل الجامعة</option>
+                <option value="master">ماجستير</option>
+                <option value="phd">دكتوراه</option>
+                <option value="employee">موظف</option>
+                <option value="other">أخرى</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              العنوان
+            </label>
+            <textarea
+              name="address"
+              defaultValue={user.address || ""}
+              rows="3"
+              placeholder="العنوان الكامل"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              الحي
+            </label>
+            <input
+              type="text"
+              name="neighborhood"
+              defaultValue={user.neighborhood || ""}
+              placeholder="اسم الحي"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              ملاحظات
+            </label>
+            <textarea
+              name="notes"
+              defaultValue={user.notes || ""}
+              rows="2"
+              placeholder="ملاحظات إضافية"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <h3 className="text-sm font-medium text-gray-700 mb-2">معلومات إضافية</h3>
+            <div className="text-sm text-gray-600 space-y-1">
+              <p><strong>الرقم التعريفي:</strong> {user.id || user.user_id}</p>
+              <p><strong>الصلاحية:</strong> {ROLE_CONFIG[user.role]?.name}</p>
+              <p><strong>تاريخ الإنشاء:</strong> {new Date(user.created_at).toLocaleDateString('ar-SA')}</p>
+            </div>
+          </div>
+
+          <div className="bg-green-50 p-4 rounded-lg">
+            <div className="text-sm text-green-700">
+              <p className="font-medium mb-1">✅ معلومة:</p>
+              <p>جميع الحقول في هذا النموذج يتم حفظها في قاعدة البيانات بما في ذلك: الأسماء، البريد الإلكتروني، رقم الهاتف، العنوان، تاريخ الميلاد، المستوى التعليمي، الحي، والملاحظات.</p>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-4 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
+            >
+              إلغاء
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            >
+              حفظ التغييرات
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// User Card Component
+const UserCard = ({ user, onEdit, onView, onToggleActive, onEditProfile, onDeleteUser, schools, classes }) => {
+  const getUserSchoolName = (schoolId) => {
+    const school = schools.find(s => s.id == schoolId);
+    return school ? school.name : 'غير محدد';
+  };
+
+  const getUserClassName = (classId) => {
+    const cls = classes.find(c => c.id == classId);
+    return cls ? `${cls.name}` : 'غير محدد';
+  };
+
+  const RoleIcon = ROLE_CONFIG[user.role]?.icon || AiOutlineUser;
+
+  return (
+    <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200 hover:shadow-xl transition-shadow">
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <div className="bg-[var(--color-primary-100)] p-3 rounded-full">
+            <RoleIcon className="text-[var(--color-primary-700)] text-xl" />
+          </div>
+          <div>
+            <h3 className="font-bold text-lg text-gray-800">
+              {user.first_name} {user.last_name}
+            </h3>
+            <p className="text-sm text-gray-600">{user.email}</p>
+            <div className="flex items-center gap-2 mt-1">
+              <span className={`px-2 py-1 rounded-full text-xs font-medium ${ROLE_CONFIG[user.role]?.color}`}>
+                {ROLE_CONFIG[user.role]?.name}
+              </span>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-1">
+          <span className={`w-3 h-3 rounded-full ${
+            user.is_active ? 'bg-green-500' : 'bg-red-500'
+          }`} title={user.is_active ? 'نشط' : 'غير نشط'}></span>
+        </div>
+      </div>
+
+      <div className="space-y-2 mb-4">
+        {user.school_id && (
+          <div className="text-sm text-gray-600">
+            <strong>المجمع:</strong> {getUserSchoolName(user.school_id)}
+          </div>
+        )}
+        {user.class_id && (
+          <div className="text-sm text-gray-600">
+            <strong>الحلقة:</strong> {getUserClassName(user.class_id)}
+          </div>
+        )}
+        {user.phone && (
+          <div className="text-sm text-gray-600">
+            <strong>الهاتف:</strong> {user.phone}
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-3 pt-4 border-t border-gray-200">
+        <div className="flex items-center justify-between">
+          <div className="flex gap-2">
+            <button
+              onClick={() => onView(user)}
+              className="flex items-center gap-1 px-3 py-1 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+              title="عرض التفاصيل"
+            >
+              <AiOutlineEye />
+              <span className="text-sm">عرض</span>
+            </button>
+            <button
+              onClick={() => onEdit(user)}
+              className="flex items-center gap-1 px-3 py-1 text-green-600 hover:bg-green-50 rounded transition-colors"
+              title="تعديل الصلاحية"
+            >
+              <AiOutlineEdit />
+              <span className="text-sm">صلاحية</span>
+            </button>
+            <button
+              onClick={() => onEditProfile(user)}
+              className="flex items-center gap-1 px-3 py-1 text-purple-600 hover:bg-purple-50 rounded transition-colors"
+              title="تعديل الملف الشخصي"
+            >
+              <AiOutlineUserSwitch />
+              <span className="text-sm">ملف</span>
+            </button>
+          </div>
+          
+          <div className="flex gap-2">
+            <button
+              onClick={() => onToggleActive(user.id || user.user_id)}
+              className={`flex items-center gap-1 px-3 py-1 rounded transition-colors text-sm ${
+                user.is_active
+                  ? 'text-orange-600 hover:bg-orange-50'
+                  : 'text-green-600 hover:bg-green-50'
+              }`}
+              title={user.is_active ? 'إلغاء التفعيل' : 'تفعيل الحساب'}
+            >
+              {user.is_active ? <AiOutlineClose /> : <AiOutlineCheck />}
+              <span>{user.is_active ? 'إلغاء' : 'تفعيل'}</span>
+            </button>
+          </div>
+        </div>
+        
+        <div className="flex justify-center">
+          <button
+            onClick={() => onDeleteUser(user.id || user.user_id)}
+            className="flex items-center gap-1 px-3 py-1 text-red-600 hover:bg-red-50 rounded transition-colors text-sm border border-red-200 hover:border-red-300"
+            title="حذف المستخدم نهائياً"
+          >
+            <AiOutlineDelete />
+            <span>حذف المستخدم</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function UserManagement() {
   const [users, setUsers] = useState([]);
+  const [schools, setSchools] = useState([]);
+  const [classes, setClasses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedUser, setSelectedUser] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
   
   // Filters
   const [roleFilter, setRoleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [schoolFilter, setSchoolFilter] = useState("all");
+  const [classFilter, setClassFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
-  
-  // Pagination
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pagination, setPagination] = useState(null);
-
-  const [currentUserRole, setCurrentUserRole] = useState("");
 
   useEffect(() => {
-    // Check if current user is admin
-    const token = localStorage.getItem('token');
-    if (token) {
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        setCurrentUserRole(payload.role);
-        if (payload.role !== 'admin') {
-          setError('غير مسموح لك بالوصول لهذه الصفحة');
-          return;
-        }
-      } catch (err) {
-        setError('خطأ في التحقق من الصلاحيات');
-        return;
-      }
-    }
-
     fetchUsers();
-  }, [currentPage, roleFilter, statusFilter]);
+    fetchSchools();
+    fetchClasses();
+  }, []);
 
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const params = new URLSearchParams({
-        page: currentPage,
-        limit: 20,
+      const response = await axios.get(`${API_BASE}/api/users`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        }
       });
       
-      if (roleFilter !== 'all') params.append('role', roleFilter);
-      if (statusFilter !== 'all') params.append('status', statusFilter);
+      let allUsers = [];
+      if (Array.isArray(response.data)) {
+        allUsers = response.data;
+      } else if (response.data.users && Array.isArray(response.data.users)) {
+        allUsers = response.data.users;
+      } else if (response.data.data && Array.isArray(response.data.data)) {
+        allUsers = response.data.data;
+      }
 
-      const response = await axios.get(`${API_BASE}/api/user-management/users?${params}`);
-      
-      setUsers(response.data.users || []);
-      setPagination(response.data.pagination);
+      setUsers(allUsers);
+      setError("");
     } catch (err) {
-      setError("فشل في تحميل المستخدمين: " + (err.response?.data?.error || 'خطأ غير معروف'));
+      console.error("Error fetching users:", err);
+      setError("فشل في تحميل المستخدمين");
+      setUsers([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchSchools = async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/api/schools`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      console.log('Schools API response:', response.data);
+      
+      // Try different response structures
+      let schoolsData = [];
+      if (Array.isArray(response.data)) {
+        schoolsData = response.data;
+      } else if (Array.isArray(response.data.schools)) {
+        schoolsData = response.data.schools;
+      } else if (Array.isArray(response.data.data)) {
+        schoolsData = response.data.data;
+      }
+      
+      console.log('Parsed schools:', schoolsData);
+      setSchools(schoolsData);
+    } catch (err) {
+      console.error("Error fetching schools:", err);
+      setSchools([]);
+    }
+  };
+
+  const fetchClasses = async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/api/classes`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      console.log('Classes API response:', response.data);
+      
+      // Try different response structures
+      let classesData = [];
+      if (Array.isArray(response.data)) {
+        classesData = response.data;
+      } else if (Array.isArray(response.data.classes)) {
+        classesData = response.data.classes;
+      } else if (Array.isArray(response.data.data)) {
+        classesData = response.data.data;
+      }
+      
+      console.log('Parsed classes:', classesData);
+      setClasses(classesData);
+    } catch (err) {
+      console.error("Error fetching classes:", err);
+      setClasses([]);
     }
   };
 
@@ -349,248 +756,269 @@ export default function UserManagement() {
     setShowEditModal(true);
   };
 
-  const handleViewDetails = (user) => {
+  const handleViewUser = (user) => {
     setSelectedUser(user);
     setShowDetailsModal(true);
   };
 
-  const handleToggleUserStatus = async (user) => {
+  const handleToggleActive = async (userId) => {
     try {
-      const newStatus = !user.is_active;
-      await axios.put(`${API_BASE}/api/user-management/users/${user.id}/status`, 
-        { is_active: newStatus }
-      );
-      
+      await axios.patch(`${API_BASE}/api/users/${userId}/toggle-active`, {}, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        }
+      });
       fetchUsers();
-    } catch (error) {
-      console.error('Error toggling user status:', error);
-      alert('فشل في تغيير حالة المستخدم');
+    } catch (err) {
+      setError(err.response?.data?.error || "فشل في تغيير حالة التفعيل");
     }
   };
 
+  const handleEditProfile = (user) => {
+    setSelectedUser(user);
+    setShowProfileModal(true);
+  };
+
+  const handleUpdateProfile = async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    
+    // Send all profile fields that now exist in the database
+    const profileData = {
+      first_name: formData.get('first_name'),
+      second_name: formData.get('second_name'),
+      third_name: formData.get('third_name'),
+      last_name: formData.get('last_name'),
+      email: formData.get('email'),
+      phone: formData.get('phone'),
+      address: formData.get('address'),
+      date_of_birth: formData.get('date_of_birth'),
+      school_level: formData.get('school_level'),
+      neighborhood: formData.get('neighborhood'),
+      notes: formData.get('notes')
+    };
+
+    try {
+      await axios.put(`${API_BASE}/api/users/${selectedUser.id || selectedUser.user_id}/profile`, profileData, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      setShowProfileModal(false);
+      setSelectedUser(null);
+      fetchUsers();
+    } catch (err) {
+      setError(err.response?.data?.error || "فشل في تحديث الملف الشخصي");
+    }
+  };
+
+  const handleDeleteUser = async (userId) => {
+    if (window.confirm("هل أنت متأكد من حذف هذا المستخدم نهائياً؟ هذا الإجراء لا يمكن التراجع عنه.")) {
+      try {
+        await axios.delete(`${API_BASE}/api/users/${userId}`, {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+        fetchUsers();
+      } catch (err) {
+        setError(err.response?.data?.error || "فشل في حذف المستخدم");
+      }
+    }
+  };
+
+  // Filter users
   const filteredUsers = users.filter(user => {
-    const matchesSearch = 
-      user.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.id?.includes(searchTerm);
-    return matchesSearch;
+    const matchesSearch = user.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         user.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         user.email?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesRole = roleFilter === "all" || user.role === roleFilter;
+    const matchesStatus = statusFilter === "all" || 
+                         (statusFilter === "active" && user.is_active) ||
+                         (statusFilter === "inactive" && !user.is_active);
+    const matchesSchool = schoolFilter === "all" || user.school_id == schoolFilter;
+    const matchesClass = classFilter === "all" || user.class_id == classFilter;
+    
+    return matchesSearch && matchesRole && matchesStatus && matchesSchool && matchesClass;
   });
 
-  if (currentUserRole !== 'admin') {
-    return (
-      <div className="p-6 max-w-7xl mx-auto">
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded text-center">
-          <AiOutlineWarning className="inline text-xl mr-2" />
-          {error || 'ليس لديك صلاحية للوصول لهذه الصفحة'}
-        </div>
-      </div>
-    );
-  }
+  // Get classes filtered by selected school for class filter
+  const filteredClassesForFilter = schoolFilter === "all" ? classes : classes.filter(cls => cls.school_id == schoolFilter);
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="text-lg">جاري التحميل...</div>
+      <div className="p-8">
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-[var(--color-primary-700)] flex items-center gap-2">
-          <AiOutlineSafety className="text-4xl" />
-          إدارة المستخدمين والصلاحيات
-        </h1>
-        <div className="text-sm text-gray-600 bg-yellow-100 px-3 py-2 rounded">
-          <AiOutlineWarning className="inline mr-1" />
-          صفحة خاصة بمديري النظام فقط
+    <div className="p-8">
+      <div className="flex justify-between items-center mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-800">إدارة المستخدمين</h1>
+          <p className="text-gray-600 mt-2">إدارة جميع المستخدمين وصلاحياتهم</p>
         </div>
       </div>
 
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
           {error}
         </div>
       )}
 
       {/* Filters */}
-      <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div>
-          <label className="block text-sm font-medium mb-1">البحث:</label>
-          <div className="relative">
-            <AiOutlineSearch className="absolute left-3 top-3 text-gray-400" />
+      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-6">
+        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <AiOutlineFilter />
+          فلترة المستخدمين
+        </h3>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">البحث</label>
             <input
               type="text"
-              placeholder="بحث بالاسم أو الإيميل..."
+              placeholder="ابحث بالاسم أو البريد..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">الصلاحية</label>
+            <select
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+            >
+              <option value="all">جميع الصلاحيات</option>
+              {Object.entries(ROLE_CONFIG).map(([role, config]) => (
+                <option key={role} value={role}>{config.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">حالة الحساب</label>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+            >
+              <option value="all">جميع الحسابات</option>
+              <option value="active">المفعلة</option>
+              <option value="inactive">غير المفعلة</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">المجمع</label>
+            <select
+              value={schoolFilter}
+              onChange={(e) => {
+                setSchoolFilter(e.target.value);
+                setClassFilter("all"); // Reset class filter when school changes
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+            >
+              <option value="all">جميع المجمعات</option>
+              {schools.map(school => (
+                <option key={school.id} value={school.id}>{school.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">الحلقة</label>
+            <select
+              value={classFilter}
+              onChange={(e) => setClassFilter(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+              disabled={schoolFilter === "all"}
+            >
+              <option value="all">جميع الحلقات</option>
+              {filteredClassesForFilter.map(cls => (
+                <option key={cls.id} value={cls.id}>{cls.name} - المستوى {cls.level}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium mb-1">الصلاحية:</label>
-          <select
-            value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value)}
-            className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">جميع الصلاحيات</option>
-            <option value="admin">مدير النظام</option>
-            <option value="administrator">مدير مدرسة</option>
-            <option value="supervisor">مشرف</option>
-            <option value="teacher">معلم</option>
-            <option value="parent">ولي أمر</option>
-            <option value="student">طالب</option>
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium mb-1">الحالة:</label>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">جميع الحالات</option>
-            <option value="active">نشط</option>
-            <option value="inactive">غير نشط</option>
-          </select>
-        </div>
-
-        <div className="flex items-end">
-          <button
-            onClick={fetchUsers}
-            className="w-full bg-[var(--color-primary-500)] text-white px-4 py-2 rounded-lg hover:bg-[var(--color-primary-600)] flex items-center justify-center gap-2"
-          >
-            <AiOutlineSearch />
-            تطبيق الفلاتر
-          </button>
+        <div className="text-sm text-gray-600">
+          إجمالي المستخدمين: {filteredUsers.length}
         </div>
       </div>
 
-      {/* Users Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <table className="min-w-full">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                المستخدم
-              </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                الصلاحية
-              </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                المدرسة
-              </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                الحالة
-              </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                الإجراءات
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {filteredUsers.map((user) => (
-              <tr key={user.id} className="hover:bg-gray-50">
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div>
-                    <div className="text-sm font-medium text-gray-900">
-                      {user.first_name} {user.last_name}
-                    </div>
-                    <div className="text-sm text-gray-500">{user.email}</div>
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${ROLE_CONFIG[user.role]?.color}`}>
-                    {ROLE_CONFIG[user.role]?.name}
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {user.school_name || 'غير محدد'}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                    user.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                  }`}>
-                    {user.is_active ? 'نشط' : 'غير نشط'}
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                  <button
-                    onClick={() => handleViewDetails(user)}
-                    className="text-blue-600 hover:text-blue-900 ml-3"
-                  >
-                    <AiOutlineEye className="inline text-lg" />
-                  </button>
-                  <button
-                    onClick={() => handleEditRole(user)}
-                    className="text-indigo-600 hover:text-indigo-900 ml-3"
-                  >
-                    <AiOutlineEdit className="inline text-lg" />
-                  </button>
-                  <button
-                    onClick={() => handleToggleUserStatus(user)}
-                    className={`ml-3 ${user.is_active ? 'text-red-600 hover:text-red-900' : 'text-green-600 hover:text-green-900'}`}
-                  >
-                    {user.is_active ? <AiOutlineClose className="inline text-lg" /> : <AiOutlineCheck className="inline text-lg" />}
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        {filteredUsers.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-gray-500 text-lg">لا توجد مستخدمين</p>
-          </div>
-        )}
+      {/* Users Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {filteredUsers.map(user => (
+          <UserCard
+            key={user.id || user.user_id}
+            user={user}
+            onEdit={handleEditRole}
+            onView={handleViewUser}
+            onToggleActive={handleToggleActive}
+            onEditProfile={handleEditProfile}
+            onDeleteUser={handleDeleteUser}
+            schools={schools}
+            classes={classes}
+          />
+        ))}
       </div>
 
-      {/* Pagination */}
-      {pagination && pagination.pages > 1 && (
-        <div className="mt-6 flex items-center justify-between">
-          <div className="text-sm text-gray-700">
-            صفحة {pagination.page} من {pagination.pages} ({pagination.total} مستخدم)
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-              disabled={currentPage === 1}
-              className="px-3 py-1 border rounded disabled:opacity-50"
-            >
-              السابق
-            </button>
-            <button
-              onClick={() => setCurrentPage(Math.min(pagination.pages, currentPage + 1))}
-              disabled={currentPage === pagination.pages}
-              className="px-3 py-1 border rounded disabled:opacity-50"
-            >
-              التالي
-            </button>
-          </div>
+      {filteredUsers.length === 0 && !loading && (
+        <div className="text-center py-12">
+          <p className="text-gray-500 text-lg">لا توجد مستخدمين مطابقين لمعايير البحث</p>
         </div>
       )}
 
-      {/* Modals */}
+      {/* Edit Role Modal */}
       {showEditModal && selectedUser && (
         <RoleEditModal
           user={selectedUser}
-          onClose={() => setShowEditModal(false)}
-          onUpdate={fetchUsers}
+          onClose={() => {
+            setShowEditModal(false);
+            setSelectedUser(null);
+          }}
+          onUpdate={() => {
+            fetchUsers();
+            setShowEditModal(false);
+            setSelectedUser(null);
+          }}
+          schools={schools}
+          classes={classes}
         />
       )}
 
+      {/* User Details Modal */}
       {showDetailsModal && selectedUser && (
         <UserDetailsModal
           user={selectedUser}
-          onClose={() => setShowDetailsModal(false)}
+          onClose={() => {
+            setShowDetailsModal(false);
+            setSelectedUser(null);
+          }}
+          schools={schools}
+          classes={classes}
+        />
+      )}
+
+      {/* Profile Edit Modal */}
+      {showProfileModal && selectedUser && (
+        <ProfileEditModal
+          isOpen={showProfileModal}
+          user={selectedUser}
+          onClose={() => {
+            setShowProfileModal(false);
+            setSelectedUser(null);
+          }}
+          onSubmit={handleUpdateProfile}
         />
       )}
     </div>
