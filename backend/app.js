@@ -26,6 +26,8 @@ app.use('/api/user-management', require('./routes/userManagement')); // User man
 app.use('/api/database', require('./routes/database')); // Database management (Admin only)
 app.use('/api/dashboard', require('./routes/dashboard')); // Dashboard statistics
 app.use('/api/profile', require('./routes/profile')); // User profile management
+app.use('/api/children', require('./routes/children')); // Children management
+app.use('/api/parent-students', require('./routes/parentStudents')); // Parent-student information
 app.use('/api/forgot-password', require('./routes/forgotPassword')); // Password reset
 app.use('/api/attendance-system', require('./routes/attendanceSystem')); // Attendance system
 

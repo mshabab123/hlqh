@@ -23,6 +23,7 @@ import DatabaseTableDetails from "./pages/DatabaseTableDetails";
 import PasswordManagement from "./pages/PasswordManagement";
 import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
+import MyStudentsPage from "./pages/MyStudentsPage";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import About from "./pages/About";
@@ -253,6 +254,16 @@ export default function App() {
               <ProtectedRoute>
                 <Layout>
                   <Profile />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/my-students"
+            element={
+              <ProtectedRoute requiredRole="parent">
+                <Layout>
+                  <MyStudentsPage />
                 </Layout>
               </ProtectedRoute>
             }

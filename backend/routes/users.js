@@ -37,6 +37,8 @@ router.get('/', async (req, res) => {
         u.is_active,
         u.created_at,
         u.updated_at,
+        -- Get parent_id from students table if user is a student
+        st.parent_id,
         -- Only get school_id from role tables that we know exist
         COALESCE(
           t.school_id,
@@ -49,6 +51,7 @@ router.get('/', async (req, res) => {
       LEFT JOIN teachers t ON u.id = t.id AND u.role = 'teacher'
       LEFT JOIN supervisors s ON u.id = s.id AND u.role = 'supervisor'  
       LEFT JOIN administrators a ON u.id = a.id AND u.role = 'administrator'
+      LEFT JOIN students st ON u.id = st.id AND u.role = 'student'
       ORDER BY u.is_active DESC, u.first_name, u.last_name
     `;
     
@@ -418,6 +421,20 @@ router.put('/:id/profile', async (req, res) => {
 
     // Handle empty date_of_birth by converting to null
     const processedDateOfBirth = date_of_birth && date_of_birth.trim() !== '' ? date_of_birth : null;
+
+    // Check if email is already used by another user
+    if (email) {
+      const emailCheck = await client.query(
+        'SELECT id FROM users WHERE LOWER(email) = LOWER($1) AND id != $2',
+        [email, id]
+      );
+      
+      if (emailCheck.rows.length > 0) {
+        return res.status(400).json({ 
+          error: 'البريد الإلكتروني مستخدم من قبل مستخدم آخر' 
+        });
+      }
+    }
 
     // Update all profile fields including the newly added columns
     const result = await client.query(`

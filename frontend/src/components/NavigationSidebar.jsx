@@ -17,7 +17,8 @@ import {
   AiOutlineInfoCircle,
   AiOutlineUserAdd,
   AiOutlineCheckCircle,
-  AiOutlineCrown
+  AiOutlineCrown,
+  AiOutlineHeart
 } from "react-icons/ai";
 import { 
   FaChalkboardTeacher, 
@@ -246,6 +247,13 @@ const NavigationSidebar = ({ isOpen, setIsOpen, className = "" }) => {
           icon: AiOutlineUser,
           roles: null,
           description: "عرض وتحديث البيانات الشخصية"
+        },
+        {
+          title: "معلومات أبنائي",
+          path: "/my-students",
+          icon: AiOutlineHeart,
+          roles: ["parent"],
+          description: "عرض معلومات وبيانات أبنائي الطلاب"
         }
       ]
     },

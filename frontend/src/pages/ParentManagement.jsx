@@ -1,650 +1,596 @@
 import { useState, useEffect } from "react";
+import axios from "axios";
 import { 
-  AiOutlineSearch, 
-  AiOutlineCheckCircle, 
-  AiOutlineCloseCircle, 
   AiOutlineUser, 
-  AiOutlineTeam, 
-  AiOutlinePhone, 
-  AiOutlineMail,
-  AiOutlineEye,
-  AiOutlineEdit,
-  AiOutlineUserAdd,
-  AiOutlineReload,
-  AiOutlinePlus,
+  AiOutlineEdit, 
+  AiOutlineEye, 
+  AiOutlineCheck, 
   AiOutlineClose,
-  AiOutlineSave
+  AiOutlineWarning,
+  AiOutlineSearch,
+  AiOutlineDelete,
+  AiOutlineTeam
 } from "react-icons/ai";
+import SimpleChildrenManagement from "../components/SimpleChildrenManagement";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
-export default function ParentManagement() {
-  const [parents, setParents] = useState([]);
-  const [students, setStudents] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterStatus, setFilterStatus] = useState("all"); // all, active, inactive
-  const [selectedParent, setSelectedParent] = useState(null);
-  const [showStudents, setShowStudents] = useState({});
-  const [showAddChildModal, setShowAddChildModal] = useState(false);
-  const [availableStudents, setAvailableStudents] = useState([]);
-  const [selectedStudentId, setSelectedStudentId] = useState('');
-  const [studentSearchTerm, setStudentSearchTerm] = useState('');
-  const [loadingStudents, setLoadingStudents] = useState(false);
-  const [linkingStudent, setLinkingStudent] = useState(false);
+// Role display names and colors - only parent role needed
+const ROLE_CONFIG = {
+  parent: { 
+    name: 'ولي أمر', 
+    color: 'bg-orange-500 text-white',
+    icon: AiOutlineUser,
+    level: 1 
+  }
+};
 
-  // Load parents data
-  useEffect(() => {
-    loadParents();
-  }, []);
-
-  const loadParents = async () => {
-    setLoading(true);
-    try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`${API_BASE}/api/parents/management/list`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setParents(data.parents || []);
-      } else {
-        console.error('Failed to load parents');
-      }
-    } catch (error) {
-      console.error('Error loading parents:', error);
-    }
-    setLoading(false);
-  };
-
-  // Load students for a specific parent
-  const loadParentStudents = async (parentId) => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`${API_BASE}/api/parents/management/${parentId}/students`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setStudents(prev => ({
-          ...prev,
-          [parentId]: data.students || []
-        }));
-      }
-    } catch (error) {
-      console.error('Error loading parent students:', error);
-    }
-  };
-
-  // Toggle parent activation status
-  const toggleParentStatus = async (parentId, currentStatus) => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`${API_BASE}/api/parents/management/${parentId}/toggle-status`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          is_active: !currentStatus
-        })
-      });
-
-      if (response.ok) {
-        // Update local state
-        setParents(prev => prev.map(parent => 
-          parent.id === parentId 
-            ? { ...parent, is_active: !currentStatus }
-            : parent
-        ));
-      } else {
-        console.error('Failed to update parent status');
-      }
-    } catch (error) {
-      console.error('Error updating parent status:', error);
-    }
-  };
-
-  // Toggle showing students for a parent
-  const toggleShowStudents = (parentId) => {
-    const isCurrentlyShowing = showStudents[parentId];
-    
-    if (!isCurrentlyShowing) {
-      // Load students if not already loaded
-      if (!students[parentId]) {
-        loadParentStudents(parentId);
-      }
-    }
-    
-    setShowStudents(prev => ({
-      ...prev,
-      [parentId]: !isCurrentlyShowing
-    }));
-  };
-
-  // Load available students
-  const loadAvailableStudents = async () => {
-    setLoadingStudents(true);
-    try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`${API_BASE}/api/students/available`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setAvailableStudents(data.students || []);
-      } else {
-        console.error('Failed to load available students');
-      }
-    } catch (error) {
-      console.error('Error loading available students:', error);
-    }
-    setLoadingStudents(false);
-  };
-
-  // Open add child modal
-  const openAddChildModal = (parent) => {
-    setSelectedParent(parent);
-    setSelectedStudentId('');
-    setStudentSearchTerm('');
-    setShowAddChildModal(true);
-    loadAvailableStudents();
-  };
-
-  // Link student to parent
-  const linkStudentToParent = async () => {
-    if (!selectedStudentId) {
-      alert('يرجى اختيار طالب');
-      return;
-    }
-
-    setLinkingStudent(true);
-    try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`${API_BASE}/api/parents/${selectedParent.id}/link-child`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          childId: selectedStudentId,
-          relationshipType: 'parent'
-        })
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        alert('تم ربط الطالب بولي الأمر بنجاح');
-        
-        // Refresh the students list for this parent
-        if (showStudents[selectedParent.id]) {
-          loadParentStudents(selectedParent.id);
-        }
-        
-        // Refresh available students list
-        loadAvailableStudents();
-        
-        // Close modal
-        setShowAddChildModal(false);
-        setSelectedParent(null);
-      } else {
-        const error = await response.json();
-        alert(error.error || 'فشل في ربط الطالب');
-      }
-    } catch (error) {
-      console.error('Error linking student:', error);
-      alert('حدث خطأ في ربط الطالب');
-    }
-    setLinkingStudent(false);
-  };
-
-  // Filter available students based on search
-  const filteredAvailableStudents = availableStudents.filter(student => {
-    const searchTerm = studentSearchTerm.toLowerCase();
-    return (
-      student.first_name?.toLowerCase().includes(searchTerm) ||
-      student.second_name?.toLowerCase().includes(searchTerm) ||
-      student.third_name?.toLowerCase().includes(searchTerm) ||
-      student.last_name?.toLowerCase().includes(searchTerm) ||
-      student.id?.toString().includes(searchTerm)
-    );
-  });
-
-  // Filter parents based on search and status
-  const filteredParents = parents.filter(parent => {
-    const matchesSearch = 
-      parent.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      parent.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      parent.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      parent.phone?.includes(searchTerm);
-
-    const matchesStatus = 
-      filterStatus === "all" ||
-      (filterStatus === "active" && parent.is_active) ||
-      (filterStatus === "inactive" && !parent.is_active);
-
-    return matchesSearch && matchesStatus;
-  });
+// Profile Edit Modal Component
+const ProfileEditModal = ({ user, onClose, onSubmit }) => {
+  const [formErrors, setFormErrors] = useState({});
+  
+  if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6" dir="rtl">
-      <div className="max-w-7xl mx-auto">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center">
+          <h2 className="text-xl font-bold text-gray-800">
+            تعديل الملف الشخصي - {user.first_name} {user.last_name}
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 text-2xl"
+          >
+            <AiOutlineClose />
+          </button>
+        </div>
         
-        {/* Header */}
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-[var(--color-primary-100)] p-3 rounded-full">
-                <AiOutlineTeam className="text-2xl text-[var(--color-primary-700)]" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-800">إدارة أولياء الأمور</h1>
-                <p className="text-gray-600">تفعيل أولياء الأمور وعرض طلابهم</p>
-              </div>
-            </div>
-            
-            <button
-              onClick={loadParents}
-              disabled={loading}
-              className="bg-[var(--color-primary-600)] hover:bg-[var(--color-primary-700)] text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
-            >
-              <AiOutlineReload className={loading ? "animate-spin" : ""} />
-              تحديث
-            </button>
-          </div>
-
-          {/* Search and Filter */}
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1 relative">
-              <AiOutlineSearch className="absolute right-3 top-3 text-gray-400" />
+        <form onSubmit={(e) => onSubmit(e, setFormErrors)} className="p-6 space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                الاسم الأول *
+              </label>
               <input
                 type="text"
-                placeholder="البحث بالاسم أو البريد الإلكتروني أو الهاتف..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pr-10 pl-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-primary-500)] focus:border-transparent"
+                name="first_name"
+                defaultValue={user.first_name || ""}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
               />
             </div>
             
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-primary-500)] focus:border-transparent"
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                الاسم الثاني *
+              </label>
+              <input
+                type="text"
+                name="second_name"
+                defaultValue={user.second_name || ""}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                اسم الجد *
+              </label>
+              <input
+                type="text"
+                name="third_name"
+                defaultValue={user.third_name || ""}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                اسم العائلة *
+              </label>
+              <input
+                type="text"
+                name="last_name"
+                defaultValue={user.last_name || ""}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                البريد الإلكتروني *
+              </label>
+              <input
+                type="email"
+                name="email"
+                defaultValue={user.email || ""}
+                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                  formErrors.email ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 focus:ring-blue-500'
+                }`}
+                required
+              />
+              {formErrors.email && (
+                <p className="text-red-600 text-sm mt-1">{formErrors.email}</p>
+              )}
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                رقم الهاتف
+              </label>
+              <input
+                type="tel"
+                name="phone"
+                defaultValue={user.phone || ""}
+                pattern="^05\d{8}$"
+                placeholder="05xxxxxxxx"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                تاريخ الميلاد
+              </label>
+              <input
+                type="date"
+                name="date_of_birth"
+                defaultValue={user.date_of_birth ? user.date_of_birth.split('T')[0] : ""}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                المستوى التعليمي
+              </label>
+              <select
+                name="school_level"
+                defaultValue={user.school_level || ""}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">اختر المستوى التعليمي</option>
+                <option value="elementary">ابتدائي</option>
+                <option value="middle">متوسط</option>
+                <option value="high">ثانوي</option>
+                <option value="university">جامعي</option>
+                <option value="graduate">اكمل الجامعة</option>
+                <option value="master">ماجستير</option>
+                <option value="phd">دكتوراه</option>
+                <option value="employee">موظف</option>
+                <option value="other">أخرى</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              العنوان
+            </label>
+            <textarea
+              name="address"
+              defaultValue={user.address || ""}
+              rows="3"
+              placeholder="العنوان الكامل"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              الحي
+            </label>
+            <input
+              type="text"
+              name="neighborhood"
+              defaultValue={user.neighborhood || ""}
+              placeholder="اسم الحي"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              ملاحظات
+            </label>
+            <textarea
+              name="notes"
+              defaultValue={user.notes || ""}
+              rows="2"
+              placeholder="ملاحظات إضافية"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <h3 className="text-sm font-medium text-gray-700 mb-2">معلومات إضافية</h3>
+            <div className="text-sm text-gray-600 space-y-1">
+              <p><strong>الرقم التعريفي:</strong> {user.id || user.user_id}</p>
+              <p><strong>الصلاحية:</strong> {ROLE_CONFIG[user.role]?.name}</p>
+              <p><strong>تاريخ الإنشاء:</strong> {new Date(user.created_at).toLocaleDateString('ar-SA')}</p>
+            </div>
+          </div>
+
+          <div className="bg-green-50 p-4 rounded-lg">
+            <div className="text-sm text-green-700">
+              <p className="font-medium mb-1">✅ معلومة:</p>
+              <p>جميع الحقول في هذا النموذج يتم حفظها في قاعدة البيانات بما في ذلك: الأسماء، البريد الإلكتروني، رقم الهاتف، العنوان، تاريخ الميلاد، المستوى التعليمي، الحي، والملاحظات.</p>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-4 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
             >
-              <option value="all">جميع أولياء الأمور</option>
-              <option value="active">المفعلون</option>
-              <option value="inactive">غير المفعلين</option>
+              إلغاء
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            >
+              حفظ التغييرات
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// Parent Card Component
+const ParentCard = ({ parent, onView, onToggleActive, onEditProfile, onDeleteUser, onManageChildren }) => {
+  const RoleIcon = ROLE_CONFIG[parent.role]?.icon || AiOutlineUser;
+
+  return (
+    <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200 hover:shadow-xl transition-shadow">
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <div className="bg-orange-100 p-3 rounded-full">
+            <RoleIcon className="text-orange-700 text-xl" />
+          </div>
+          <div>
+            <h3 className="font-bold text-lg text-gray-800">
+              {parent.first_name} {parent.last_name}
+            </h3>
+            <p className="text-gray-600 text-sm">{parent.email}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${ROLE_CONFIG[parent.role]?.color || 'bg-gray-500 text-white'}`}>
+            {ROLE_CONFIG[parent.role]?.name || parent.role}
+          </span>
+          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+            parent.is_active 
+              ? 'bg-green-100 text-green-800' 
+              : 'bg-red-100 text-red-800'
+          }`}>
+            {parent.is_active ? 'نشط' : 'غير نشط'}
+          </span>
+        </div>
+      </div>
+
+      <div className="space-y-2 mb-4">
+        <div className="flex items-center gap-2 text-sm text-gray-600">
+          <span className="font-medium">الرقم التعريفي:</span>
+          <span>{parent.id || parent.user_id}</span>
+        </div>
+        <div className="flex items-center gap-2 text-sm text-gray-600">
+          <span className="font-medium">رقم الهاتف:</span>
+          <span>{parent.phone || 'غير محدد'}</span>
+        </div>
+        {parent.address && (
+          <div className="flex items-center gap-2 text-sm text-gray-600">
+            <span className="font-medium">العنوان:</span>
+            <span className="truncate">{parent.address}</span>
+          </div>
+        )}
+        <div className="flex items-center gap-2 text-sm text-gray-600">
+          <span className="font-medium">تاريخ التسجيل:</span>
+          <span>{new Date(parent.created_at).toLocaleDateString('ar-SA')}</span>
+        </div>
+      </div>
+
+      <div className="flex gap-2 pt-3 border-t border-gray-100">
+        <button
+          onClick={() => onView(parent)}
+          className="flex items-center gap-1 px-3 py-2 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 text-sm"
+        >
+          <AiOutlineEye />
+          عرض
+        </button>
+        <button
+          onClick={() => onEditProfile(parent)}
+          className="flex items-center gap-1 px-3 py-2 bg-green-100 text-green-700 rounded-md hover:bg-green-200 text-sm"
+        >
+          <AiOutlineEdit />
+          تعديل الملف
+        </button>
+        <button
+          onClick={() => onToggleActive(parent)}
+          className={`flex items-center gap-1 px-3 py-2 rounded-md text-sm ${
+            parent.is_active 
+              ? 'bg-red-100 text-red-700 hover:bg-red-200' 
+              : 'bg-green-100 text-green-700 hover:bg-green-200'
+          }`}
+        >
+          {parent.is_active ? <AiOutlineWarning /> : <AiOutlineCheck />}
+          {parent.is_active ? 'إلغاء تفعيل' : 'تفعيل'}
+        </button>
+        <button
+          onClick={() => onManageChildren(parent)}
+          className="flex items-center gap-1 px-3 py-2 bg-purple-100 text-purple-700 rounded-md hover:bg-purple-200 text-sm"
+        >
+          <AiOutlineTeam />
+          إدارة الأطفال
+        </button>
+        <button
+          onClick={() => onDeleteUser(parent)}
+          className="flex items-center gap-1 px-3 py-2 bg-red-100 text-red-700 rounded-md hover:bg-red-200 text-sm"
+        >
+          <AiOutlineDelete />
+          حذف
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// Main Parent Management Component
+export default function ParentManagement() {
+  const [parents, setParents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showChildrenModal, setShowChildrenModal] = useState(false);
+
+  useEffect(() => {
+    fetchParents();
+  }, []);
+
+  const fetchParents = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem("token");
+      const response = await axios.get(`${API_BASE}/api/users`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      // Filter only parents
+      const parentUsers = response.data.filter(user => user.role === 'parent');
+      setParents(parentUsers);
+    } catch (err) {
+      setError("خطأ في جلب بيانات أولياء الأمور");
+      console.error("Error fetching parents:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleView = (parent) => {
+    setSelectedUser(parent);
+    // You can implement a view modal here if needed
+    console.log("Viewing parent:", parent);
+  };
+
+  const handleEditProfile = (parent) => {
+    setSelectedUser(parent);
+    setShowProfileModal(true);
+  };
+
+  const handleToggleActive = async (parent) => {
+    try {
+      const token = localStorage.getItem("token");
+      await axios.patch(`${API_BASE}/api/users/${parent.id}/toggle-active`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      fetchParents(); // Refresh the list
+    } catch (err) {
+      setError("خطأ في تغيير حالة ولي الأمر");
+      console.error("Error toggling parent status:", err);
+    }
+  };
+
+  const handleDeleteUser = async (parent) => {
+    if (window.confirm(`هل أنت متأكد من حذف ولي الأمر ${parent.first_name} ${parent.last_name}؟`)) {
+      try {
+        const token = localStorage.getItem("token");
+        await axios.delete(`${API_BASE}/api/users/${parent.id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        fetchParents(); // Refresh the list
+      } catch (err) {
+        setError("خطأ في حذف ولي الأمر");
+        console.error("Error deleting parent:", err);
+      }
+    }
+  };
+
+  const handleManageChildren = (parent) => {
+    setSelectedUser(parent);
+    setShowChildrenModal(true);
+  };
+
+  const handleUpdateProfile = async (e, setFormErrors = () => {}) => {
+    e.preventDefault();
+    setFormErrors({}); // Clear previous errors
+    const formData = new FormData(e.target);
+    
+    // Send all profile fields that now exist in the database
+    const profileData = {
+      first_name: formData.get('first_name'),
+      second_name: formData.get('second_name'),
+      third_name: formData.get('third_name'),
+      last_name: formData.get('last_name'),
+      email: formData.get('email'),
+      phone: formData.get('phone'),
+      address: formData.get('address'),
+      date_of_birth: formData.get('date_of_birth'),
+      school_level: formData.get('school_level'),
+      neighborhood: formData.get('neighborhood'),
+      notes: formData.get('notes')
+    };
+
+    try {
+      await axios.put(`${API_BASE}/api/users/${selectedUser.id || selectedUser.user_id}/profile`, profileData, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      setShowProfileModal(false);
+      setSelectedUser(null);
+      fetchParents(); // Refresh the list
+      
+    } catch (err) {
+      const errorMessage = err.response?.data?.error;
+      
+      // Check if it's an email duplicate error
+      if (errorMessage && errorMessage.includes('البريد الإلكتروني مستخدم من قبل مستخدم آخر')) {
+        setFormErrors({ email: errorMessage });
+      } else {
+        setError(errorMessage || "خطأ في تحديث الملف الشخصي");
+      }
+      console.error("Error updating profile:", err);
+    }
+  };
+
+  // Filter parents based on search and status
+  const filteredParents = parents.filter(parent => {
+    const matchesSearch = parent.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         parent.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         parent.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         parent.phone?.includes(searchTerm);
+    
+    const matchesStatus = statusFilter === "all" || 
+                         (statusFilter === "active" && parent.is_active) ||
+                         (statusFilter === "inactive" && !parent.is_active);
+    
+    return matchesSearch && matchesStatus;
+  });
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--color-primary-500)] mx-auto mb-4"></div>
+          <p className="text-gray-600">جاري تحميل بيانات أولياء الأمور...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto px-4 py-8">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">إدارة أولياء الأمور</h1>
+        <p className="text-gray-600">عرض وإدارة جميع أولياء الأمور المسجلين في النظام</p>
+      </div>
+
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
+          {error}
+        </div>
+      )}
+
+      {/* Search and Filters */}
+      <div className="bg-white p-6 rounded-xl shadow-lg mb-8">
+        <div className="flex flex-col lg:flex-row gap-4">
+          <div className="flex-1 relative">
+            <AiOutlineSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="البحث بالاسم، البريد الإلكتروني، أو رقم الهاتف..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="flex gap-2">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">جميع الحالات</option>
+              <option value="active">نشط</option>
+              <option value="inactive">غير نشط</option>
             </select>
           </div>
         </div>
 
-        {/* Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-          <div className="bg-white rounded-xl shadow-lg p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-medium text-gray-600">إجمالي أولياء الأمور</h3>
-                <p className="text-2xl font-bold text-gray-900">{parents.length}</p>
-              </div>
-              <div className="bg-blue-100 p-3 rounded-full">
-                <AiOutlineUser className="text-xl text-blue-600" />
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-white rounded-xl shadow-lg p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-medium text-gray-600">المفعلون</h3>
-                <p className="text-2xl font-bold text-green-600">
-                  {parents.filter(p => p.is_active).length}
-                </p>
-              </div>
-              <div className="bg-green-100 p-3 rounded-full">
-                <AiOutlineCheckCircle className="text-xl text-green-600" />
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-white rounded-xl shadow-lg p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-medium text-gray-600">غير المفعلين</h3>
-                <p className="text-2xl font-bold text-red-600">
-                  {parents.filter(p => !p.is_active).length}
-                </p>
-              </div>
-              <div className="bg-red-100 p-3 rounded-full">
-                <AiOutlineCloseCircle className="text-xl text-red-600" />
-              </div>
-            </div>
-          </div>
+        <div className="mt-4 flex items-center justify-between text-sm text-gray-600">
+          <span>عدد أولياء الأمور: {filteredParents.length}</span>
+          <span>إجمالي أولياء الأمور: {parents.length}</span>
         </div>
-
-        {/* Parents List */}
-        <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-          <div className="p-6 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-800">
-              قائمة أولياء الأمور ({filteredParents.length})
-            </h2>
-          </div>
-
-          {loading ? (
-            <div className="p-12 text-center">
-              <AiOutlineReload className="animate-spin text-4xl text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600">جاري تحميل البيانات...</p>
-            </div>
-          ) : filteredParents.length === 0 ? (
-            <div className="p-12 text-center">
-              <AiOutlineUser className="text-4xl text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600">لا توجد نتائج للبحث الحالي</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-gray-200">
-              {filteredParents.map((parent) => (
-                <div key={parent.id} className="p-6">
-                  {/* Parent Info */}
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-4">
-                      <div className={`p-3 rounded-full ${
-                        parent.is_active ? 'bg-green-100' : 'bg-red-100'
-                      }`}>
-                        <AiOutlineUser className={`text-xl ${
-                          parent.is_active ? 'text-green-600' : 'text-red-600'
-                        }`} />
-                      </div>
-                      
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-800">
-                          {parent.first_name} {parent.second_name} {parent.third_name} {parent.last_name}
-                        </h3>
-                        <div className="flex items-center gap-4 text-sm text-gray-600 mt-1">
-                          <span className="flex items-center gap-1">
-                            <AiOutlineMail />
-                            {parent.email}
-                          </span>
-                          {parent.phone && (
-                            <span className="flex items-center gap-1">
-                              <AiOutlinePhone />
-                              {parent.phone}
-                            </span>
-                          )}
-                        </div>
-                        <div className="mt-2">
-                          <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full ${
-                            parent.is_active 
-                              ? 'bg-green-100 text-green-800' 
-                              : 'bg-red-100 text-red-800'
-                          }`}>
-                            {parent.is_active ? (
-                              <>
-                                <AiOutlineCheckCircle />
-                                مفعل
-                              </>
-                            ) : (
-                              <>
-                                <AiOutlineCloseCircle />
-                                غير مفعل
-                              </>
-                            )}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => openAddChildModal(parent)}
-                        className="bg-green-500 hover:bg-green-600 text-white px-3 py-2 rounded-lg flex items-center gap-1 text-sm transition-colors"
-                      >
-                        <AiOutlinePlus />
-                        إضافة ابن
-                      </button>
-                      
-                      <button
-                        onClick={() => toggleShowStudents(parent.id)}
-                        className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-1 text-sm transition-colors"
-                      >
-                        <AiOutlineEye />
-                        {showStudents[parent.id] ? 'إخفاء الطلاب' : 'عرض الطلاب'}
-                      </button>
-                      
-                      <button
-                        onClick={() => toggleParentStatus(parent.id, parent.is_active)}
-                        className={`px-3 py-2 rounded-lg flex items-center gap-1 text-sm transition-colors ${
-                          parent.is_active
-                            ? 'bg-red-500 hover:bg-red-600 text-white'
-                            : 'bg-green-500 hover:bg-green-600 text-white'
-                        }`}
-                      >
-                        {parent.is_active ? (
-                          <>
-                            <AiOutlineCloseCircle />
-                            إلغاء التفعيل
-                          </>
-                        ) : (
-                          <>
-                            <AiOutlineCheckCircle />
-                            تفعيل
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Students List */}
-                  {showStudents[parent.id] && (
-                    <div className="bg-gray-50 rounded-lg p-4 mt-4">
-                      <h4 className="text-md font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                        <AiOutlineTeam />
-                        طلاب ولي الأمر
-                      </h4>
-                      
-                      {students[parent.id] ? (
-                        students[parent.id].length > 0 ? (
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                            {students[parent.id].map((student) => (
-                              <div key={student.id} className="bg-white rounded-lg p-3 shadow-sm">
-                                <h5 className="font-medium text-gray-800">
-                                  {student.first_name} {student.second_name} {student.third_name} {student.last_name}
-                                </h5>
-                                <p className="text-sm text-gray-600 mt-1">
-                                  الصف: {student.class_name || 'غير محدد'}
-                                </p>
-                                <p className="text-sm text-gray-600">
-                                  العمر: {student.age || 'غير محدد'} سنة
-                                </p>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="text-gray-600 text-center py-4">
-                            لا يوجد طلاب مسجلين لهذا الولي
-                          </p>
-                        )
-                      ) : (
-                        <div className="text-center py-4">
-                          <AiOutlineReload className="animate-spin text-xl text-gray-400 mx-auto mb-2" />
-                          <p className="text-gray-600">جاري تحميل الطلاب...</p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Add Child Modal */}
-        {showAddChildModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden">
-              <div className="bg-[var(--color-primary-600)] text-white p-6 rounded-t-2xl">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-bold flex items-center gap-2">
-                    <AiOutlinePlus />
-                    ربط ابن موجود
-                  </h2>
-                  <button
-                    onClick={() => setShowAddChildModal(false)}
-                    className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors"
-                  >
-                    <AiOutlineClose />
-                  </button>
-                </div>
-                {selectedParent && (
-                  <p className="text-white/90 mt-2">
-                    ولي الأمر: {selectedParent.first_name} {selectedParent.second_name} {selectedParent.third_name} {selectedParent.last_name}
-                  </p>
-                )}
-              </div>
-              
-              <div className="p-6 overflow-y-auto max-h-[calc(90vh-180px)]">
-                {/* Search Input */}
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    البحث عن الطلاب
-                  </label>
-                  <div className="relative">
-                    <AiOutlineSearch className="absolute right-3 top-3 text-gray-400" />
-                    <input
-                      type="text"
-                      value={studentSearchTerm}
-                      onChange={(e) => setStudentSearchTerm(e.target.value)}
-                      placeholder="ابحث بالاسم أو رقم الهوية..."
-                      className="w-full pr-10 pl-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-primary-500)] focus:border-transparent"
-                    />
-                  </div>
-                </div>
-
-                {/* Students List */}
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    اختر الطالب *
-                  </label>
-                  
-                  {loadingStudents ? (
-                    <div className="text-center py-8">
-                      <AiOutlineReload className="animate-spin text-3xl text-gray-400 mx-auto mb-2" />
-                      <p className="text-gray-600">جاري تحميل الطلاب...</p>
-                    </div>
-                  ) : filteredAvailableStudents.length === 0 ? (
-                    <div className="text-center py-8">
-                      <AiOutlineUser className="text-3xl text-gray-400 mx-auto mb-2" />
-                      <p className="text-gray-600">
-                        {studentSearchTerm ? 'لا توجد نتائج للبحث' : 'لا يوجد طلاب متاحون'}
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="max-h-64 overflow-y-auto border border-gray-200 rounded-lg">
-                      {filteredAvailableStudents.map((student) => (
-                        <div
-                          key={student.id}
-                          className={`p-3 border-b border-gray-100 cursor-pointer transition-colors hover:bg-gray-50 ${
-                            selectedStudentId === student.id ? 'bg-[var(--color-primary-50)] border-[var(--color-primary-200)]' : ''
-                          }`}
-                          onClick={() => setSelectedStudentId(student.id)}
-                        >
-                          <div className="flex items-center gap-3">
-                            <input
-                              type="radio"
-                              name="selectedStudent"
-                              checked={selectedStudentId === student.id}
-                              onChange={() => setSelectedStudentId(student.id)}
-                              className="text-[var(--color-primary-600)] focus:ring-[var(--color-primary-500)]"
-                            />
-                            <div className="flex-1">
-                              <h4 className="font-medium text-gray-800">
-                                {student.first_name} {student.second_name} {student.third_name} {student.last_name}
-                              </h4>
-                              <div className="text-sm text-gray-600 mt-1">
-                                <span className="inline-block ml-4">رقم الهوية: {student.id}</span>
-                                {student.age && <span className="inline-block ml-4">العمر: {student.age} سنة</span>}
-                                {student.school_level && <span className="inline-block">المرحلة: {student.school_level}</span>}
-                              </div>
-                              {student.class_name && (
-                                <p className="text-sm text-blue-600 mt-1">
-                                  الصف الحالي: {student.class_name}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Selected Student Info */}
-                {selectedStudentId && (
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
-                    <h4 className="font-medium text-green-800 mb-2">الطالب المختار:</h4>
-                    {(() => {
-                      const selectedStudent = availableStudents.find(s => s.id === selectedStudentId);
-                      return selectedStudent ? (
-                        <div>
-                          <p className="text-green-700">
-                            <strong>{selectedStudent.first_name} {selectedStudent.second_name} {selectedStudent.third_name} {selectedStudent.last_name}</strong>
-                          </p>
-                          <p className="text-sm text-green-600 mt-1">
-                            رقم الهوية: {selectedStudent.id}
-                            {selectedStudent.age && ` • العمر: ${selectedStudent.age} سنة`}
-                            {selectedStudent.school_level && ` • المرحلة: ${selectedStudent.school_level}`}
-                          </p>
-                        </div>
-                      ) : null;
-                    })()}
-                  </div>
-                )}
-
-                <div className="flex gap-3 mt-6">
-                  <button
-                    onClick={linkStudentToParent}
-                    disabled={linkingStudent || !selectedStudentId}
-                    className="flex-1 bg-[var(--color-primary-600)] hover:bg-[var(--color-primary-700)] text-white py-2 px-4 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  >
-                    {linkingStudent ? (
-                      <>
-                        <AiOutlineReload className="animate-spin" />
-                        جاري الربط...
-                      </>
-                    ) : (
-                      <>
-                        <AiOutlineSave />
-                        ربط الطالب
-                      </>
-                    )}
-                  </button>
-                  
-                  <button
-                    onClick={() => setShowAddChildModal(false)}
-                    disabled={linkingStudent}
-                    className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    إلغاء
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* Parents Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+        {filteredParents.map((parent) => (
+          <ParentCard
+            key={parent.id}
+            parent={parent}
+            onView={handleView}
+            onToggleActive={handleToggleActive}
+            onEditProfile={handleEditProfile}
+            onDeleteUser={handleDeleteUser}
+            onManageChildren={handleManageChildren}
+          />
+        ))}
+      </div>
+
+      {filteredParents.length === 0 && (
+        <div className="text-center py-12">
+          <div className="text-gray-400 mb-4">
+            <AiOutlineUser className="mx-auto text-6xl mb-4" />
+            <h3 className="text-xl font-semibold mb-2">لا يوجد أولياء أمور</h3>
+            <p>لم يتم العثور على أولياء أمور مطابقين للبحث</p>
+          </div>
+        </div>
+      )}
+
+      {/* Profile Edit Modal */}
+      {showProfileModal && (
+        <ProfileEditModal
+          user={selectedUser}
+          onClose={() => {
+            setShowProfileModal(false);
+            setSelectedUser(null);
+          }}
+          onSubmit={handleUpdateProfile}
+        />
+      )}
+
+      {/* Children Management Modal */}
+      {showChildrenModal && selectedUser && (
+        <SimpleChildrenManagement
+          user={selectedUser}
+          isOpen={showChildrenModal}
+          onClose={() => {
+            setShowChildrenModal(false);
+            setSelectedUser(null);
+          }}
+        />
+      )}
     </div>
   );
 }
