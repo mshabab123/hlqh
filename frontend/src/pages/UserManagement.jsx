@@ -75,6 +75,13 @@ const RoleEditModal = ({ user, onClose, onUpdate, schools, classes }) => {
     e.preventDefault();
     setLoading(true);
 
+    // Validation: Administrator role requires school selection
+    if (selectedRole === 'administrator' && !selectedSchoolId) {
+      alert('يجب اختيار المجمع للمشرف');
+      setLoading(false);
+      return;
+    }
+
     try {
       const updateData = { 
         role: selectedRole,
@@ -150,7 +157,12 @@ const RoleEditModal = ({ user, onClose, onUpdate, schools, classes }) => {
 
           {requiresSchool && (
             <div>
-              <label className="block text-sm font-medium mb-2">المجمع المخصص:</label>
+              <label className="block text-sm font-medium mb-2">
+                المجمع المخصص
+                {selectedRole === 'administrator' && (
+                  <span className="text-red-500 mr-1">*</span>
+                )}
+              </label>
               <select
                 value={selectedSchoolId}
                 onChange={(e) => {

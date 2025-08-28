@@ -60,8 +60,12 @@ router.get('/', requireAuth, async (req, res) => {
     console.log('GET /schools called');
     const result = await db.query(`
       SELECT 
-        s.id, s.name, s.address, s.phone, s.email, s.established_date, s.is_active, s.created_at
+        s.id, s.name, s.address, s.phone, s.email, s.established_date, s.is_active, s.created_at,
+        s.administrator_id,
+        u.first_name as administrator_first_name,
+        u.last_name as administrator_last_name
       FROM schools s
+      LEFT JOIN users u ON s.administrator_id = u.id
       ORDER BY s.created_at DESC
     `);
     console.log('Schools found:', result.rows.length);
@@ -88,17 +92,18 @@ router.post('/', requireAuth, requireAdmin, schoolValidationRules, async (req, r
       phone,
       email,
       established_date,
-      is_active = true
+      is_active = true,
+      administrator_id
     } = req.body;
 
     await client.query('BEGIN');
 
     const result = await client.query(`
       INSERT INTO schools (
-        name, address, phone, email, established_date, is_active
-      ) VALUES ($1, $2, $3, $4, $5, $6)
+        name, address, phone, email, established_date, is_active, administrator_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING id
-    `, [name, address, phone || null, email || null, established_date || null, is_active]);
+    `, [name, address, phone || null, email || null, established_date || null, is_active, administrator_id || null]);
 
     await client.query('COMMIT');
     
@@ -127,7 +132,8 @@ router.put('/:id', requireAuth, requireAdmin, schoolValidationRules, async (req,
       phone,
       email,
       established_date,
-      is_active
+      is_active,
+      administrator_id
     } = req.body;
 
     await client.query('BEGIN');
@@ -139,9 +145,10 @@ router.put('/:id', requireAuth, requireAdmin, schoolValidationRules, async (req,
         phone = $3, 
         email = $4, 
         established_date = $5, 
-        is_active = $6
-      WHERE id = $7
-    `, [name, address, phone || null, email || null, established_date || null, is_active, id]);
+        is_active = $6,
+        administrator_id = $7
+      WHERE id = $8
+    `, [name, address, phone || null, email || null, established_date || null, is_active, administrator_id || null, id]);
 
     await client.query('COMMIT');
     

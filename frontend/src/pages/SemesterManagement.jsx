@@ -1,5 +1,40 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import axios from "axios";
+
+const API_BASE = import.meta.env.VITE_API_BASE || "";
+
+// Working Days Display Component
+const WorkingDaysDisplay = ({ startDate, endDate, weekendDays, vacationDays, calculateWorkingDays }) => {
+  const daysInfo = useMemo(() => {
+    if (!startDate || !endDate) return { total: 0, working: 0 };
+    return calculateWorkingDays(startDate, endDate, weekendDays, vacationDays);
+  }, [startDate, endDate, weekendDays, vacationDays, calculateWorkingDays]);
+
+  if (!startDate || !endDate) return null;
+
+  return (
+    <div className="bg-blue-50 p-4 rounded-lg">
+      <div className="text-sm">
+        <div className="flex justify-between mb-2">
+          <span>إجمالي الأيام:</span>
+          <span className="font-bold">{daysInfo.total} يوم</span>
+        </div>
+        <div className="flex justify-between mb-2">
+          <span>أيام العمل:</span>
+          <span className="font-bold text-green-600">{daysInfo.working} يوم</span>
+        </div>
+        <div className="flex justify-between">
+          <span>أيام العطل (الأسبوعية + الاستثنائية):</span>
+          <span className="font-bold text-red-600">{daysInfo.total - daysInfo.working} يوم</span>
+        </div>
+        <div className="flex justify-between text-xs mt-1 text-gray-600">
+          <span>• أيام العطل الاستثنائية:</span>
+          <span>{vacationDays.length} يوم</span>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const SemesterManagement = () => {
   const [semesters, setSemesters] = useState([]);
@@ -70,7 +105,7 @@ const SemesterManagement = () => {
   const loadSchools = async () => {
     try {
       const token = localStorage.getItem("token");
-      const response = await axios.get("http://localhost:5000/api/schools", {
+      const response = await axios.get(`${API_BASE}/api/schools`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setSchools(response.data.schools || []);
@@ -88,10 +123,10 @@ const SemesterManagement = () => {
     
     try {
       const token = localStorage.getItem("token");
-      const response = await axios.get(`http://localhost:5000/api/semesters?school_id=${selectedSchool}`, {
+      const response = await axios.get(`${API_BASE}/api/semesters?school_id=${selectedSchool}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setSemesters(response.data);
+      setSemesters(response.data.semesters || []);
     } catch (error) {
       console.error("Error loading semesters:", error);
       setSemesters([]);
@@ -101,7 +136,7 @@ const SemesterManagement = () => {
   const loadCourses = async () => {
     try {
       const token = localStorage.getItem("token");
-      const response = await axios.get(`http://localhost:5000/api/semesters/${selectedSemester.id}/courses/${selectedSchool}`, {
+      const response = await axios.get(`${API_BASE}/api/semesters/${selectedSemester.id}/courses/${selectedSchool}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const coursesWithNumberPercentages = response.data.map(course => ({
@@ -129,7 +164,7 @@ const SemesterManagement = () => {
       let response;
       if (editingSemester) {
         // Edit existing semester
-        response = await axios.put(`http://localhost:5000/api/semesters/${editingSemester.id}`, semesterData, {
+        response = await axios.put(`${API_BASE}/api/semesters/${editingSemester.id}`, semesterData, {
           headers: { Authorization: `Bearer ${token}` }
         });
         
@@ -144,7 +179,7 @@ const SemesterManagement = () => {
         }
       } else {
         // Create new semester
-        response = await axios.post("http://localhost:5000/api/semesters", semesterData, {
+        response = await axios.post(`${API_BASE}/api/semesters`, semesterData, {
           headers: { Authorization: `Bearer ${token}` }
         });
         
@@ -183,7 +218,7 @@ const SemesterManagement = () => {
     for (const school of schools) {
       for (const course of defaultCourses) {
         try {
-          await axios.post(`http://localhost:5000/api/semesters/${semesterId}/courses`, {
+          await axios.post(`${API_BASE}/api/semesters/${semesterId}/courses`, {
             ...course,
             school_id: school.id
           }, {
@@ -208,11 +243,11 @@ const SemesterManagement = () => {
       };
 
       if (editingCourse) {
-        await axios.put(`http://localhost:5000/api/courses/${editingCourse.id}`, courseData, {
+        await axios.put(`${API_BASE}/api/courses/${editingCourse.id}`, courseData, {
           headers: { Authorization: `Bearer ${token}` }
         });
       } else {
-        await axios.post(`http://localhost:5000/api/semesters/${selectedSemester.id}/courses`, courseData, {
+        await axios.post(`${API_BASE}/api/semesters/${selectedSemester.id}/courses`, courseData, {
           headers: { Authorization: `Bearer ${token}` }
         });
       }
@@ -245,7 +280,7 @@ const SemesterManagement = () => {
     
     try {
       const token = localStorage.getItem("token");
-      await axios.delete(`http://localhost:5000/api/courses/${courseId}`, {
+      await axios.delete(`${API_BASE}/api/courses/${courseId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       await loadCourses();
@@ -311,20 +346,25 @@ const SemesterManagement = () => {
 
   const addVacationDay = (date) => {
     const vacationDays = newSemester.vacation_days || [];
-    if (!date || vacationDays.includes(date)) return;
+    if (!date || vacationDays.includes(date)) {
+      if (vacationDays.includes(date)) {
+        alert("هذا التاريخ مضاف بالفعل كيوم عطلة");
+      }
+      return;
+    }
     
-    setNewSemester({
-      ...newSemester,
+    setNewSemester(prev => ({
+      ...prev,
       vacation_days: [...vacationDays, date].sort()
-    });
+    }));
     setNewVacationDate("");
   };
 
   const removeVacationDay = (date) => {
-    setNewSemester({
-      ...newSemester,
-      vacation_days: (newSemester.vacation_days || []).filter(d => d !== date)
-    });
+    setNewSemester(prev => ({
+      ...prev,
+      vacation_days: (prev.vacation_days || []).filter(d => d !== date)
+    }));
   };
 
   const toggleWeekendDay = (dayNumber) => {
@@ -404,7 +444,7 @@ const SemesterManagement = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem("token");
-      await axios.delete(`http://localhost:5000/api/semesters/${semesterId}`, {
+      await axios.delete(`${API_BASE}/api/semesters/${semesterId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       await loadSemesters();
@@ -797,34 +837,13 @@ const SemesterManagement = () => {
               </div>
 
               {/* Working Days Calculation */}
-              {newSemester.start_date && newSemester.end_date && (
-                <div className="bg-blue-50 p-4 rounded-lg">
-                  {(() => {
-                    const daysInfo = calculateWorkingDays(
-                      newSemester.start_date,
-                      newSemester.end_date,
-                      newSemester.weekend_days || [5, 6],
-                      newSemester.vacation_days || []
-                    );
-                    return (
-                      <div className="text-sm">
-                        <div className="flex justify-between mb-2">
-                          <span>إجمالي الأيام:</span>
-                          <span className="font-bold">{daysInfo.total} يوم</span>
-                        </div>
-                        <div className="flex justify-between mb-2">
-                          <span>أيام العمل:</span>
-                          <span className="font-bold text-green-600">{daysInfo.working} يوم</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>أيام العطل:</span>
-                          <span className="font-bold text-red-600">{daysInfo.total - daysInfo.working} يوم</span>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-              )}
+              <WorkingDaysDisplay 
+                startDate={newSemester.start_date}
+                endDate={newSemester.end_date}
+                weekendDays={newSemester.weekend_days || [5, 6]}
+                vacationDays={newSemester.vacation_days || []}
+                calculateWorkingDays={calculateWorkingDays}
+              />
 
               {/* Weekend Days Selection */}
               <div>

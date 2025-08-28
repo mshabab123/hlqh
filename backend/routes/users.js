@@ -235,6 +235,9 @@ router.put('/:id', async (req, res) => {
       return res.status(404).json({ error: 'المستخدم غير موجود' });
     }
 
+    // Clear administrator_id from schools table if this user was an administrator
+    await client.query('UPDATE schools SET administrator_id = NULL WHERE administrator_id = $1', [id]);
+    
     // Remove user from all role-specific tables first
     await client.query('DELETE FROM teachers WHERE id = $1', [id]);
     await client.query('DELETE FROM administrators WHERE id = $1', [id]);
@@ -288,6 +291,32 @@ router.put('/:id', async (req, res) => {
                 ON CONFLICT (id) DO NOTHING
               `, [id]);
             }
+          }
+          
+          // Update schools table to set this user as administrator if school_id is provided
+          if (school_id) {
+            // Check if school already has an administrator
+            const existingAdmin = await client.query(`
+              SELECT administrator_id, 
+                     u.first_name, u.last_name 
+              FROM schools s 
+              LEFT JOIN users u ON s.administrator_id = u.id 
+              WHERE s.id = $1 AND s.administrator_id IS NOT NULL AND s.administrator_id != $2
+            `, [school_id, id]);
+            
+            if (existingAdmin.rows.length > 0) {
+              const admin = existingAdmin.rows[0];
+              await client.query('ROLLBACK');
+              return res.status(400).json({ 
+                error: `هذا المجمع له مشرف بالفعل: ${admin.first_name} ${admin.last_name}` 
+              });
+            }
+            
+            await client.query(`
+              UPDATE schools 
+              SET administrator_id = $1 
+              WHERE id = $2
+            `, [id, school_id]);
           }
           break;
 

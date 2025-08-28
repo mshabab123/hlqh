@@ -202,8 +202,13 @@ export default function SchoolManagement() {
     e.preventDefault();
     try {
       const schoolData = {
-        ...newSchool,
-        address: `${newSchool.neighborhood}, ${newSchool.city}, ${newSchool.region}`
+        name: newSchool.name,
+        address: `${newSchool.neighborhood}, ${newSchool.city}, ${newSchool.region}`,
+        phone: newSchool.phone,
+        email: newSchool.email,
+        established_date: newSchool.established_date,
+        is_active: newSchool.is_active,
+        administrator_id: newSchool.administrator_id
       };
       
       await axios.post(`${API_BASE}/api/schools`, schoolData, {
@@ -234,8 +239,13 @@ export default function SchoolManagement() {
     e.preventDefault();
     try {
       const schoolData = {
-        ...editingSchool,
-        address: `${editingSchool.neighborhood}, ${editingSchool.city}, ${editingSchool.region}`
+        name: editingSchool.name,
+        address: `${editingSchool.neighborhood}, ${editingSchool.city}, ${editingSchool.region}`,
+        phone: editingSchool.phone,
+        email: editingSchool.email,
+        established_date: editingSchool.established_date,
+        is_active: editingSchool.is_active,
+        administrator_id: editingSchool.administrator_id
       };
       
       await axios.put(`${API_BASE}/api/schools/${editingSchool.id}`, schoolData, {
@@ -335,6 +345,11 @@ export default function SchoolManagement() {
               <p><strong>العنوان:</strong> {school.address}</p>
               {school.phone && <p><strong>الهاتف:</strong> {school.phone}</p>}
               {school.email && <p><strong>البريد:</strong> {school.email}</p>}
+              {school.administrator_first_name && school.administrator_last_name ? (
+                <p><strong>المشرف:</strong> {school.administrator_first_name} {school.administrator_last_name}</p>
+              ) : (
+                <p><strong>المشرف:</strong> <span className="text-orange-600">لم يتم تعيين مشرف</span></p>
+              )}
               {school.established_date && (
                 <p><strong>تاريخ التأسيس:</strong> {new Date(school.established_date).toLocaleDateString('ar-SA')}</p>
               )}
@@ -345,7 +360,16 @@ export default function SchoolManagement() {
             
             <div className="flex gap-2 flex-wrap">
               <button
-                onClick={() => setEditingSchool(school)}
+                onClick={() => {
+                  // Parse address back into components
+                  const addressParts = school.address ? school.address.split(', ') : ['', '', ''];
+                  setEditingSchool({
+                    ...school,
+                    neighborhood: addressParts[0] || '',
+                    city: addressParts[1] || '',
+                    region: addressParts[2] || ''
+                  });
+                }}
                 className="flex items-center gap-1 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
               >
                 <AiOutlineEdit /> تعديل
