@@ -18,7 +18,6 @@ const SemesterManagement = () => {
   const [showVacationCalendar, setShowVacationCalendar] = useState(false);
   
   const [newSemester, setNewSemester] = useState({
-    name: "",
     type: "first", // first, second, summer
     year: new Date().getFullYear(),
     start_date: "",
@@ -159,12 +158,10 @@ const SemesterManagement = () => {
       
       // Reset form
       setNewSemester({
-        name: "",
         type: "first",
         year: new Date().getFullYear(),
         start_date: "",
         end_date: "",
-        display_name: "",
         school_id: "",
         weekend_days: [5, 6],
         vacation_days: []
@@ -173,7 +170,8 @@ const SemesterManagement = () => {
       setEditingSemester(null);
     } catch (error) {
       console.error("Error saving semester:", error);
-      alert("حدث خطأ في إضافة الفصل الدراسي");
+      const errorMessage = error.response?.data?.message || "حدث خطأ في إضافة الفصل الدراسي";
+      alert(errorMessage);
     } finally {
       setLoading(false);
     }

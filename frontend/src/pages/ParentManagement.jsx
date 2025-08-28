@@ -9,7 +9,14 @@ import {
   AiOutlineWarning,
   AiOutlineSearch,
   AiOutlineDelete,
-  AiOutlineTeam
+  AiOutlineTeam,
+  AiOutlineIdcard,
+  AiOutlineHome,
+  AiOutlineCalendar,
+  AiOutlinePlus,
+  AiOutlineUserSwitch,
+  AiOutlinePhone,
+  AiOutlineMail
 } from "react-icons/ai";
 import SimpleChildrenManagement from "../components/SimpleChildrenManagement";
 
@@ -251,97 +258,185 @@ const ProfileEditModal = ({ user, onClose, onSubmit }) => {
 
 // Parent Card Component
 const ParentCard = ({ parent, onView, onToggleActive, onEditProfile, onDeleteUser, onManageChildren }) => {
+  const [isFlipped, setIsFlipped] = useState(false);
   const RoleIcon = ROLE_CONFIG[parent.role]?.icon || AiOutlineUser;
+  
+  const getRoleGradient = (role) => {
+    switch (role) {
+      case 'parent': return 'from-orange-500 to-orange-600';
+      case 'admin': return 'from-red-500 to-red-600';
+      case 'administrator': return 'from-purple-500 to-purple-600';
+      case 'teacher': return 'from-green-500 to-green-600';
+      case 'student': return 'from-blue-500 to-blue-600';
+      default: return 'from-gray-500 to-gray-600';
+    }
+  };
 
   return (
-    <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200 hover:shadow-xl transition-shadow">
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <div className="bg-orange-100 p-3 rounded-full">
-            <RoleIcon className="text-orange-700 text-xl" />
-          </div>
-          <div>
-            <h3 className="font-bold text-lg text-gray-800">
-              {parent.first_name} {parent.last_name}
-            </h3>
-            <p className="text-gray-600 text-sm">{parent.email}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${ROLE_CONFIG[parent.role]?.color || 'bg-gray-500 text-white'}`}>
-            {ROLE_CONFIG[parent.role]?.name || parent.role}
-          </span>
-          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-            parent.is_active 
-              ? 'bg-green-100 text-green-800' 
-              : 'bg-red-100 text-red-800'
-          }`}>
-            {parent.is_active ? 'نشط' : 'غير نشط'}
-          </span>
-        </div>
-      </div>
+    <div className="group perspective-1000 h-[420px] sm:h-[400px] md:h-[420px] lg:h-[380px] cursor-pointer">
+      <div className={`relative w-full h-full transition-transform duration-700 transform-style-preserve-3d ${isFlipped ? 'rotate-y-180' : ''} group-hover:rotate-y-180`}
+           onClick={() => setIsFlipped(!isFlipped)}>
+        
+        {/* FRONT SIDE */}
+        <div className="absolute inset-0 w-full h-full backface-hidden">
+          <div className="bg-white rounded-2xl shadow-lg border border-gray-200 h-full overflow-hidden">
+            {/* Header */}
+            <div className={`p-4 bg-gradient-to-br ${getRoleGradient(parent.role)} relative`}>
+              <div className="absolute inset-0 bg-black/10"></div>
+              <div className="relative z-10 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="bg-white/20 p-3 rounded-xl backdrop-blur-sm">
+                    <RoleIcon className="text-white text-2xl drop-shadow-sm" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-lg text-white drop-shadow-sm">
+                      {parent.first_name} {parent.last_name}
+                    </h3>
+                    <p className="text-white/80 text-sm">{parent.phone || 'لا يوجد رقم هاتف'}</p>
+                  </div>
+                </div>
+                <div className="flex flex-col items-end gap-2">
+                  <span className={`px-3 py-1 rounded-full text-xs font-semibold bg-white/20 text-white backdrop-blur-sm`}>
+                    {ROLE_CONFIG[parent.role]?.name || parent.role}
+                  </span>
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                    parent.is_active 
+                      ? 'bg-green-100 text-green-800' 
+                      : 'bg-red-100 text-red-800'
+                  }`}>
+                    {parent.is_active ? 'نشط' : 'غير نشط'}
+                  </span>
+                </div>
+              </div>
+            </div>
 
-      <div className="space-y-2 mb-4">
-        <div className="flex items-center gap-2 text-sm text-gray-600">
-          <span className="font-medium">الرقم التعريفي:</span>
-          <span>{parent.id || parent.user_id}</span>
-        </div>
-        <div className="flex items-center gap-2 text-sm text-gray-600">
-          <span className="font-medium">رقم الهاتف:</span>
-          <span>{parent.phone || 'غير محدد'}</span>
-        </div>
-        {parent.address && (
-          <div className="flex items-center gap-2 text-sm text-gray-600">
-            <span className="font-medium">العنوان:</span>
-            <span className="truncate">{parent.address}</span>
-          </div>
-        )}
-        <div className="flex items-center gap-2 text-sm text-gray-600">
-          <span className="font-medium">تاريخ التسجيل:</span>
-          <span>{new Date(parent.created_at).toLocaleDateString('ar-SA')}</span>
-        </div>
-      </div>
+            {/* Body */}
+            <div className="p-4 space-y-3">
+              {/* ID */}
+              <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-blue-50 to-blue-100 rounded-lg">
+                <AiOutlineIdcard className="text-blue-500 text-xl flex-shrink-0" />
+                <div>
+                  <div className="text-xs text-blue-600 mb-1">الرقم التعريفي</div>
+                  <div className="font-semibold text-blue-800">
+                    {parent.id || parent.user_id}
+                  </div>
+                </div>
+              </div>
 
-      <div className="flex gap-2 pt-3 border-t border-gray-100">
-        <button
-          onClick={() => onView(parent)}
-          className="flex items-center gap-1 px-3 py-2 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 text-sm"
-        >
-          <AiOutlineEye />
-          عرض
-        </button>
-        <button
-          onClick={() => onEditProfile(parent)}
-          className="flex items-center gap-1 px-3 py-2 bg-green-100 text-green-700 rounded-md hover:bg-green-200 text-sm"
-        >
-          <AiOutlineEdit />
-          تعديل الملف
-        </button>
-        <button
-          onClick={() => onToggleActive(parent)}
-          className={`flex items-center gap-1 px-3 py-2 rounded-md text-sm ${
-            parent.is_active 
-              ? 'bg-red-100 text-red-700 hover:bg-red-200' 
-              : 'bg-green-100 text-green-700 hover:bg-green-200'
-          }`}
-        >
-          {parent.is_active ? <AiOutlineWarning /> : <AiOutlineCheck />}
-          {parent.is_active ? 'إلغاء تفعيل' : 'تفعيل'}
-        </button>
-        <button
-          onClick={() => onManageChildren(parent)}
-          className="flex items-center gap-1 px-3 py-2 bg-purple-100 text-purple-700 rounded-md hover:bg-purple-200 text-sm"
-        >
-          <AiOutlineTeam />
-          إدارة الأطفال
-        </button>
-        <button
-          onClick={() => onDeleteUser(parent)}
-          className="flex items-center gap-1 px-3 py-2 bg-red-100 text-red-700 rounded-md hover:bg-red-200 text-sm"
-        >
-          <AiOutlineDelete />
-          حذف
-        </button>
+              {/* Phone */}
+              <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-indigo-50 to-indigo-100 rounded-lg">
+                <AiOutlinePhone className="text-indigo-500 text-xl flex-shrink-0" />
+                <div>
+                  <div className="text-xs text-indigo-600 mb-1">رقم الهاتف</div>
+                  <div className="font-semibold text-indigo-800 text-sm">
+                    {parent.phone || 'لا يوجد رقم هاتف'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Email */}
+              {parent.email && (
+                <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg">
+                  <AiOutlineMail className="text-gray-500 text-xl flex-shrink-0" />
+                  <div>
+                    <div className="text-xs text-gray-600 mb-1">البريد الإلكتروني</div>
+                    <div className="font-semibold text-gray-800 text-sm">
+                      {parent.email}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Hover/Click Indicator */}
+            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
+              <div className="bg-black/20 backdrop-blur-sm px-3 py-1 rounded-full">
+                <span className="text-xs text-gray-600 hidden sm:block">مرر للخيارات</span>
+                <span className="text-xs text-gray-600 block sm:hidden">اضغط للخيارات</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* BACK SIDE */}
+        <div className="absolute inset-0 w-full h-full backface-hidden rotate-y-180">
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-200 h-full overflow-hidden">
+            {/* Back Header */}
+            <div className={`p-4 bg-gradient-to-br ${getRoleGradient(parent.role)} relative`}>
+              <div className="absolute inset-0 bg-black/20"></div>
+              <div className="relative z-10 text-center">
+                <div className="bg-white/20 p-3 rounded-xl backdrop-blur-sm inline-block mb-2">
+                  <AiOutlinePlus className="text-white text-2xl drop-shadow-sm" />
+                </div>
+                <h3 className="font-bold text-white drop-shadow-sm">خيارات ولي الأمر</h3>
+                <p className="text-white/80 text-sm">{parent.first_name} {parent.last_name}</p>
+              </div>
+            </div>
+
+
+            {/* Action Buttons */}
+            <div className="p-3 space-y-2" onClick={(e) => e.stopPropagation()}>
+              {/* Primary Actions */}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => onView(parent)}
+                  className="flex items-center justify-center gap-2 px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors font-medium text-sm"
+                >
+                  <AiOutlineEye />
+                  التفاصيل
+                </button>
+                <button
+                  onClick={() => onEditProfile(parent)}
+                  className="flex items-center justify-center gap-2 px-3 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors font-medium text-sm"
+                >
+                  <AiOutlineUserSwitch />
+                  الملف
+                </button>
+              </div>
+
+              {/* Secondary Actions */}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => onToggleActive(parent)}
+                  className={`flex items-center justify-center gap-1 px-3 py-2 rounded-lg transition-colors text-sm ${
+                    parent.is_active
+                      ? 'text-orange-600 bg-orange-50 hover:bg-orange-100'
+                      : 'text-green-600 bg-green-50 hover:bg-green-100'
+                  }`}
+                >
+                  {parent.is_active ? <AiOutlineClose /> : <AiOutlineCheck />}
+                  {parent.is_active ? 'إلغاء' : 'تفعيل'}
+                </button>
+                
+                <button
+                  onClick={() => onManageChildren(parent)}
+                  className="flex items-center justify-center gap-1 px-3 py-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors text-sm font-medium"
+                >
+                  <AiOutlineTeam />
+                  الأبناء
+                </button>
+              </div>
+
+              {/* Danger Zone */}
+              <div className="pt-1 border-t border-red-100">
+                <button
+                  onClick={() => onDeleteUser(parent)}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 hover:border-red-300 rounded-lg transition-colors text-sm font-medium"
+                >
+                  <AiOutlineDelete />
+                  حذف نهائياً
+                </button>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="absolute bottom-3 left-1/2 transform -translate-x-1/2">
+              <div className="text-xs text-gray-400 text-center">
+                {new Date(parent.created_at).toLocaleDateString('ar-SA')}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

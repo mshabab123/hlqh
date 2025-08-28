@@ -36,7 +36,7 @@ const SimpleChildrenManagement = ({ user, isOpen, onClose }) => {
       setChildren(response.data.children || []);
     } catch (err) {
       console.error('Error fetching children:', err);
-      setError('خطأ في جلب بيانات الأطفال');
+      setError('خطأ في جلب بيانات الأبناء');
     } finally {
       setLoading(false);
     }
@@ -125,7 +125,7 @@ const SimpleChildrenManagement = ({ user, isOpen, onClose }) => {
         {/* Header */}
         <div className="bg-blue-600 text-white p-6 flex justify-between items-center">
           <h2 className="text-xl font-bold">
-            إدارة الأطفال - {user.first_name} {user.last_name}
+            إدارة الأبناء - {user.first_name} {user.last_name}
           </h2>
           <button
             onClick={onClose}
@@ -187,7 +187,7 @@ const SimpleChildrenManagement = ({ user, isOpen, onClose }) => {
           {/* Children List */}
           <div className="mb-4">
             <h3 className="text-lg font-semibold text-gray-800 mb-3">
-              الأطفال المربوطين ({children.length})
+              الأبناء المربوطين ({children.length})
             </h3>
           </div>
 

@@ -30,7 +30,7 @@ const getNavLinks = (userRole, isActive) => {
 
   // For active users, show full navigation
   const baseLinks = [
-    { to: "/home", label: "الرئيسية", icon: <AiOutlineHome /> },
+    { to: "/home", label: "الرئيسي", icon: <AiOutlineHome /> },
     { to: "/dashboard", label: "لوحة التحكم", icon: <AiOutlineDashboard /> },
     { to: "/children", label: "الأبناء", icon: <AiOutlineTeam /> },
     { to: "/profile", label: "الملف الشخصي", icon: <AiOutlineUser /> },

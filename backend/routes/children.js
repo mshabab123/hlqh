@@ -36,7 +36,7 @@ router.get('/:parentId', authenticateToken, async (req, res) => {
     
   } catch (error) {
     console.error('Error fetching children:', error);
-    res.status(500).json({ error: 'خطأ في جلب بيانات الأطفال' });
+    res.status(500).json({ error: 'خطأ في جلب بيانات الأبناء' });
   }
 });
 

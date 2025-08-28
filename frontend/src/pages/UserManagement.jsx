@@ -778,7 +778,7 @@ const UserCard = ({ user, onEdit, onView, onToggleActive, onEditProfile, onDelet
                   className="w-full flex items-center justify-center gap-2 px-3 py-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors text-sm font-medium"
                 >
                   <AiOutlineTeam />
-                  إدارة الأطفال
+                  إدارة الابناء
                 </button>
               )}
 
