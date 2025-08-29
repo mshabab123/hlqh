@@ -90,6 +90,14 @@ export default function Home() {
       path: "/class-courses",
       color: "bg-cyan-500",
       roles: ["admin", "administrator"]
+    },
+    {
+      title: "التقارير اليومية",
+      description: "إنشاء وإدارة التقارير اليومية للمدارس والحلقات",
+      icon: "📊",
+      path: "/daily-reports",
+      color: "bg-yellow-500",
+      roles: ["admin", "administrator", "supervisor"]
     }
   ];
 

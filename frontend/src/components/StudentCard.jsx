@@ -76,19 +76,19 @@ const StudentCard = ({ student, onView, onEdit, onToggleStatus, onQuranProgress,
         onClick={() => onView(student)}
         className="bg-blue-500 text-white py-2 px-2 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-1 text-sm"
       >
-        <AiOutlineEye /> عرض
+        <AiOutlineEye /> عرض المعلومات
       </button>
       <button
         onClick={() => onEdit(student)}
         className="bg-yellow-500 text-white py-2 px-2 rounded-lg hover:bg-yellow-600 transition-colors flex items-center justify-center gap-1 text-sm"
       >
-        <AiOutlineEdit /> تعديل
+        <AiOutlineEdit /> تعديل الملف
       </button>
       <button
         onClick={() => onQuranProgress(student)}
         className="bg-green-600 text-white py-2 px-2 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-1 text-sm"
       >
-        <AiOutlineBook /> القرآن
+        <AiOutlineBook /> خطة الحفظ
       </button>
       <button
         onClick={() => onToggleStatus(student)}

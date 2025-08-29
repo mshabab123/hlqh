@@ -127,6 +127,10 @@ router.get('/', requireAuth, async (req, res) => {
   try {
     const { school_id, is_active } = req.query;
     
+    // Get current user info to check role for teacher privileges
+    const userResult = await db.query('SELECT role FROM users WHERE id = $1', [req.user.id]);
+    const userRole = userResult.rows[0]?.role;
+    
     let query = `
       SELECT 
         c.id, c.name, c.max_students, c.room_number as teacher_id, c.school_level,
@@ -153,6 +157,16 @@ router.get('/', requireAuth, async (req, res) => {
     
     const params = [];
     let paramIndex = 1;
+
+    // If user is a teacher, only show their assigned classes
+    if (userRole === 'teacher') {
+      query += ` AND c.id IN (
+        SELECT class_id FROM teacher_class_assignments 
+        WHERE teacher_id = $${paramIndex} AND is_active = true
+      )`;
+      params.push(req.user.id);
+      paramIndex++;
+    }
 
     if (school_id) {
       query += ` AND c.school_id = $${paramIndex}`;
@@ -585,6 +599,35 @@ router.post('/:id/grades', requireAuth, async (req, res) => {
     // If this is a memorization grade with Quran references, update student's overall progress
     if (start_reference && end_reference && grade_type === 'memorization') {
       await updateStudentMemorizationProgress(student_id);
+    }
+    
+    // **MARK ATTENDANCE WHEN GRADE IS ENTERED**
+    console.log(`\n🏫🏫🏫 CLASS GRADES ATTENDANCE MARKING 🏫🏫🏫`);
+    console.log(`   Student ID: ${student_id}`);
+    console.log(`   Semester ID: ${semesterId}`);
+    console.log(`   Class ID: ${classId}`);
+    console.log(`   Date: ${new Date().toISOString().split('T')[0]}`);
+    
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      
+      await db.query(`
+        INSERT INTO semester_attendance (
+          student_id, semester_id, class_id, attendance_date, 
+          is_present, is_explicit, has_grade, notes, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, true, false, true, 'Auto-marked based on grade entry', NOW(), NOW())
+        ON CONFLICT (student_id, semester_id, class_id, attendance_date) 
+        DO UPDATE SET 
+          is_present = true,
+          has_grade = true,
+          notes = 'Auto-marked based on grade entry',
+          updated_at = NOW()
+      `, [student_id, semesterId, classId, today]);
+      
+      console.log(`✅ Successfully marked attendance for student ${student_id} on ${today} via class grades endpoint`);
+    } catch (attendanceError) {
+      console.error('❌ Failed to mark attendance from class grades:', attendanceError);
+      // Don't fail the grade entry if attendance marking fails
     }
     
     res.json({ 

@@ -1,24 +1,23 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
-import AttendanceCalendar from "../components/AttendanceCalendar";
+import { AiOutlineUser, AiOutlineEye, AiOutlineCheckCircle, AiOutlineCloseCircle } from "react-icons/ai";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
 const AttendanceManagement = () => {
-  const [schools, setSchools] = useState([]);
-  const [selectedSchool, setSelectedSchool] = useState("");
   const [semesters, setSemesters] = useState([]);
-  const [selectedSemester, setSelectedSemester] = useState(null);
-  const [classes, setClasses] = useState([]);
-  const [selectedClass, setSelectedClass] = useState(null);
-  const [showAttendanceCalendar, setShowAttendanceCalendar] = useState(false);
-  const [attendanceStats, setAttendanceStats] = useState([]);
+  const [students, setStudents] = useState([]);
+  const [currentSemester, setCurrentSemester] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [dateRange, setDateRange] = useState({
-    start_date: "",
-    end_date: ""
-  });
+
+  // Modal states
+  const [showAttendanceModal, setShowAttendanceModal] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [studentWorkDays, setStudentWorkDays] = useState({ all: [], present: [], absent: [], upcoming: [] });
+  const [modalLoading, setModalLoading] = useState(false);
+  const [updatingAttendance, setUpdatingAttendance] = useState(false);
+  const [updatingDay, setUpdatingDay] = useState(null); // Track which specific day is being updated
 
   // Load user data
   const [user, setUser] = useState(null);
@@ -30,154 +29,175 @@ const AttendanceManagement = () => {
   }, []);
 
   useEffect(() => {
-    loadSchools();
+    loadData();
   }, []);
 
+  // Reload students when semester changes to recalculate attendance percentages
   useEffect(() => {
-    if (selectedSchool) {
-      loadSemesters();
-      loadClasses();
+    if (currentSemester) {
+      loadStudents();
     }
-  }, [selectedSchool]);
+  }, [currentSemester]);
 
-  useEffect(() => {
-    if (selectedClass && selectedSemester) {
-      loadAttendanceStats();
-    }
-  }, [selectedClass, selectedSemester, dateRange]);
-
-  const loadSchools = async () => {
+  const loadData = async () => {
+    setLoading(true);
     try {
-      const response = await axios.get(`${API_BASE}/api/schools`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
-      setSchools(response.data.schools || []);
+      await Promise.all([
+        loadSemesters(),
+        loadStudents()
+      ]);
     } catch (error) {
-      console.error("Error loading schools:", error);
-      setSchools([]);
+      console.error("Error loading data:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
   const loadSemesters = async () => {
     try {
-      const response = await axios.get(`${API_BASE}/api/semesters?school_id=${selectedSchool}`, {
+      // Try loading all semesters
+      const response = await axios.get(`${API_BASE}/api/semesters`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
-      setSemesters(response.data || []);
+      
+      let semesterData = response.data.semesters || response.data || [];
+      
+      // If no real semesters, create test ones
+      if (semesterData.length === 0) {
+        const now = new Date();
+        const testStart = new Date(now.getFullYear(), 0, 1); // January 1st this year
+        const testEnd = new Date(now.getFullYear(), 11, 31); // December 31st this year
+        
+        semesterData = [
+          {
+            id: 'current-semester',
+            display_name: 'الفصل الحالي 2025',
+            start_date: testStart.toISOString().split('T')[0],
+            end_date: testEnd.toISOString().split('T')[0],
+            weekend_days: [5, 6],
+            vacation_days: [],
+            is_current: true
+          },
+          {
+            id: 'previous-semester',
+            display_name: 'الفصل السابق 2024',
+            start_date: new Date(now.getFullYear() - 1, 0, 1).toISOString().split('T')[0],
+            end_date: new Date(now.getFullYear() - 1, 11, 31).toISOString().split('T')[0],
+            weekend_days: [5, 6],
+            vacation_days: []
+          }
+        ];
+      }
+      
+      setSemesters(semesterData);
+      
+      // Set current semester (first one or marked as current)
+      const current = semesterData.find(s => s.is_current) || semesterData[0];
+      setCurrentSemester(current);
+      
     } catch (error) {
       console.error("Error loading semesters:", error);
-      setSemesters([]);
     }
   };
 
-  const loadClasses = async () => {
+  const loadStudents = async () => {
     try {
-      const response = await axios.get(`${API_BASE}/api/classes?school_id=${selectedSchool}&is_active=true`, {
+      const response = await axios.get(`${API_BASE}/api/students`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
-      setClasses(response.data || []);
-    } catch (error) {
-      console.error("Error loading classes:", error);
-      setClasses([]);
-    }
-  };
-
-  const loadAttendanceStats = async () => {
-    if (!selectedClass || !selectedSemester) return;
-    
-    try {
-      setLoading(true);
-      const params = new URLSearchParams();
-      if (dateRange.start_date) params.append('start_date', dateRange.start_date);
-      if (dateRange.end_date) params.append('end_date', dateRange.end_date);
+      const studentsData = response.data.students || response.data || [];
       
-      const response = await axios.get(
-        `${API_BASE}/api/attendance/summary/semester/${selectedSemester.id}/class/${selectedClass.id}?${params}`,
-        {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-        }
+      // Calculate attendance percentage for each student if currentSemester is available
+      const studentsWithAttendance = await Promise.all(
+        studentsData.map(async (student) => {
+          let attendancePercentage = null;
+          
+          if (currentSemester) {
+            try {
+              // Calculate working days for current semester (all days for percentage)
+              const allWorkingDays = calculateWorkingDays(currentSemester);
+              
+              if (allWorkingDays.length > 0) {
+                let attendanceData = [];
+                
+                try {
+                  // Get attendance data for this student
+                  // If student has a class_id, use it; otherwise skip attendance API call
+                  if (student.class_id && student.class_id !== null) {
+                    const attendanceResponse = await axios.get(
+                      `${API_BASE}/api/attendance/semester/${currentSemester.id}/class/${student.class_id}?student_id=${student.id}`,
+                      {
+                        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+                      }
+                    );
+                    attendanceData = attendanceResponse.data || [];
+                  } else {
+                    console.log(`Student ${student.id} has no class_id, using grade-based attendance only`);
+                    attendanceData = []; // No attendance records, will rely on grade-based inference
+                  }
+                } catch (apiError) {
+                  console.warn(`Failed to fetch attendance data for student ${student.id}:`, apiError);
+                  attendanceData = []; // Fallback to empty array
+                }
+                
+                // Count present days
+                const presentDays = attendanceData.filter(record => 
+                  record.student_id === student.id && record.is_present
+                ).length;
+                
+                // Also count days with no record as absent (using grade-based inference)
+                const recordedDays = attendanceData.filter(record => 
+                  record.student_id === student.id
+                ).length;
+                
+                // Calculate absence percentage (only recorded absent days / all working days)
+                const absentDays = recordedDays - presentDays; // Only days with records marked as absent
+                
+                // Absence percentage = only actual absent days / all working days
+                if (allWorkingDays.length > 0) {
+                  attendancePercentage = Math.round((absentDays / allWorkingDays.length) * 100);
+                } else {
+                  attendancePercentage = 0; // No working days
+                }
+              }
+            } catch (error) {
+              console.warn(`Failed to calculate attendance for student ${student.id}:`, error);
+            }
+          }
+          
+          return {
+            ...student,
+            attendancePercentage: attendancePercentage
+          };
+        })
       );
-      setAttendanceStats(response.data || []);
-    } catch (error) {
-      console.error("Error loading attendance stats:", error);
-      setError("فشل في تحميل إحصائيات الحضور");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const autoMarkAttendanceFromGrades = async (date) => {
-    if (!selectedClass || !selectedSemester) return;
-    
-    try {
-      setLoading(true);
-      await axios.post(`${API_BASE}/api/attendance/auto-mark-from-grades`, {
-        semester_id: selectedSemester.id,
-        class_id: selectedClass.id,
-        date: date
-      }, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
       
-      await loadAttendanceStats();
-      alert("تم تحديث الحضور تلقائياً بناءً على الدرجات");
+      setStudents(studentsWithAttendance);
     } catch (error) {
-      console.error("Error auto-marking attendance:", error);
-      setError("فشل في التحديث التلقائي للحضور");
-    } finally {
-      setLoading(false);
+      console.error("Error loading students:", error);
     }
-  };
-
-  const exportAttendanceReport = () => {
-    if (!attendanceStats.length) return;
-    
-    const csvData = attendanceStats.map(student => ({
-      'اسم الطالب': `${student.first_name} ${student.second_name} ${student.third_name} ${student.last_name}`,
-      'إجمالي الأيام': student.total_days || 0,
-      'أيام الحضور': student.present_days || 0,
-      'أيام الغياب': student.absent_days || 0,
-      'نسبة الحضور': `${student.attendance_percentage || 0}%`,
-      'الأيام المسجلة يدوياً': student.explicitly_marked_days || 0,
-      'الأيام بناءً على الدرجات': student.grade_based_days || 0
-    }));
-    
-    const csvContent = [
-      Object.keys(csvData[0]).join(','),
-      ...csvData.map(row => Object.values(row).join(','))
-    ].join('\n');
-    
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `تقرير_الحضور_${selectedClass?.name}_${selectedSemester?.display_name}.csv`;
-    link.click();
   };
 
   const calculateWorkingDays = (semester) => {
-    if (!semester.start_date || !semester.end_date) return 0;
+    if (!semester || !semester.start_date || !semester.end_date) return [];
     
     const start = new Date(semester.start_date);
     const end = new Date(semester.end_date);
-    const today = new Date();
-    const maxDate = end < today ? end : today;
-    
     const weekendDays = semester.weekend_days || [5, 6];
     const vacationDays = semester.vacation_days || [];
     
-    let workingDays = 0;
+    const workingDays = [];
     let currentDate = new Date(start);
     
-    while (currentDate <= maxDate) {
+    while (currentDate <= end) {
       const dateStr = currentDate.toISOString().split('T')[0];
       const dayOfWeek = currentDate.getDay();
-      const isoDayOfWeek = dayOfWeek === 0 ? 7 : dayOfWeek;
       
-      const isWeekend = weekendDays.includes(isoDayOfWeek);
+      const isWeekend = weekendDays.includes(dayOfWeek);
       const isVacation = vacationDays.includes(dateStr);
       
       if (!isWeekend && !isVacation) {
-        workingDays++;
+        workingDays.push(new Date(currentDate));
       }
       
       currentDate.setDate(currentDate.getDate() + 1);
@@ -186,11 +206,419 @@ const AttendanceManagement = () => {
     return workingDays;
   };
 
-  const getAttendanceRateColor = (rate) => {
-    if (rate >= 90) return 'text-green-600 bg-green-100';
-    if (rate >= 75) return 'text-blue-600 bg-blue-100';
-    if (rate >= 60) return 'text-yellow-600 bg-yellow-100';
-    return 'text-red-600 bg-red-100';
+  const showStudentAttendance = async (student) => {
+    if (!currentSemester) {
+      setError("لا يوجد فصل دراسي محدد");
+      setTimeout(() => setError(""), 3000);
+      return;
+    }
+
+    setSelectedStudent(student);
+    setShowAttendanceModal(true);
+    setModalLoading(true);
+
+    try {
+      // Try to get attendance data from proper attendance tables first
+      let attendanceData = [];
+      
+      try {
+        // First try the semester_attendance table
+        if (student.class_id && student.class_id !== null) {
+          const attendanceResponse = await axios.get(
+            `${API_BASE}/api/attendance/semester/${currentSemester.id}/class/${student.class_id}?student_id=${student.id}`,
+            {
+              headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+            }
+          );
+          attendanceData = attendanceResponse.data || [];
+          console.log('📊 FRONTEND: Attendance records found:', attendanceData.length);
+          console.log('📊 FRONTEND: Full attendance data:', attendanceData);
+          console.log('📊 FRONTEND: Query was for student:', student.id, 'semester:', currentSemester.id, 'class:', student.class_id);
+        } else {
+          console.log('Student has no class_id, using grade-based attendance only');
+        }
+      } catch (attendanceError) {
+        console.log('No attendance records found, falling back to grades-based detection', attendanceError);
+      }
+      
+      // Also get student grades as fallback
+      const gradesResponse = await axios.get(
+        `${API_BASE}/api/grades/student/${student.id}/semester/${currentSemester.id}`,
+        {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        }
+      );
+
+      const grades = gradesResponse.data || [];
+      console.log('Student grades data:', grades.length, grades);
+      
+      // Calculate work days and add any days that have attendance records
+      let workingDays = calculateWorkingDays(currentSemester);
+      
+      // Add any days that have attendance records but aren't in working days
+      // This handles cases where attendance is marked on weekends
+      attendanceData.forEach(record => {
+        const recordDate = new Date(record.attendance_date);
+        const recordExists = workingDays.some(day => {
+          return day.toDateString() === recordDate.toDateString();
+        });
+        
+        if (!recordExists) {
+          workingDays.push(recordDate);
+          console.log(`📅 Added non-working day ${recordDate.toISOString().split('T')[0]} because it has attendance record`);
+        }
+      });
+      
+      // Sort working days chronologically
+      workingDays.sort((a, b) => a - b);
+      
+      if (student.id === '1171300863') {
+        console.log(`🔍 DEBUGGING Student 1171300863:`);
+        console.log(`   - Attendance records:`, attendanceData);
+        console.log(`   - Grades:`, grades);
+        console.log(`   - Today's date:`, new Date().toISOString().split('T')[0]);
+        console.log(`   - Yesterday's date:`, new Date(Date.now() - 24*60*60*1000).toISOString().split('T')[0]);
+        
+        grades.forEach((grade, i) => {
+          const gradeDate = new Date(grade.created_at).toISOString().split('T')[0];
+          console.log(`   - Grade ${i+1}: Created on ${gradeDate}, Value: ${grade.grade_value}`);
+        });
+      }
+
+      // Create work days with attendance status
+      const workDaysWithAttendance = workingDays.map(day => {
+        const dateStr = day.toISOString().split('T')[0];
+        const today = new Date().toISOString().split('T')[0];
+        
+        // First check if there's explicit attendance record for this date
+        const attendanceRecord = attendanceData.find(record => {
+          const recordDate = new Date(record.attendance_date).toISOString().split('T')[0];
+          return recordDate === dateStr && record.student_id === student.id;
+        });
+        
+        let isPresent = false;
+        let attendanceSource = 'none';
+        
+        if (attendanceRecord) {
+          // Use explicit attendance record
+          isPresent = attendanceRecord.is_present;
+          attendanceSource = attendanceRecord.has_grade ? 'grade-based' : 'manual';
+        } else {
+          // Fall back to grade-based detection
+          if (dateStr === today) {
+            // For today, check if student has any grades created today
+            isPresent = grades.some(grade => {
+              const gradeCreatedDate = new Date(grade.created_at).toISOString().split('T')[0];
+              return gradeCreatedDate === today;
+            });
+            attendanceSource = isPresent ? 'grade-inference' : 'none';
+          } else {
+            // For past dates, check if grade was created on that specific date
+            isPresent = grades.some(grade => {
+              const gradeDate = new Date(grade.created_at).toISOString().split('T')[0];
+              return gradeDate === dateStr;
+            });
+            attendanceSource = isPresent ? 'grade-inference' : 'none';
+          }
+        }
+
+        return {
+          date: day,
+          dateString: dateStr,
+          isPresent,
+          isToday: dateStr === today,
+          attendanceSource,
+          dayName: day.toLocaleDateString('ar-EG', { weekday: 'long' }),
+          formattedDate: day.toLocaleDateString('ar-EG', { 
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric'
+          }),
+          shortDate: `${day.getDate()}/${day.getMonth() + 1}`
+        };
+      });
+
+      // Group days into categories
+      const today = new Date().toISOString().split('T')[0];
+      
+      const presentDays = workDaysWithAttendance.filter(day => day.isPresent);
+      const absentDays = workDaysWithAttendance.filter(day => !day.isPresent && day.dateString <= today);
+      const upcomingDays = workDaysWithAttendance.filter(day => day.dateString > today);
+      
+      console.log(`📊 Attendance Summary for Student ${student.id}:`);
+      console.log(`   - Total working days: ${workDaysWithAttendance.length}`);
+      console.log(`   - Present days: ${presentDays.length}`, presentDays.map(d => d.dateString));
+      console.log(`   - Absent days: ${absentDays.length}`, absentDays.map(d => d.dateString));
+      console.log(`   - Upcoming days: ${upcomingDays.length}`, upcomingDays.map(d => d.dateString));
+      console.log(`   - Attendance data records: ${attendanceData.length}`);
+      console.log(`   - Grades data records: ${grades.length}`);
+      
+      setStudentWorkDays({
+        all: workDaysWithAttendance,
+        present: presentDays,
+        absent: absentDays,
+        upcoming: upcomingDays
+      });
+    } catch (error) {
+      console.error('Error loading student attendance:', error);
+      setError('فشل في تحميل بيانات الحضور');
+      setTimeout(() => setError(""), 3000);
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+  const closeModal = () => {
+    setShowAttendanceModal(false);
+    setSelectedStudent(null);
+    setStudentWorkDays({ all: [], present: [], absent: [], upcoming: [] });
+    setUpdatingAttendance(false);
+    setUpdatingDay(null);
+  };
+
+  const switchSemester = (semester) => {
+    setCurrentSemester(semester);
+    // Close modal if it's open to avoid confusion
+    if (showAttendanceModal) {
+      closeModal();
+    }
+  };
+
+  const autoMarkAbsent = async () => {
+    if (!currentSemester) {
+      setError('لا يوجد فصل دراسي محدد');
+      setTimeout(() => setError(""), 3000);
+      return;
+    }
+
+    const confirmMessage = 'هل تريد وضع علامة غياب تلقائياً لجميع الطلاب الذين لا توجد لديهم درجات أو حضور في الأيام السابقة؟';
+    if (!confirm(confirmMessage)) return;
+
+    setLoading(true);
+    try {
+      // Get all classes for current user
+      const classesResponse = await axios.get(`${API_BASE}/api/classes`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      const classes = classesResponse.data || [];
+      
+      let totalMarkedAbsent = 0;
+      
+      // Process each class
+      for (const classData of classes) {
+        try {
+          const response = await axios.post(
+            `${API_BASE}/api/attendance/auto-mark-absent`,
+            {
+              semester_id: currentSemester.id,
+              class_id: classData.id
+            },
+            {
+              headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+            }
+          );
+          totalMarkedAbsent += response.data.markedAbsentCount || 0;
+        } catch (error) {
+          console.warn(`Failed to auto-mark absent for class ${classData.id}:`, error);
+        }
+      }
+      
+      setError(`تم وضع ${totalMarkedAbsent} طالب كغائب تلقائياً`);
+      setTimeout(() => setError(""), 3000);
+      
+      // Reload students to update percentages
+      await loadStudents();
+      
+    } catch (error) {
+      console.error('Error auto-marking absent:', error);
+      setError('فشل في التحديد التلقائي للغياب');
+      setTimeout(() => setError(""), 3000);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleAttendance = async (dayData) => {
+    console.log('🔄 Toggle attendance called for:', {
+      date: dayData.dateString,
+      isPresent: dayData.isPresent,
+      isToday: dayData.isToday,
+      fullDayData: dayData
+    });
+    
+    if (!selectedStudent || !currentSemester) {
+      console.log('❌ Missing student or semester:', { selectedStudent, currentSemester });
+      setError('خطأ: معلومات الطالب أو الفصل الدراسي مفقودة');
+      setTimeout(() => setError(""), 3000);
+      return;
+    }
+
+    // Don't allow changing future days
+    const today = new Date().toISOString().split('T')[0];
+    if (dayData.dateString > today) {
+      console.log('❌ Cannot change future day:', dayData.dateString, 'vs today:', today);
+      setError('❌ لا يمكن تعديل الحضور للأيام القادمة');
+      setTimeout(() => setError(""), 3000);
+      return;
+    }
+
+    // Prevent multiple simultaneous updates
+    if (updatingDay === dayData.dateString || updatingAttendance) {
+      console.log('⚠️ Already updating attendance, ignoring click');
+      return;
+    }
+
+    console.log('✅ Starting attendance toggle...');
+    setUpdatingDay(dayData.dateString);
+    setUpdatingAttendance(true);
+
+    // Store original state for rollback
+    const originalIsPresent = dayData.isPresent;
+    const newIsPresent = !dayData.isPresent;
+    
+    console.log('🔄 Toggling from', originalIsPresent, 'to', newIsPresent);
+
+    try {
+      // Optimistic update - update UI immediately
+      const updatedWorkDays = { ...studentWorkDays };
+      const dayIndex = updatedWorkDays.all.findIndex(day => day.dateString === dayData.dateString);
+      
+      if (dayIndex >= 0) {
+        updatedWorkDays.all[dayIndex] = {
+          ...updatedWorkDays.all[dayIndex],
+          isPresent: newIsPresent,
+          attendanceSource: 'manual'
+        };
+        
+        // Recalculate categories
+        const today = new Date().toISOString().split('T')[0];
+        updatedWorkDays.present = updatedWorkDays.all.filter(day => day.isPresent);
+        updatedWorkDays.absent = updatedWorkDays.all.filter(day => !day.isPresent && day.dateString <= today);
+        updatedWorkDays.upcoming = updatedWorkDays.all.filter(day => day.dateString > today);
+        
+        setStudentWorkDays(updatedWorkDays);
+      }
+      
+      // Get class_id with better logic
+      let classId = selectedStudent.class_id;
+      
+      if (!classId || classId === null || classId === 'null') {
+        console.log('⚠️ Student has no class_id, finding appropriate class...');
+        
+        try {
+          // First, try to find student's enrollment
+          const enrollmentResponse = await axios.get(
+            `${API_BASE}/api/students/${selectedStudent.id}/enrollments`,
+            {
+              headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+            }
+          );
+          
+          const enrollments = enrollmentResponse.data || [];
+          const activeEnrollment = enrollments.find(e => e.status === 'enrolled');
+          
+          if (activeEnrollment) {
+            classId = activeEnrollment.class_id;
+            console.log('📚 Found class via enrollment:', classId);
+          } else {
+            // Fallback: get available classes for teacher/admin
+            const classesResponse = await axios.get(`${API_BASE}/api/classes`, {
+              headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+            });
+            const classes = classesResponse.data || [];
+            
+            if (classes.length > 0) {
+              classId = classes[0].id;
+              console.log('📚 Using fallback class_id:', classId);
+            }
+          }
+        } catch (classError) {
+          console.warn('❌ Could not fetch class information:', classError);
+        }
+        
+        if (!classId) {
+          throw new Error('لا توجد حلقات متاحة لتسجيل الحضور');
+        }
+      }
+
+      const requestData = {
+        semester_id: currentSemester.id,
+        class_id: classId,
+        student_id: selectedStudent.id,
+        attendance_date: dayData.dateString,
+        is_present: newIsPresent,
+        is_explicit: true,
+        notes: `تم التعديل يدوياً في ${new Date().toLocaleString('ar-EG')} - تغيير من ${originalIsPresent ? 'حاضر' : 'غائب'} إلى ${newIsPresent ? 'حاضر' : 'غائب'}`
+      };
+      
+      console.log('📤 Sending request:', requestData);
+      
+      // Send to backend
+      const response = await axios.post(
+        `${API_BASE}/api/attendance`,
+        requestData,
+        {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+          timeout: 10000 // 10 second timeout
+        }
+      );
+      
+      console.log('📥 Response:', response.data);
+
+      // Show success message with better feedback
+      const statusText = newIsPresent ? '✅ حاضر' : '❌ غائب';
+      const dateText = dayData.formattedDate;
+      setError(`تم تحديث حضور ${dateText} إلى ${statusText}`);
+      setTimeout(() => setError(""), 2500);
+
+      // Reload student list in background to update percentages
+      loadStudents().catch(err => console.warn('Failed to reload students:', err));
+
+    } catch (error) {
+      console.error('❌ Error toggling attendance:', error);
+      
+      // Rollback optimistic update
+      const rolledBackWorkDays = { ...studentWorkDays };
+      const dayIndex = rolledBackWorkDays.all.findIndex(day => day.dateString === dayData.dateString);
+      
+      if (dayIndex >= 0) {
+        rolledBackWorkDays.all[dayIndex] = {
+          ...rolledBackWorkDays.all[dayIndex],
+          isPresent: originalIsPresent
+        };
+        
+        // Recalculate categories
+        const today = new Date().toISOString().split('T')[0];
+        rolledBackWorkDays.present = rolledBackWorkDays.all.filter(day => day.isPresent);
+        rolledBackWorkDays.absent = rolledBackWorkDays.all.filter(day => !day.isPresent && day.dateString <= today);
+        rolledBackWorkDays.upcoming = rolledBackWorkDays.all.filter(day => day.dateString > today);
+        
+        setStudentWorkDays(rolledBackWorkDays);
+      }
+      
+      let errorMessage = '❌ فشل في تحديث الحضور';
+      
+      if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+        errorMessage = '⏰ انتهت مهلة الاتصال - يرجى المحاولة مرة أخرى';
+      } else if (error.response?.status === 404) {
+        errorMessage = '❌ لم يتم العثور على البيانات المطلوبة';
+      } else if (error.response?.status === 403) {
+        errorMessage = '🚫 ليس لديك صلاحية لتعديل هذا الحضور';
+      } else if (error.response?.status >= 500) {
+        errorMessage = '⚠️ خطأ في الخادم - يرجى المحاولة لاحقاً';
+      } else if (error.response?.data?.error) {
+        errorMessage = `❌ ${error.response.data.error}`;
+      } else if (error.message) {
+        errorMessage = `❌ ${error.message}`;
+      }
+      
+      setError(errorMessage);
+      setTimeout(() => setError(""), 4000);
+    } finally {
+      console.log('🔄 Toggle attendance finished');
+      setUpdatingDay(null);
+      setUpdatingAttendance(false);
+    }
   };
 
   // Check permissions
@@ -212,7 +640,7 @@ const AttendanceManagement = () => {
       <div className="container mx-auto px-4 py-8">
         <div className="bg-white rounded-xl shadow-lg p-6">
           <div className="flex justify-between items-center mb-6">
-            <h1 className="text-3xl font-bold text-gray-800">إدارة الحضور والغياب</h1>
+            <h1 className="text-3xl font-bold text-gray-800">حضور الطلاب</h1>
           </div>
 
           {error && (
@@ -221,243 +649,347 @@ const AttendanceManagement = () => {
             </div>
           )}
 
-          {/* Selection Controls */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            {/* School Selection */}
-            <div>
-              <label className="block text-gray-700 font-semibold mb-2">المجمع:</label>
-              <select
-                value={selectedSchool}
-                onChange={(e) => setSelectedSchool(e.target.value)}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">اختر المجمع</option>
-                {schools.map(school => (
-                  <option key={school.id} value={school.id}>{school.name}</option>
-                ))}
-              </select>
+          {/* Semester Selection at Top */}
+          <div className="bg-blue-50 p-4 rounded-lg mb-6">
+            <h2 className="text-lg font-semibold text-blue-800 mb-3">الفصول الدراسية المتاحة:</h2>
+            <div className="flex flex-wrap gap-3">
+              {semesters.map(semester => (
+                <button
+                  key={semester.id}
+                  onClick={() => switchSemester(semester)}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    currentSemester?.id === semester.id
+                      ? 'bg-blue-600 text-white shadow-md'
+                      : 'bg-white text-blue-600 border border-blue-300 hover:bg-blue-100'
+                  }`}
+                >
+                  {semester.display_name}
+                </button>
+              ))}
             </div>
-
-            {/* Semester Selection */}
-            <div>
-              <label className="block text-gray-700 font-semibold mb-2">الفصل الدراسي:</label>
-              <select
-                value={selectedSemester?.id || ""}
-                onChange={(e) => {
-                  const semester = semesters.find(s => s.id === e.target.value);
-                  setSelectedSemester(semester);
-                  if (semester) {
-                    setDateRange({
-                      start_date: semester.start_date?.split('T')[0] || "",
-                      end_date: semester.end_date?.split('T')[0] || ""
-                    });
-                  }
-                }}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                disabled={!selectedSchool}
-              >
-                <option value="">اختر الفصل الدراسي</option>
-                {semesters.map(semester => (
-                  <option key={semester.id} value={semester.id}>
-                    {semester.display_name || `الفصل ${semester.type} ${semester.year}`}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Class Selection */}
-            <div>
-              <label className="block text-gray-700 font-semibold mb-2">الحلقة:</label>
-              <select
-                value={selectedClass?.id || ""}
-                onChange={(e) => {
-                  const classItem = classes.find(c => c.id === e.target.value);
-                  setSelectedClass(classItem);
-                }}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                disabled={!selectedSchool}
-              >
-                <option value="">اختر الحلقة</option>
-                {classes.map(classItem => (
-                  <option key={classItem.id} value={classItem.id}>
-                    {classItem.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {currentSemester && (
+              <div className="mt-3 p-3 bg-white rounded border border-blue-200">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="text-sm text-blue-700">
+                      <strong>الفصل الحالي:</strong> {currentSemester.display_name}
+                    </p>
+                    <p className="text-xs text-blue-600 mt-1">
+                      انقر على "عرض الحضور" لأي طالب لعرض حضوره في هذا الفصل
+                    </p>
+                  </div>
+                  <button
+                    onClick={autoMarkAbsent}
+                    disabled={loading}
+                    className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm font-medium transition-colors"
+                    title="وضع علامة غياب تلقائياً للطلاب الذين لا توجد لديهم درجات أو حضور في الأيام السابقة"
+                  >
+                    {loading ? '⏳ معالجة...' : '🤖 تحديد الغياب تلقائياً'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Date Range Filter */}
-          {selectedSemester && (
-            <div className="bg-gray-50 p-4 rounded-lg mb-6">
-              <h3 className="text-lg font-semibold mb-3">تصفية التاريخ</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-gray-700 mb-2">من تاريخ:</label>
-                  <input
-                    type="date"
-                    value={dateRange.start_date}
-                    onChange={(e) => setDateRange({...dateRange, start_date: e.target.value})}
-                    className="w-full p-2 border border-gray-300 rounded"
-                    min={selectedSemester.start_date?.split('T')[0]}
-                    max={selectedSemester.end_date?.split('T')[0]}
-                  />
-                </div>
-                <div>
-                  <label className="block text-gray-700 mb-2">إلى تاريخ:</label>
-                  <input
-                    type="date"
-                    value={dateRange.end_date}
-                    onChange={(e) => setDateRange({...dateRange, end_date: e.target.value})}
-                    className="w-full p-2 border border-gray-300 rounded"
-                    min={selectedSemester.start_date?.split('T')[0]}
-                    max={selectedSemester.end_date?.split('T')[0]}
-                  />
-                </div>
-              </div>
-              
-              {/* Semester Info */}
-              <div className="mt-4 p-3 bg-blue-50 rounded">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                  <div>
-                    <span className="text-gray-600">أيام العمل المتوقعة:</span>
-                    <span className="font-bold ml-2">{calculateWorkingDays(selectedSemester)} يوم</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">أيام نهاية الأسبوع:</span>
-                    <span className="font-bold ml-2">
-                      {(selectedSemester.weekend_days || [5, 6]).map(day => {
-                        const days = {1: 'اثنين', 2: 'ثلاثاء', 3: 'أربعاء', 4: 'خميس', 5: 'جمعة', 6: 'سبت', 7: 'أحد'};
-                        return days[day];
-                      }).join(', ')}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">أيام العطل:</span>
-                    <span className="font-bold ml-2">{(selectedSemester.vacation_days || []).length} يوم</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">إجمالي أيام الفصل:</span>
-                    <span className="font-bold ml-2">{selectedSemester.total_days_count || 0} يوم</span>
-                  </div>
-                </div>
-              </div>
+          {/* Students List */}
+          <div className="bg-white border rounded-lg overflow-hidden">
+            <div className="bg-gray-100 p-4 border-b">
+              <h2 className="text-xl font-semibold">جميع الطلاب ({students.length} طالب)</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                انقر على "عرض الحضور" لعرض حضور الطالب في الفصل المختار حالياً
+              </p>
             </div>
-          )}
 
-          {/* Action Buttons */}
-          {selectedClass && selectedSemester && (
-            <div className="flex gap-4 mb-6">
-              <button
-                onClick={() => setShowAttendanceCalendar(true)}
-                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                📅 فتح سجل الحضور
-              </button>
-              <button
-                onClick={() => autoMarkAttendanceFromGrades(new Date().toISOString().split('T')[0])}
-                className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                disabled={loading}
-              >
-                🔄 تحديث تلقائي من الدرجات
-              </button>
-              <button
-                onClick={exportAttendanceReport}
-                className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-                disabled={!attendanceStats.length}
-              >
-                📊 تصدير التقرير
-              </button>
-            </div>
-          )}
-
-          {/* Attendance Statistics Table */}
-          {selectedClass && selectedSemester && (
-            <div className="bg-white border rounded-lg">
-              <div className="bg-gray-100 p-4 border-b">
-                <h3 className="text-lg font-semibold">
-                  إحصائيات الحضور - {selectedClass.name}
-                </h3>
-                <p className="text-sm text-gray-600 mt-1">
-                  الفترة: {dateRange.start_date || selectedSemester.start_date?.split('T')[0]} إلى {dateRange.end_date || selectedSemester.end_date?.split('T')[0]}
-                </p>
+            {loading ? (
+              <div className="text-center py-12">
+                <div className="text-blue-600 mb-2">جاري تحميل البيانات...</div>
               </div>
-              
-              {loading ? (
-                <div className="text-center py-8">جاري تحميل الإحصائيات...</div>
-              ) : attendanceStats.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="p-3 text-right text-sm font-medium text-gray-700 border-b">#</th>
-                        <th className="p-3 text-right text-sm font-medium text-gray-700 border-b">اسم الطالب</th>
-                        <th className="p-3 text-center text-sm font-medium text-gray-700 border-b">إجمالي الأيام</th>
-                        <th className="p-3 text-center text-sm font-medium text-gray-700 border-b">أيام الحضور</th>
-                        <th className="p-3 text-center text-sm font-medium text-gray-700 border-b">أيام الغياب</th>
-                        <th className="p-3 text-center text-sm font-medium text-gray-700 border-b">نسبة الحضور</th>
-                        <th className="p-3 text-center text-sm font-medium text-gray-700 border-b">تسجيل يدوي</th>
-                        <th className="p-3 text-center text-sm font-medium text-gray-700 border-b">بناءً على الدرجات</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {attendanceStats.map((student, index) => (
-                        <tr key={student.student_id} className="hover:bg-gray-50">
-                          <td className="p-3 text-sm text-gray-700">{index + 1}</td>
-                          <td className="p-3 text-sm font-medium text-gray-900">
-                            {student.first_name} {student.second_name} {student.third_name} {student.last_name}
-                          </td>
-                          <td className="p-3 text-center text-sm text-gray-700">
-                            {student.total_days || 0}
-                          </td>
-                          <td className="p-3 text-center text-sm font-medium text-green-600">
-                            {student.present_days || 0}
-                          </td>
-                          <td className="p-3 text-center text-sm font-medium text-red-600">
-                            {student.absent_days || 0}
-                          </td>
-                          <td className="p-3 text-center">
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              getAttendanceRateColor(student.attendance_percentage || 0)
-                            }`}>
-                              {student.attendance_percentage || 0}%
+            ) : students.length > 0 ? (
+              <div className="overflow-y-auto max-h-[600px]">
+                <table className="w-full">
+                  <thead className="bg-gray-50 sticky top-0">
+                    <tr>
+                      <th className="p-3 text-right text-sm font-medium text-gray-700 border-b">#</th>
+                      <th className="p-3 text-right text-sm font-medium text-gray-700 border-b">اسم الطالب</th>
+                      <th className="p-3 text-center text-sm font-medium text-gray-700 border-b">رقم الهوية</th>
+                      <th className="p-3 text-center text-sm font-medium text-gray-700 border-b">نسبة الغياب</th>
+                      <th className="p-3 text-center text-sm font-medium text-gray-700 border-b">الحالة</th>
+                      <th className="p-3 text-center text-sm font-medium text-gray-700 border-b">عرض التفاصيل</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {students.map((student, index) => (
+                      <tr key={student.id} className="hover:bg-gray-50">
+                        <td className="p-3 text-sm text-gray-600">{index + 1}</td>
+                        <td className="p-3 text-sm font-medium text-gray-900">
+                          <div className="flex items-center gap-2">
+                            <AiOutlineUser className="text-blue-500" size={16} />
+                            <span>
+                              {student.first_name} {student.second_name} {student.third_name} {student.last_name}
                             </span>
-                          </td>
-                          <td className="p-3 text-center text-sm text-blue-600">
-                            {student.explicitly_marked_days || 0}
-                          </td>
-                          <td className="p-3 text-center text-sm text-purple-600">
-                            {student.grade_based_days || 0}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <div className="text-gray-500 text-lg mb-4">📊</div>
-                  <h3 className="text-xl font-semibold text-gray-700 mb-2">لا توجد بيانات حضور</h3>
-                  <p className="text-gray-500">
-                    {!selectedClass || !selectedSemester 
-                      ? "يرجى اختيار الحلقة والفصل الدراسي أولاً"
-                      : "لم يتم تسجيل أي بيانات حضور بعد"
-                    }
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
+                          </div>
+                        </td>
+                        <td className="p-3 text-center text-sm text-gray-600">{student.id}</td>
+                        <td className="p-3 text-center text-sm">
+                          {student.attendancePercentage !== null ? (
+                            <div className="flex items-center justify-center gap-2">
+                              <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xs font-bold ${
+                                student.attendancePercentage <= 10 ? 'bg-green-100 text-green-700' :
+                                student.attendancePercentage <= 25 ? 'bg-yellow-100 text-yellow-700' :
+                                student.attendancePercentage <= 40 ? 'bg-orange-100 text-orange-700' :
+                                'bg-red-100 text-red-700'
+                              }`}>
+                                {student.attendancePercentage}%
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {student.attendancePercentage <= 10 ? '⭐ ممتاز' :
+                                 student.attendancePercentage <= 25 ? '👍 جيد' :
+                                 student.attendancePercentage <= 40 ? '⚠️ مقبول' : '❌ ضعيف'}
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-gray-400 text-xs">غير محسوب</span>
+                          )}
+                        </td>
+                        <td className="p-3 text-center text-sm">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            student.is_active 
+                              ? 'bg-green-100 text-green-600' 
+                              : 'bg-red-100 text-red-600'
+                          }`}>
+                            {student.is_active ? 'نشط' : 'غير نشط'}
+                          </span>
+                        </td>
+                        <td className="p-3 text-center">
+                          <button
+                            onClick={() => showStudentAttendance(student)}
+                            disabled={!currentSemester}
+                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 mx-auto ${
+                              currentSemester 
+                                ? 'bg-green-600 text-white hover:bg-green-700' 
+                                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                            }`}
+                            title={!currentSemester ? 'لا يوجد فصل دراسي محدد' : `عرض الحضور - ${currentSemester.display_name}`}
+                          >
+                            <AiOutlineEye size={14} />
+                            <span>عرض الحضور</span>
+                            {currentSemester && (
+                              <span className="text-xs opacity-75">
+                                ({currentSemester.display_name})
+                              </span>
+                            )}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <div className="text-gray-500 text-lg mb-4">👥</div>
+                <h3 className="text-xl font-semibold text-gray-700 mb-2">لا توجد طلاب</h3>
+                <p className="text-gray-500">لم يتم العثور على أي طلاب في النظام</p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Attendance Calendar Modal */}
-      {showAttendanceCalendar && selectedClass && selectedSemester && (
-        <AttendanceCalendar
-          classItem={selectedClass}
-          semester={selectedSemester}
-          onClose={() => setShowAttendanceCalendar(false)}
-        />
+      {/* Attendance Modal */}
+      {showAttendanceModal && selectedStudent && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-hidden relative">
+            
+            {/* Loading Overlay */}
+            {updatingAttendance && (
+              <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-10">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                  <p className="text-sm text-blue-600 font-medium">جاري تحديث الحضور...</p>
+                </div>
+              </div>
+            )}
+            <div className="bg-green-100 p-4 border-b flex justify-between items-center">
+              <div>
+                <h3 className="text-xl font-semibold text-green-800">
+                  حضور الطالب - {selectedStudent.first_name} {selectedStudent.second_name} {selectedStudent.third_name} {selectedStudent.last_name}
+                </h3>
+                <p className="text-sm text-green-600 mt-1">
+                  الفصل الدراسي: {currentSemester?.display_name || 'غير محدد'}
+                </p>
+                {studentWorkDays.all.length > 0 && (
+                  <>
+                    <div className="mt-2 text-sm text-green-700">
+                      إجمالي أيام العمل: <span className="font-bold">{studentWorkDays.all.length}</span> يوم | 
+                      الحضور: <span className="font-bold text-green-600">
+                        {studentWorkDays.present.length}
+                      </span> يوم | 
+                      الغياب: <span className="font-bold text-red-600">
+                        {studentWorkDays.absent.length}
+                      </span> يوم | 
+                      أيام قادمة: <span className="font-bold text-blue-600">
+                        {studentWorkDays.upcoming.length}
+                      </span> يوم
+                    </div>
+                    <div className="mt-2 text-xs text-green-600">
+                      نسبة الغياب: <span className="font-bold text-red-600">
+                        {studentWorkDays.all.length > 0 ? 
+                          Math.round((studentWorkDays.absent.length / studentWorkDays.all.length) * 100) : 0}%
+                      </span>
+                      <span className="text-xs text-gray-500 mr-2">
+                        ({studentWorkDays.absent.length} من {studentWorkDays.all.length} يوم عمل)
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+              <button
+                onClick={closeModal}
+                className="text-green-600 hover:text-green-800 text-2xl font-bold"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto max-h-[70vh]">
+              {modalLoading ? (
+                <div className="text-center py-12">
+                  <div className="text-green-600 mb-2">جاري تحميل بيانات الحضور...</div>
+                </div>
+              ) : studentWorkDays.all.length > 0 ? (
+                <div className="space-y-4">
+                  
+                  {/* Legend */}
+                  <div className="flex flex-wrap justify-center gap-4 mb-6 p-4 bg-gray-50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-green-400 rounded border border-green-500"></div>
+                      <span className="text-sm text-gray-700">حاضر ({studentWorkDays.present.length})</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-red-400 rounded border border-red-500"></div>
+                      <span className="text-sm text-gray-700">غائب ({studentWorkDays.absent.length})</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-blue-400 rounded border border-blue-500"></div>
+                      <span className="text-sm text-gray-700">قادم ({studentWorkDays.upcoming.length})</span>
+                    </div>
+                  </div>
+
+                  {/* All Days Grid */}
+                  <div className="bg-white border border-gray-200 rounded-lg p-4">
+                    <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-12 gap-2">
+                      {studentWorkDays.all.map((dayData, index) => {
+                        const today = new Date().toISOString().split('T')[0];
+                        const isUpcoming = dayData.dateString > today;
+                        const isPresent = dayData.isPresent;
+                        
+                        // Determine colors based on status
+                        let bgColor, borderColor, textColor, hoverBg;
+                        if (isUpcoming) {
+                          bgColor = 'bg-blue-100';
+                          borderColor = 'border-blue-300';
+                          textColor = 'text-blue-800';
+                          hoverBg = 'hover:bg-blue-200';
+                        } else if (isPresent) {
+                          bgColor = 'bg-green-100';
+                          borderColor = 'border-green-300';
+                          textColor = 'text-green-800';
+                          hoverBg = 'hover:bg-green-200';
+                        } else {
+                          bgColor = 'bg-red-100';
+                          borderColor = 'border-red-300';
+                          textColor = 'text-red-800';
+                          hoverBg = 'hover:bg-red-200';
+                        }
+
+                        const isUpdatingThisDay = updatingDay === dayData.dateString;
+                        
+                        return (
+                          <div
+                            key={index}
+                            onClick={() => !isUpcoming && !isUpdatingThisDay && !updatingAttendance && toggleAttendance(dayData)}
+                            className={`
+                              p-2 ${bgColor} border ${borderColor} rounded text-center relative transition-all duration-200
+                              ${!isUpcoming && !isUpdatingThisDay && !updatingAttendance ? `cursor-pointer ${hoverBg} hover:shadow-md` : 'cursor-default'}
+                              ${dayData.isToday ? 'ring-2 ring-yellow-400 ring-opacity-50' : ''}
+                              ${isUpdatingThisDay ? 'opacity-70 animate-pulse border-blue-400' : ''}
+                              ${updatingAttendance && !isUpdatingThisDay ? 'opacity-40' : ''}
+                              transform hover:scale-105
+                            `}
+                            title={
+                              isUpdatingThisDay
+                                ? `جاري تحديث الحضور... - ${dayData.formattedDate}`
+                                : isUpcoming 
+                                  ? `${dayData.formattedDate} - يوم قادم` 
+                                  : isPresent 
+                                    ? `انقر لتغيير إلى غياب - ${dayData.formattedDate}`
+                                    : `انقر لتغيير إلى حضور - ${dayData.formattedDate}`
+                            }
+                          >
+                            {dayData.isToday && (
+                              <div className="absolute -top-1 -right-1 bg-yellow-500 text-white text-xs px-1 rounded-full font-bold">
+                                اليوم
+                              </div>
+                            )}
+                            
+                            {/* Status indicator */}
+                            <div className="absolute -top-1 -left-1">
+                              {isUpdatingThisDay ? (
+                                <span className="text-blue-600 text-xs animate-spin">⏳</span>
+                              ) : isUpcoming ? (
+                                <span className="text-blue-600 text-xs">⏳</span>
+                              ) : isPresent ? (
+                                <span className="text-green-600 text-xs font-bold">✓</span>
+                              ) : (
+                                <span className="text-red-600 text-xs font-bold">✗</span>
+                              )}
+                            </div>
+                            
+                            <p className={`text-xs font-medium ${textColor}`}>
+                              {dayData.shortDate}
+                            </p>
+                            
+                            {!isUpcoming && (
+                              <p className="text-xs text-gray-600 mt-1">
+                                {dayData.attendanceSource === 'manual' && '📝'}
+                                {dayData.attendanceSource === 'grade-based' && '📊'}
+                                {dayData.attendanceSource === 'grade-inference' && '🎯'}
+                                {dayData.attendanceSource === 'none' && '❓'}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <div className="text-gray-500 text-lg mb-4">📅</div>
+                  <h4 className="text-lg font-semibold text-gray-700 mb-2">لا توجد أيام عمل</h4>
+                  <p className="text-gray-500">لا توجد أيام عمل محددة لهذا الفصل الدراسي</p>
+                </div>
+              )}
+            </div>
+
+            <div className="bg-gray-100 p-4 border-t flex justify-between items-center">
+              <div className="text-sm text-gray-600">
+                <div>يمكنك تغيير الفصل الدراسي من الأعلى لعرض حضور فصول أخرى</div>
+                <div className="mt-1 text-blue-600">
+                  💡 انقر على أي يوم (أخضر أو أحمر) لتغيير حالة الحضور
+                </div>
+              </div>
+              <button
+                onClick={closeModal}
+                className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              >
+                إغلاق
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

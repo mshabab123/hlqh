@@ -27,7 +27,9 @@ const ClassForm = ({ classData, onSubmit, onCancel, isEditing = false, onClassCh
               required
             >
               <option value="">اختر الفصل الدراسي</option>
-              {semesters && semesters.map ? semesters.map(semester => (
+              {semesters && semesters.map ? semesters
+                .filter(semester => !classData.school_id || semester.school_id == classData.school_id)
+                .map(semester => (
                 <option key={semester.id} value={semester.id}>
                   الفصل {semester.type === 'first' ? 'الأول' : semester.type === 'second' ? 'الثاني' : 'الصيفي'} {semester.year}
                 </option>
@@ -41,7 +43,7 @@ const ClassForm = ({ classData, onSubmit, onCancel, isEditing = false, onClassCh
             <label className="block text-sm font-medium mb-1">مجمع الحلقات *</label>
             <select
               value={classData.school_id}
-              onChange={(e) => onClassChange({...classData, school_id: e.target.value})}
+              onChange={(e) => onClassChange({...classData, school_id: e.target.value, semester_id: ""})}
               className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             >

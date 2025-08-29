@@ -28,6 +28,9 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import About from "./pages/About";
 import Home from "./pages/home";
+import DailyReports from "./pages/DailyReports";
+import PointsManagement from "./pages/PointsManagement";
+import StudentPoints from "./pages/StudentPoints";
 import Navbar from "./components/Navbar";
 import AuthNavbar from "./components/AuthNavbar";
 import Layout from "./components/Layout";
@@ -264,6 +267,36 @@ export default function App() {
               <ProtectedRoute requiredRole="parent">
                 <Layout>
                   <MyStudentsPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/daily-reports"
+            element={
+              <ProtectedRoute requiredRole={["admin", "administrator", "supervisor"]}>
+                <Layout>
+                  <DailyReports />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/points-management"
+            element={
+              <ProtectedRoute requiredRole={["admin", "administrator", "supervisor", "teacher"]}>
+                <Layout>
+                  <PointsManagement />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/student-points"
+            element={
+              <ProtectedRoute requiredRole={["student"]}>
+                <Layout>
+                  <StudentPoints />
                 </Layout>
               </ProtectedRoute>
             }

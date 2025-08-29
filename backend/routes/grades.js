@@ -3,6 +3,91 @@ const router = express.Router();
 const pool = require('../db');
 const { authenticateToken: auth } = require('../middleware/auth');
 
+// Initialize semester_attendance table if it doesn't exist
+const initializeSemesterAttendanceTable = async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS semester_attendance (
+        id SERIAL PRIMARY KEY,
+        student_id VARCHAR(10) NOT NULL,
+        semester_id INTEGER NOT NULL,
+        class_id UUID NOT NULL,
+        attendance_date DATE NOT NULL,
+        is_present BOOLEAN DEFAULT FALSE,
+        is_explicit BOOLEAN DEFAULT FALSE,
+        has_grade BOOLEAN DEFAULT FALSE,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
+        FOREIGN KEY (semester_id) REFERENCES semesters(id) ON DELETE CASCADE,
+        FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE,
+        UNIQUE(student_id, semester_id, class_id, attendance_date)
+      )
+    `);
+    console.log('Semester attendance table initialized successfully');
+    
+    // Test if table exists and has the right structure
+    const testResult = await pool.query(`
+      SELECT column_name, data_type 
+      FROM information_schema.columns 
+      WHERE table_name = 'semester_attendance' 
+      ORDER BY ordinal_position
+    `);
+    console.log('Semester attendance table columns:', testResult.rows.map(r => `${r.column_name} (${r.data_type})`).join(', '));
+  } catch (error) {
+    console.error('Error initializing semester attendance table:', error);
+  }
+};
+
+// Initialize table on module load
+initializeSemesterAttendanceTable();
+
+// Function to update semester attendance table when grade is entered
+const updateSemesterAttendance = async (studentId, semesterId, classId, markedBy) => {
+  try {
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+    
+    console.log(`📊 updateSemesterAttendance called with:`);
+    console.log(`   - studentId: ${studentId}`);
+    console.log(`   - semesterId: ${semesterId}`);
+    console.log(`   - classId: ${classId}`);
+    console.log(`   - today: ${today}`);
+    console.log(`   - markedBy: ${markedBy}`);
+    
+    // Insert or update attendance record in semester_attendance table
+    const result = await pool.query(`
+      INSERT INTO semester_attendance (
+        student_id, semester_id, class_id, attendance_date, 
+        is_present, is_explicit, has_grade, notes, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, true, false, true, 'Auto-marked based on grade entry', NOW(), NOW())
+      ON CONFLICT (student_id, semester_id, class_id, attendance_date) 
+      DO UPDATE SET 
+        is_present = true,
+        has_grade = true,
+        notes = 'Auto-marked based on grade entry',
+        updated_at = NOW()
+      RETURNING *
+    `, [studentId, semesterId, classId, today]);
+    
+    console.log(`✅ Successfully updated semester_attendance table:`, result.rows[0]);
+    
+    // Also check what records exist for this student
+    const checkResult = await pool.query(`
+      SELECT * FROM semester_attendance 
+      WHERE student_id = $1 AND semester_id = $2 
+      ORDER BY attendance_date DESC 
+      LIMIT 3
+    `, [studentId, semesterId]);
+    console.log(`📋 Recent attendance records for student ${studentId}:`, checkResult.rows);
+    
+  } catch (error) {
+    console.error('❌ Error in updateSemesterAttendance:', error);
+    console.error('❌ Error details:', error.message);
+    throw error;
+  }
+};
+
 // Function to automatically mark attendance when a grade is entered
 const markAttendanceForGradeEntry = async (studentId, semesterId, markedBy) => {
   try {
@@ -111,6 +196,18 @@ router.get('/semester/:semesterId/class/:classId', auth, async (req, res) => {
   try {
     const { semesterId, classId } = req.params;
     
+    // If user is a teacher, verify they are assigned to this class
+    if (req.user.role === 'teacher') {
+      const teacherClassResult = await pool.query(
+        'SELECT id FROM teacher_class_assignments WHERE teacher_id = $1 AND class_id = $2 AND is_active = true',
+        [req.user.id, classId]
+      );
+      
+      if (teacherClassResult.rows.length === 0) {
+        return res.status(403).json({ message: 'ليس لديك صلاحية لعرض درجات هذه الحلقة' });
+      }
+    }
+    
     const result = await pool.query(`
       SELECT g.*, u.first_name, u.last_name, c.name as course_name
       FROM grades g
@@ -134,6 +231,19 @@ router.get('/semester/:semesterId/class/:classId', auth, async (req, res) => {
 router.get('/student/:studentId/semester/:semesterId', auth, async (req, res) => {
   try {
     const { studentId, semesterId } = req.params;
+    
+    // If user is a teacher, verify the student is in their assigned classes
+    if (req.user.role === 'teacher') {
+      const studentInTeacherClassResult = await pool.query(`
+        SELECT se.id FROM student_enrollments se
+        JOIN teacher_class_assignments tca ON se.class_id = tca.class_id
+        WHERE se.student_id = $1 AND tca.teacher_id = $2 AND tca.is_active = true AND se.status = 'enrolled'
+      `, [studentId, req.user.id]);
+      
+      if (studentInTeacherClassResult.rows.length === 0) {
+        return res.status(403).json({ message: 'ليس لديك صلاحية لعرض درجات هذا الطالب' });
+      }
+    }
     
     const result = await pool.query(`
       SELECT g.*, c.name as course_name, c.percentage, c.requires_surah
@@ -177,6 +287,28 @@ router.post('/', auth, async (req, res) => {
       end_reference
     } = req.body;
 
+    // If user is a teacher, verify they are assigned to the class
+    if (req.user.role === 'teacher') {
+      const teacherClassResult = await pool.query(
+        'SELECT id FROM teacher_class_assignments WHERE teacher_id = $1 AND class_id = $2 AND is_active = true',
+        [req.user.id, class_id]
+      );
+      
+      if (teacherClassResult.rows.length === 0) {
+        return res.status(403).json({ message: 'ليس لديك صلاحية لتدريس هذه الحلقة' });
+      }
+
+      // Also verify the student is in the teacher's class
+      const studentClassResult = await pool.query(
+        'SELECT id FROM student_enrollments WHERE student_id = $1 AND class_id = $2 AND status = $3',
+        [student_id, class_id, 'enrolled']
+      );
+      
+      if (studentClassResult.rows.length === 0) {
+        return res.status(403).json({ message: 'هذا الطالب غير مسجل في حلقتك' });
+      }
+    }
+
     // Use the appropriate field values (support both old and new formats)
     const gradeValue = grade_value || score;
     const startRef = start_reference || (from_surah && from_ayah ? `${from_surah}:${from_ayah}` : null);
@@ -215,10 +347,23 @@ router.post('/', auth, async (req, res) => {
 
     // Automatically mark attendance as present when grade is entered
     // This implements the automatic absence calculation system
+    console.log(`\n🎯🎯🎯 GRADE ENTRY ATTENDANCE MARKING 🎯🎯🎯`);
+    console.log(`   Student ID: ${student_id}`);
+    console.log(`   Semester ID: ${semester_id}`);  
+    console.log(`   Class ID: ${class_id}`);
+    console.log(`   Date: ${new Date().toISOString().split('T')[0]}`);
+    console.log(`   User: ${req.user.id}`);
+    
     try {
+      console.log('📝 Calling markAttendanceForGradeEntry...');
       await markAttendanceForGradeEntry(student_id, semester_id, req.user.id);
+      
+      console.log('📊 Calling updateSemesterAttendance...');
+      await updateSemesterAttendance(student_id, semester_id, class_id, req.user.id);
+      
+      console.log('✅ Both attendance functions completed successfully');
     } catch (attendanceError) {
-      console.warn('Warning: Failed to auto-mark attendance:', attendanceError);
+      console.error('❌ ERROR: Failed to auto-mark attendance:', attendanceError);
       // Don't fail the grade entry if attendance marking fails
     }
 
@@ -276,7 +421,7 @@ router.put('/:id', auth, async (req, res) => {
 
     // Get the grade details to mark attendance
     const gradeDetails = await pool.query(`
-      SELECT student_id, semester_id FROM grades WHERE id = $1
+      SELECT student_id, semester_id, class_id FROM grades WHERE id = $1
     `, [id]);
 
     if (gradeDetails.rows.length > 0) {
@@ -284,6 +429,14 @@ router.put('/:id', auth, async (req, res) => {
         await markAttendanceForGradeEntry(
           gradeDetails.rows[0].student_id, 
           gradeDetails.rows[0].semester_id, 
+          req.user.id
+        );
+        
+        // Also update the semester_attendance table directly
+        await updateSemesterAttendance(
+          gradeDetails.rows[0].student_id, 
+          gradeDetails.rows[0].semester_id, 
+          gradeDetails.rows[0].class_id, 
           req.user.id
         );
       } catch (attendanceError) {

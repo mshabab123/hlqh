@@ -146,10 +146,37 @@ router.post('/', registerLimiter, studentValidationRules, async (req, res) => {
   }
 });
 
+// GET /api/students/:studentId/enrollments - Get student enrollments
+router.get('/:studentId/enrollments', auth, async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    
+    const result = await db.query(`
+      SELECT 
+        se.*,
+        c.name as class_name,
+        c.description as class_description
+      FROM student_enrollments se
+      JOIN classes c ON se.class_id = c.id
+      WHERE se.student_id = $1
+      ORDER BY se.enrolled_date DESC
+    `, [studentId]);
+    
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching student enrollments:', error);
+    res.status(500).json({ error: 'فشل في جلب بيانات التسجيل' });
+  }
+});
+
 // GET /api/students - Get all students (with filters)
 router.get('/', auth, async (req, res) => {
   try {
-    const { school_level, status, parent_id, page = 1, limit = 50 } = req.query;
+    const { school_level, status, parent_id, class_id, page = 1, limit = 50 } = req.query;
+    
+    // Get current user info to check role
+    const userResult = await db.query('SELECT role FROM users WHERE id = $1', [req.user.id]);
+    const userRole = userResult.rows[0]?.role;
     
     let query = `
       SELECT 
@@ -170,6 +197,16 @@ router.get('/', auth, async (req, res) => {
     const params = [];
     let paramIndex = 1;
 
+    // If user is a teacher, only show students from their assigned classes
+    if (userRole === 'teacher') {
+      query += ` AND c.id IN (
+        SELECT class_id FROM teacher_class_assignments 
+        WHERE teacher_id = $${paramIndex} AND is_active = true
+      )`;
+      params.push(req.user.id);
+      paramIndex++;
+    }
+
     if (school_level) {
       query += ` AND s.school_level = $${paramIndex}`;
       params.push(school_level);
@@ -185,6 +222,12 @@ router.get('/', auth, async (req, res) => {
     if (parent_id) {
       query += ` AND s.parent_id = $${paramIndex}`;
       params.push(parent_id);
+      paramIndex++;
+    }
+
+    if (class_id) {
+      query += ` AND c.id = $${paramIndex}`;
+      params.push(class_id);
       paramIndex++;
     }
 

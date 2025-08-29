@@ -7,28 +7,37 @@ const { authenticateToken: requireAuth } = require('../middleware/auth');
 router.get('/semester/:semesterId/class/:classId', requireAuth, async (req, res) => {
   try {
     const { semesterId, classId } = req.params;
-    const { date } = req.query;
+    const { date, student_id } = req.query;
     
     let query = `
       SELECT 
         sa.*,
-        s.first_name,
-        s.second_name, 
-        s.third_name,
-        s.last_name
+        u.first_name,
+        u.second_name, 
+        u.third_name,
+        u.last_name
       FROM semester_attendance sa
       JOIN students s ON sa.student_id = s.id
+      JOIN users u ON s.id = u.id
       WHERE sa.semester_id = $1 AND sa.class_id = $2
     `;
     
     const params = [semesterId, classId];
+    let paramIndex = 3;
     
     if (date) {
-      query += ` AND sa.attendance_date = $3`;
+      query += ` AND sa.attendance_date = $${paramIndex}`;
       params.push(date);
+      paramIndex++;
     }
     
-    query += ` ORDER BY sa.attendance_date DESC, s.first_name`;
+    if (student_id) {
+      query += ` AND sa.student_id = $${paramIndex}`;
+      params.push(student_id);
+      paramIndex++;
+    }
+    
+    query += ` ORDER BY sa.attendance_date DESC, u.first_name`;
     
     const result = await db.query(query, params);
     res.json(result.rows);
@@ -110,7 +119,9 @@ router.get('/student/:studentId/semester/:semesterId/class/:classId/stats', requ
           } else {
             // No attendance record - check if student had grades on this day
             // This would be done with another query to grades table
-            absentDays++; // Default to absent if no record
+            // For past working days with no attendance record and no grades, count as absent
+            // This matches our auto-mark absent logic
+            absentDays++;
           }
         }
         
@@ -232,6 +243,142 @@ router.post('/auto-mark-from-grades', requireAuth, async (req, res) => {
   }
 });
 
+// Auto-mark students as absent for past working days with no attendance or grades
+router.post('/auto-mark-absent', requireAuth, async (req, res) => {
+  try {
+    const { semester_id, class_id, date } = req.body;
+    
+    if (!semester_id || !class_id) {
+      return res.status(400).json({ error: 'البيانات المطلوبة مفقودة' });
+    }
+    
+    // Get semester info
+    const semesterResult = await db.query(
+      'SELECT start_date, end_date, weekend_days, vacation_days FROM semesters WHERE id = $1',
+      [semester_id]
+    );
+    
+    if (semesterResult.rows.length === 0) {
+      return res.status(404).json({ error: 'الفصل الدراسي غير موجود' });
+    }
+    
+    const semester = semesterResult.rows[0];
+    const weekendDays = semester.weekend_days || [5, 6];
+    const vacationDays = semester.vacation_days || [];
+    
+    // Get all students in this class
+    const studentsResult = await db.query(`
+      SELECT DISTINCT s.id as student_id
+      FROM students s
+      JOIN student_enrollments se ON s.id = se.student_id
+      WHERE se.class_id = $1 AND se.status = 'enrolled'
+    `, [class_id]);
+    
+    let totalMarkedAbsent = 0;
+    const today = new Date();
+    
+    // Function to check if a date is a working day
+    const isWorkingDay = (dateStr) => {
+      const date = new Date(dateStr);
+      const dayOfWeek = date.getDay();
+      const isoDayOfWeek = dayOfWeek === 0 ? 7 : dayOfWeek;
+      
+      const isWeekend = weekendDays.includes(isoDayOfWeek);
+      const isVacation = vacationDays.includes(dateStr);
+      
+      return !isWeekend && !isVacation;
+    };
+    
+    // If specific date provided, process only that date
+    if (date) {
+      const dateStr = date;
+      const dateObj = new Date(dateStr);
+      
+      // Only process past working days
+      if (dateObj < today && isWorkingDay(dateStr)) {
+        for (const student of studentsResult.rows) {
+          // Check if student already has attendance record for this date
+          const attendanceResult = await db.query(`
+            SELECT id FROM semester_attendance
+            WHERE semester_id = $1 AND class_id = $2 AND student_id = $3 AND attendance_date = $4
+          `, [semester_id, class_id, student.student_id, dateStr]);
+          
+          if (attendanceResult.rows.length === 0) {
+            // Check if student has any grades for this date
+            const gradeResult = await db.query(`
+              SELECT id FROM grades
+              WHERE class_id = $1 AND student_id = $2 
+                AND (DATE(date_graded) = $3 OR DATE(created_at) = $3)
+            `, [class_id, student.student_id, dateStr]);
+            
+            if (gradeResult.rows.length === 0) {
+              // No attendance record and no grades - mark as absent
+              await db.query(`
+                INSERT INTO semester_attendance 
+                (semester_id, class_id, student_id, attendance_date, is_present, is_explicit, has_grade, notes)
+                VALUES ($1, $2, $3, $4, false, false, false, 'تم وضع الغياب تلقائياً - لا توجد درجات أو حضور')
+              `, [semester_id, class_id, student.student_id, dateStr]);
+              totalMarkedAbsent++;
+            }
+          }
+        }
+      }
+    } else {
+      // Process all past working days in semester
+      if (semester.start_date && semester.end_date) {
+        const startDate = new Date(semester.start_date);
+        const endDate = new Date(semester.end_date);
+        const maxDate = endDate < today ? endDate : today;
+        
+        let currentDate = new Date(startDate);
+        while (currentDate < maxDate) {
+          const dateStr = currentDate.toISOString().split('T')[0];
+          
+          if (isWorkingDay(dateStr)) {
+            for (const student of studentsResult.rows) {
+              // Check if student already has attendance record for this date
+              const attendanceResult = await db.query(`
+                SELECT id FROM semester_attendance
+                WHERE semester_id = $1 AND class_id = $2 AND student_id = $3 AND attendance_date = $4
+              `, [semester_id, class_id, student.student_id, dateStr]);
+              
+              if (attendanceResult.rows.length === 0) {
+                // Check if student has any grades for this date
+                const gradeResult = await db.query(`
+                  SELECT id FROM grades
+                  WHERE class_id = $1 AND student_id = $2 
+                    AND (DATE(date_graded) = $3 OR DATE(created_at) = $3)
+                `, [class_id, student.student_id, dateStr]);
+                
+                if (gradeResult.rows.length === 0) {
+                  // No attendance record and no grades - mark as absent
+                  await db.query(`
+                    INSERT INTO semester_attendance 
+                    (semester_id, class_id, student_id, attendance_date, is_present, is_explicit, has_grade, notes)
+                    VALUES ($1, $2, $3, $4, false, false, false, 'تم وضع الغياب تلقائياً - لا توجد درجات أو حضور')
+                  `, [semester_id, class_id, student.student_id, dateStr]);
+                  totalMarkedAbsent++;
+                }
+              }
+            }
+          }
+          
+          currentDate.setDate(currentDate.getDate() + 1);
+        }
+      }
+    }
+    
+    res.json({
+      message: `تم وضع ${totalMarkedAbsent} طالب كغائب تلقائياً للأيام التي لا توجد بها درجات أو حضور`,
+      markedAbsentCount: totalMarkedAbsent
+    });
+    
+  } catch (error) {
+    console.error('Error auto-marking absent:', error);
+    res.status(500).json({ error: 'فشل في التحديد التلقائي للغياب' });
+  }
+});
+
 // Get attendance summary for a class and date range
 router.get('/summary/semester/:semesterId/class/:classId', requireAuth, async (req, res) => {
   try {
@@ -280,8 +427,7 @@ router.get('/summary/semester/:semesterId/class/:classId', requireAuth, async (r
     
   } catch (error) {
     console.error('Error fetching attendance summary:', error);
-    res.status(500).json({ error: 'فشل في جلب ملخص الحضور' });
-  }
+    res.status(500).json({ error: 'فشل في جلب ملخص الحضور' });  }
 });
 
 module.exports = router;

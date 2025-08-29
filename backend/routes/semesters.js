@@ -37,6 +37,30 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
+// Get current semester
+router.get('/current', auth, async (req, res) => {
+  try {
+    const currentDate = new Date();
+    const result = await pool.query(`
+      SELECT s.*, sc.name as school_name 
+      FROM semesters s
+      LEFT JOIN schools sc ON s.school_id = sc.id
+      WHERE s.start_date <= $1 AND s.end_date >= $1
+      ORDER BY s.start_date DESC
+      LIMIT 1
+    `, [currentDate]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'لا يوجد فصل دراسي نشط حالياً' });
+    }
+    
+    res.json({ semester: result.rows[0] });
+  } catch (error) {
+    console.error('Error fetching current semester:', error);
+    res.status(500).json({ message: 'خطأ في جلب الفصل الدراسي الحالي' });
+  }
+});
+
 // Get semester by ID
 router.get('/:id', auth, async (req, res) => {
   try {
