@@ -1,7 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const router = express.Router();
-const db = require('../db'); // adjust based on your DB connection setup
+const db = require('../config/database'); // adjust based on your DB connection setup
 const { body, validationResult } = require('express-validator');
 
 const rateLimit = require('express-rate-limit');

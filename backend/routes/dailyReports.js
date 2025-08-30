@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../db');
+const db = require('../config/database');
 const { authenticateToken: auth } = require('../middleware/auth');
 
 // Check if user has permission to manage reports

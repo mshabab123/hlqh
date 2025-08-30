@@ -2,7 +2,7 @@ const express = require('express');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const { body, validationResult } = require('express-validator');
-const pool = require('../db');
+const pool = require('../config/database');
 
 const router = express.Router();
 

@@ -1,5 +1,5 @@
 // Role-Based Access Control Middleware
-const db = require('../db');
+const db = require('../config/database');
 
 // Define role hierarchy and permissions
 const ROLES = {

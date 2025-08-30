@@ -2,10 +2,13 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const router = express.Router();
-const db = require('../db');
+const db = require('../config/database');
 
-// Use a strong secret key! Store in env in production
-const JWT_SECRET = process.env.JWT_SECRET || 'your_very_secret_jwt_key';
+// JWT_SECRET must be set in environment variables
+if (!process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required but not set');
+}
+const JWT_SECRET = process.env.JWT_SECRET;
 
 router.post('/login', async (req, res) => {
   const { id, password } = req.body;

@@ -1,7 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
 const { body, validationResult } = require('express-validator');
-const db = require('../db');
+const db = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 const { requireRole, canManageUser, getUserPermissions, ROLES } = require('../middleware/rbac');
 
