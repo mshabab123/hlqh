@@ -90,7 +90,7 @@ router.get('/student/:studentId', auth, async (req, res) => {
         dp.*,
         u.first_name || ' ' || u.last_name as teacher_name,
         c.name as class_name,
-        s.name as semester_name,
+        s.display_name as semester_name,
         su.first_name || ' ' || su.last_name as student_name
       FROM daily_points dp
       JOIN users u ON dp.teacher_id = u.id

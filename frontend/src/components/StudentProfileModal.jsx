@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
+import { AiOutlineStar, AiOutlineUserAdd, AiOutlineSave, AiOutlineClose } from "react-icons/ai";
 import { QURAN_SURAHS, TOTAL_QURAN_PAGES } from "./QuranData";
 import { 
   surahGroups, 
@@ -15,7 +16,20 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
   const [studentData, setStudentData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [selectedCourse, setSelectedCourse] = useState(null);
+  
+  // Points and attendance data
+  const [pointsData, setPointsData] = useState({ totalPoints: 0, averagePoints: 0, pointsCount: 0 });
+  const [attendanceData, setAttendanceData] = useState({ attendanceRate: 0, presentDays: 0, totalDays: 0 });
+  
+  // Points modal state
+  const [showPointsModal, setShowPointsModal] = useState(false);
+  const [pointsForm, setPointsForm] = useState({ points: 0, notes: "" });
+  
+  // Attendance modal state
+  const [showAttendanceModal, setShowAttendanceModal] = useState(false);
+  const [attendanceStatus, setAttendanceStatus] = useState("present");
   const [gradeInput, setGradeInput] = useState({
     grade_value: '',
     max_grade: 100,
@@ -68,10 +82,83 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
       });
       
       setStudentData(response.data);
+      
+      // Fetch points and attendance data in parallel
+      await Promise.all([
+        fetchPointsData(),
+        fetchAttendanceData()
+      ]);
+      
     } catch (err) {
       setError("فشل في تحميل ملف الطالب");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchPointsData = async () => {
+    try {
+      // Get current semester
+      const semesterResponse = await axios.get(`${API_BASE}/api/semesters/current`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      
+      const currentSemester = semesterResponse.data.semester;
+      if (!currentSemester) return;
+
+      // Fetch student points data
+      const pointsResponse = await axios.get(`${API_BASE}/api/points/student/${student.id}`, {
+        params: {
+          semester_id: currentSemester.id
+        },
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      
+      const points = pointsResponse.data.points || [];
+      const summary = pointsResponse.data.summary || {};
+      
+      setPointsData({
+        totalPoints: parseFloat(summary.total_points || 0),
+        averagePoints: parseFloat(summary.average_points || 0),
+        pointsCount: parseInt(summary.total_entries || 0)
+      });
+      
+    } catch (error) {
+      console.error('Error fetching points data:', error);
+    }
+  };
+
+  const fetchAttendanceData = async () => {
+    try {
+      // Get current semester
+      const semesterResponse = await axios.get(`${API_BASE}/api/semesters/current`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      
+      const currentSemester = semesterResponse.data.semester;
+      if (!currentSemester) return;
+
+      // Fetch attendance data
+      const attendanceResponse = await axios.get(`${API_BASE}/api/attendance/semester/${currentSemester.id}/class/${classItem.id}`, {
+        params: {
+          student_id: student.id
+        },
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      
+      const attendanceRecords = attendanceResponse.data || [];
+      const presentDays = attendanceRecords.filter(record => record.is_present === true).length;
+      const totalDays = attendanceRecords.length;
+      const attendanceRate = totalDays > 0 ? (presentDays / totalDays) * 100 : 0;
+      
+      setAttendanceData({
+        attendanceRate: attendanceRate,
+        presentDays: presentDays,
+        totalDays: totalDays
+      });
+      
+    } catch (error) {
+      console.error('Error fetching attendance data:', error);
     }
   };
 
@@ -184,6 +271,89 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
     }
   };
 
+  const openPointsModal = () => {
+    setPointsForm({ points: 0, notes: "" });
+    setShowPointsModal(true);
+  };
+
+  const closePointsModal = () => {
+    setShowPointsModal(false);
+    setPointsForm({ points: 0, notes: "" });
+  };
+
+  const handleGivePoints = async (e) => {
+    e.preventDefault();
+    try {
+      const currentDate = new Date().toISOString().split('T')[0];
+      
+      // Get current semester
+      const semesterResponse = await axios.get(`${API_BASE}/api/semesters/current`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      
+      await axios.post(`${API_BASE}/api/points`, {
+        student_id: student.id,
+        class_id: classItem.id,
+        semester_id: semesterResponse.data.semester.id,
+        points_date: currentDate,
+        points_given: parseFloat(pointsForm.points),
+        notes: pointsForm.notes
+      }, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      
+      setSuccess("تم إعطاء النقاط بنجاح");
+      closePointsModal();
+      fetchPointsData(); // Refresh points data
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (error) {
+      setError(error.response?.data?.error || "فشل في إعطاء النقاط");
+      setTimeout(() => setError(""), 3000);
+    }
+  };
+
+  const openAttendanceModal = () => {
+    setAttendanceStatus("present");
+    setShowAttendanceModal(true);
+  };
+
+  const closeAttendanceModal = () => {
+    setShowAttendanceModal(false);
+    setAttendanceStatus("present");
+  };
+
+  const handleMarkAttendance = async (e) => {
+    e.preventDefault();
+    try {
+      const currentDate = new Date().toISOString().split('T')[0];
+      
+      // Get current semester
+      const semesterResponse = await axios.get(`${API_BASE}/api/semesters/current`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      
+      await axios.post(`${API_BASE}/api/attendance`, {
+        semester_id: semesterResponse.data.semester.id,
+        class_id: classItem.id,
+        student_id: student.id,
+        attendance_date: currentDate,
+        is_present: attendanceStatus === 'present',
+        is_explicit: true,
+        notes: null
+      }, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      
+      setSuccess(`تم تسجيل ${attendanceStatus === 'present' ? 'حضور' : 'غياب'} الطالب بنجاح`);
+      closeAttendanceModal();
+      fetchAttendanceData(); // Refresh attendance data
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (error) {
+      setError(error.response?.data?.error || "فشل في تسجيل الحضور");
+      setTimeout(() => setError(""), 3000);
+    }
+  };
+
   if (!student || !classItem) return null;
 
   if (loading) {
@@ -224,11 +394,38 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
             {error}
           </div>
         )}
+        
+        {success && (
+          <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
+            {success}
+          </div>
+        )}
+
+        {/* Quick Actions */}
+        <div className="mb-6 bg-gray-50 p-4 rounded-lg">
+          <h3 className="text-lg font-semibold mb-3">إجراءات سريعة</h3>
+          <div className="flex gap-3">
+            <button
+              onClick={openPointsModal}
+              className="flex items-center gap-2 px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
+            >
+              <AiOutlineStar />
+              إعطاء نقاط
+            </button>
+            <button
+              onClick={openAttendanceModal}
+              className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+            >
+              <AiOutlineUserAdd />
+              تسجيل حضور
+            </button>
+          </div>
+        </div>
 
         {studentData && (
           <div className="space-y-6">
             {/* Student Summary */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 sm:gap-3 md:gap-4 bg-gray-50 p-2 sm:p-3 md:p-4 rounded-lg">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-3 md:gap-4 bg-gray-50 p-2 sm:p-3 md:p-4 rounded-lg">
               <div className="text-center">
                 <div className="text-lg sm:text-xl md:text-2xl font-bold text-blue-600">{calculateTotalScore(studentData)}%</div>
                 <div className="text-xs sm:text-sm text-gray-600">المجموع الكلي</div>
@@ -245,6 +442,25 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                 <div className="text-xs sm:text-sm text-gray-600">الصفحات المحفوظة</div>
                 <div className="text-[10px] sm:text-xs text-indigo-500">
                   {studentData.pages_percentage ? `${studentData.pages_percentage}%` : '0%'}
+                </div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg sm:text-xl md:text-2xl font-bold text-yellow-600">
+                  {pointsData.totalPoints.toFixed(1)}
+                  <span className="text-xs sm:text-sm text-gray-500">/{pointsData.pointsCount > 0 ? (pointsData.pointsCount * 5) : 0}</span>
+                </div>
+                <div className="text-xs sm:text-sm text-gray-600">إجمالي النقاط</div>
+                <div className="text-[10px] sm:text-xs text-yellow-500">
+                  {pointsData.pointsCount > 0 ? `متوسط: ${pointsData.averagePoints.toFixed(1)}/5` : 'لا توجد نقاط'}
+                </div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg sm:text-xl md:text-2xl font-bold text-emerald-600">
+                  {attendanceData.attendanceRate.toFixed(1)}%
+                </div>
+                <div className="text-xs sm:text-sm text-gray-600">معدل الحضور</div>
+                <div className="text-[10px] sm:text-xs text-emerald-500">
+                  {attendanceData.presentDays}/{attendanceData.totalDays} يوم
                 </div>
               </div>
               <div className="text-center">
@@ -827,6 +1043,152 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
           </button>
         </div>
       </div>
+
+      {/* Points Modal */}
+      {showPointsModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-900">
+                إعطاء نقاط - {student.first_name} {student.last_name}
+              </h3>
+              <button
+                onClick={closePointsModal}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <AiOutlineClose className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleGivePoints} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  النقاط (0 - 5)
+                </label>
+                <select
+                  value={pointsForm.points}
+                  onChange={(e) => setPointsForm({...pointsForm, points: e.target.value})}
+                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  required
+                >
+                  <option value={0}>0 - لا توجد نقاط</option>
+                  <option value={0.5}>0.5 - نصف نقطة</option>
+                  <option value={1}>1 - نقطة واحدة</option>
+                  <option value={1.5}>1.5 - نقطة ونصف</option>
+                  <option value={2}>2 - نقطتان</option>
+                  <option value={2.5}>2.5 - نقطتان ونصف</option>
+                  <option value={3}>3 - ثلاث نقاط</option>
+                  <option value={3.5}>3.5 - ثلاث نقاط ونصف</option>
+                  <option value={4}>4 - أربع نقاط</option>
+                  <option value={4.5}>4.5 - أربع نقاط ونصف</option>
+                  <option value={5}>5 - خمس نقاط (ممتاز)</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  ملاحظات (اختيارية)
+                </label>
+                <textarea
+                  value={pointsForm.notes}
+                  onChange={(e) => setPointsForm({...pointsForm, notes: e.target.value})}
+                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  rows={3}
+                  placeholder="أضف ملاحظات حول أداء الطالب..."
+                />
+              </div>
+              
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={closePointsModal}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2"
+                >
+                  <AiOutlineSave className="w-4 h-4" />
+                  حفظ النقاط
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Attendance Modal */}
+      {showAttendanceModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-900">
+                تسجيل حضور - {student.first_name} {student.last_name}
+              </h3>
+              <button
+                onClick={closeAttendanceModal}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <AiOutlineClose className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleMarkAttendance} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  حالة الحضور
+                </label>
+                <div className="space-y-2">
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="attendance"
+                      value="present"
+                      checked={attendanceStatus === "present"}
+                      onChange={(e) => setAttendanceStatus(e.target.value)}
+                      className="mr-2"
+                    />
+                    حاضر
+                  </label>
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="attendance"
+                      value="absent"
+                      checked={attendanceStatus === "absent"}
+                      onChange={(e) => setAttendanceStatus(e.target.value)}
+                      className="mr-2"
+                    />
+                    غائب
+                  </label>
+                </div>
+              </div>
+              
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={closeAttendanceModal}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  className={`flex-1 px-4 py-2 text-white rounded-lg ${
+                    attendanceStatus === 'present' 
+                      ? 'bg-green-600 hover:bg-green-700' 
+                      : 'bg-red-600 hover:bg-red-700'
+                  }`}
+                >
+                  تسجيل {attendanceStatus === 'present' ? 'حضور' : 'غياب'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

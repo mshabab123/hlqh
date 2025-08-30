@@ -113,6 +113,7 @@ const StudentListModal = ({ classItem, onClose }) => {
           </button>
         </div>
       </div>
+
     </div>
   );
 };
