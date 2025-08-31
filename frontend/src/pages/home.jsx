@@ -2,7 +2,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AiOutlineExclamationCircle } from "react-icons/ai";
-import { FaChalkboardTeacher, FaSchool, FaUsers, FaUserGraduate, FaUserTie } from "react-icons/fa";
+import { FaChalkboardTeacher, FaSchool, FaUsers, FaUserGraduate, FaUserTie, FaClipboardCheck, FaTrophy, FaChartBar, FaChild, FaUserFriends, FaCog, FaDatabase, FaUserShield } from "react-icons/fa";
+import { MdAssignment, MdDashboard, MdSettings } from "react-icons/md";
 import AuthNavbar from "../components/AuthNavbar";
 
 export default function Home() {
@@ -98,6 +99,102 @@ export default function Home() {
       path: "/daily-reports",
       color: "bg-yellow-500",
       roles: ["admin", "administrator", "supervisor"]
+    },
+    {
+      title: "نظام الحضور",
+      description: "تسجيل ومتابعة حضور وغياب الطلاب",
+      icon: FaClipboardCheck,
+      path: "/attendance",
+      color: "bg-pink-500",
+      roles: ["admin", "administrator", "teacher"]
+    },
+    {
+      title: "نظام النقاط",
+      description: "إدارة نقاط التميز والمكافآت للطلاب",
+      icon: FaTrophy,
+      path: "/points",
+      color: "bg-amber-500",
+      roles: ["admin", "administrator", "teacher"]
+    },
+    {
+      title: "الإحصائيات والتقارير",
+      description: "عرض الإحصائيات والتقارير الشاملة",
+      icon: FaChartBar,
+      path: "/reports",
+      color: "bg-emerald-500",
+      roles: ["admin", "administrator", "supervisor"]
+    },
+    {
+      title: "الأبناء",
+      description: "متابعة أداء وتقدم الأبناء",
+      icon: FaChild,
+      path: "/children",
+      color: "bg-rose-500",
+      roles: ["parent"]
+    },
+    {
+      title: "إدارة أولياء الأمور",
+      description: "إدارة بيانات أولياء الأمور والربط بالطلاب",
+      icon: FaUserFriends,
+      path: "/parents",
+      color: "bg-violet-500",
+      roles: ["admin", "administrator"]
+    },
+    {
+      title: "إدارة المستخدمين",
+      description: "إدارة جميع المستخدمين والصلاحيات",
+      icon: FaUserShield,
+      path: "/user-management",
+      color: "bg-slate-500",
+      roles: ["admin"]
+    },
+    {
+      title: "لوحة التحكم",
+      description: "عرض ملخص شامل للنظام",
+      icon: MdDashboard,
+      path: "/dashboard",
+      color: "bg-gray-600",
+      roles: ["admin", "administrator", "supervisor"]
+    },
+    {
+      title: "الإعدادات",
+      description: "إعدادات النظام والتكوينات",
+      icon: FaCog,
+      path: "/settings",
+      color: "bg-stone-500",
+      roles: ["admin"]
+    },
+    {
+      title: "قاعدة البيانات",
+      description: "إدارة وصيانة قاعدة البيانات",
+      icon: FaDatabase,
+      path: "/database",
+      color: "bg-zinc-600",
+      roles: ["admin"]
+    },
+    {
+      title: "واجباتي",
+      description: "عرض ومتابعة الواجبات والمهام",
+      icon: MdAssignment,
+      path: "/assignments",
+      color: "bg-lime-500",
+      roles: ["student"]
+    },
+    {
+      title: "درجاتي",
+      description: "عرض الدرجات والتقييمات",
+      icon: "🎯",
+      path: "/my-grades",
+      color: "bg-sky-500",
+      roles: ["student", "parent"]
+    },
+    {
+      title: "جدولي",
+      description: "عرض الجدول الدراسي والمواعيد",
+      icon: "📅",
+      path: "/my-schedule",
+      color: "bg-fuchsia-500",
+      roles: ["student", "teacher", "parent"]
     }
   ];
 
@@ -163,7 +260,7 @@ export default function Home() {
         </div>
 
         {/* Navigation Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl w-full px-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 max-w-7xl w-full px-4 mb-8">
           {navigationCards.map((card, index) => {
             if (!hasAccess(card.roles)) return null;
             
@@ -171,20 +268,20 @@ export default function Home() {
               <div
                 key={index}
                 onClick={() => navigate(card.path)}
-                className="bg-white/90 p-6 rounded-xl shadow-xl cursor-pointer hover:shadow-2xl transform hover:scale-105 transition-all duration-300"
+                className="bg-white/95 p-5 rounded-xl shadow-lg cursor-pointer hover:shadow-2xl transform hover:scale-105 transition-all duration-300 group"
                 style={{ backdropFilter: "blur(2px)" }}
               >
-                <div className={`${card.color} w-16 h-16 rounded-full flex items-center justify-center mb-4 mx-auto`}>
+                <div className={`${card.color} w-14 h-14 rounded-full flex items-center justify-center mb-3 mx-auto group-hover:scale-110 transition-transform`}>
                   {typeof card.icon === 'string' ? (
-                    <span className="text-white text-2xl">{card.icon}</span>
+                    <span className="text-white text-xl">{card.icon}</span>
                   ) : (
-                    <card.icon className="text-white text-2xl" />
+                    <card.icon className="text-white text-xl" />
                   )}
                 </div>
-                <h3 className="text-xl font-bold text-[var(--color-primary-700)] mb-2 text-center">
+                <h3 className="text-lg font-bold text-[var(--color-primary-700)] mb-1 text-center">
                   {card.title}
                 </h3>
-                <p className="text-[var(--color-text-secondary)] text-center text-sm">
+                <p className="text-[var(--color-text-secondary)] text-center text-xs leading-relaxed">
                   {card.description}
                 </p>
               </div>

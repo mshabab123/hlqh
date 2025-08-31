@@ -227,6 +227,48 @@ router.get('/semester/:semesterId/class/:classId', auth, async (req, res) => {
   }
 });
 
+// Get all grades for a student
+router.get('/student/:studentId', auth, async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const { limit = 30 } = req.query;
+    
+    const result = await pool.query(`
+      SELECT 
+        g.*,
+        c.name as course_name,
+        c.percentage,
+        c.requires_surah,
+        cl.name as class_name,
+        s.display_name as semester_name
+      FROM grades g
+      LEFT JOIN semester_courses c ON g.course_id = c.id
+      LEFT JOIN classes cl ON g.class_id = cl.id
+      LEFT JOIN semesters s ON g.semester_id = s.id
+      WHERE g.student_id = $1
+      ORDER BY g.date_graded DESC, g.created_at DESC
+      LIMIT $2
+    `, [studentId, limit]);
+    
+    // Calculate average grade
+    const scores = result.rows.filter(g => g.score).map(g => parseFloat(g.score));
+    const averageGrade = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
+    
+    // Calculate completed pages (if available)
+    const completedPages = result.rows.filter(g => g.pages_covered).reduce((sum, g) => sum + (g.pages_covered || 0), 0);
+    
+    res.json({
+      grades: result.rows,
+      averageGrade,
+      completedPages,
+      totalGrades: result.rows.length
+    });
+  } catch (error) {
+    console.error('Error fetching student grades:', error);
+    res.status(500).json({ message: 'خطأ في جلب درجات الطالب' });
+  }
+});
+
 // Get student's grades for a semester
 router.get('/student/:studentId/semester/:semesterId', auth, async (req, res) => {
   try {

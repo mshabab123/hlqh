@@ -31,10 +31,14 @@ const getNavLinks = (userRole, isActive) => {
   // For active users, show full navigation
   const baseLinks = [
     { to: "/home", label: "الرئيسي", icon: <AiOutlineHome /> },
-    { to: "/dashboard", label: "لوحة التحكم", icon: <AiOutlineDashboard /> },
-    { to: "/children", label: "الأبناء", icon: <AiOutlineTeam /> },
+    { to: "/about", label: "عن المنصة", icon: <AiOutlineInfoCircle /> },
     { to: "/profile", label: "الملف الشخصي", icon: <AiOutlineUser /> },
   ];
+
+  // Add Children link for parent, admin, administrator, and teacher roles
+  if (['parent', 'admin', 'administrator', 'teacher'].includes(userRole)) {
+    baseLinks.splice(2, 0, { to: "/children", label: "الأبناء", icon: <AiOutlineTeam /> });
+  }
 
   return baseLinks;
 };

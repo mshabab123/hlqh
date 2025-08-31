@@ -31,6 +31,7 @@ import Home from "./pages/home";
 import DailyReports from "./pages/DailyReports";
 import PointsManagement from "./pages/PointsManagement";
 import StudentPoints from "./pages/StudentPoints";
+import Children from "./pages/Children";
 import Navbar from "./components/Navbar";
 import AuthNavbar from "./components/AuthNavbar";
 import Layout from "./components/Layout";
@@ -297,6 +298,16 @@ export default function App() {
               <ProtectedRoute requiredRole={["student"]}>
                 <Layout>
                   <StudentPoints />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/children"
+            element={
+              <ProtectedRoute requiredRole={["parent", "admin", "administrator", "teacher"]}>
+                <Layout>
+                  <Children />
                 </Layout>
               </ProtectedRoute>
             }

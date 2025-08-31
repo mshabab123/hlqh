@@ -822,4 +822,145 @@ router.get('/available', auth, async (req, res) => {
   }
 });
 
+// Student Goals endpoints
+
+// Initialize student_goals table
+const initializeGoalsTable = async () => {
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS student_goals (
+        id SERIAL PRIMARY KEY,
+        student_id VARCHAR(20) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        description TEXT,
+        target_date DATE,
+        completed BOOLEAN DEFAULT FALSE,
+        created_by VARCHAR(20),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        
+        FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
+        FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+      );
+    `);
+
+    // Create indexes for better performance
+    await db.query(`
+      CREATE INDEX IF NOT EXISTS idx_student_goals_student_id 
+      ON student_goals(student_id);
+    `);
+
+    console.log('Student goals table initialized successfully');
+  } catch (error) {
+    console.error('Error initializing student goals table:', error);
+  }
+};
+
+// Initialize table on module load
+initializeGoalsTable();
+
+// Get goals for a specific student
+router.get('/:studentId/goals', auth, async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    
+    const result = await db.query(`
+      SELECT 
+        sg.*,
+        u.first_name as creator_first_name,
+        u.last_name as creator_last_name
+      FROM student_goals sg
+      LEFT JOIN users u ON sg.created_by = u.id
+      WHERE sg.student_id = $1
+      ORDER BY sg.completed ASC, sg.target_date ASC
+    `, [studentId]);
+    
+    res.json({ goals: result.rows });
+  } catch (error) {
+    console.error('Error fetching student goals:', error);
+    res.status(500).json({ error: 'خطأ في جلب أهداف الطالب' });
+  }
+});
+
+// Create a new goal for a student
+router.post('/:studentId/goals', auth, async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const { title, description, target_date } = req.body;
+    const createdBy = req.user.id;
+    
+    if (!title) {
+      return res.status(400).json({ error: 'عنوان الهدف مطلوب' });
+    }
+    
+    const result = await db.query(`
+      INSERT INTO student_goals 
+      (student_id, title, description, target_date, created_by)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING *
+    `, [studentId, title, description, target_date, createdBy]);
+    
+    res.status(201).json({ 
+      message: 'تم إنشاء الهدف بنجاح',
+      goal: result.rows[0] 
+    });
+  } catch (error) {
+    console.error('Error creating student goal:', error);
+    res.status(500).json({ error: 'خطأ في إنشاء الهدف' });
+  }
+});
+
+// Update a goal
+router.put('/:studentId/goals/:goalId', auth, async (req, res) => {
+  try {
+    const { studentId, goalId } = req.params;
+    const { title, description, target_date, completed } = req.body;
+    
+    const result = await db.query(`
+      UPDATE student_goals
+      SET 
+        title = COALESCE($1, title),
+        description = COALESCE($2, description),
+        target_date = COALESCE($3, target_date),
+        completed = COALESCE($4, completed),
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $5 AND student_id = $6
+      RETURNING *
+    `, [title, description, target_date, completed, goalId, studentId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'الهدف غير موجود' });
+    }
+    
+    res.json({ 
+      message: 'تم تحديث الهدف بنجاح',
+      goal: result.rows[0] 
+    });
+  } catch (error) {
+    console.error('Error updating student goal:', error);
+    res.status(500).json({ error: 'خطأ في تحديث الهدف' });
+  }
+});
+
+// Delete a goal
+router.delete('/:studentId/goals/:goalId', auth, async (req, res) => {
+  try {
+    const { studentId, goalId } = req.params;
+    
+    const result = await db.query(
+      'DELETE FROM student_goals WHERE id = $1 AND student_id = $2 RETURNING *',
+      [goalId, studentId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'الهدف غير موجود' });
+    }
+    
+    res.json({ message: 'تم حذف الهدف بنجاح' });
+  } catch (error) {
+    console.error('Error deleting student goal:', error);
+    res.status(500).json({ error: 'خطأ في حذف الهدف' });
+  }
+});
+
 module.exports = router;

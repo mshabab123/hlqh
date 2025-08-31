@@ -149,6 +149,7 @@ router.get('/student/:studentId', auth, async (req, res) => {
     
     res.json({
       points: result.rows,
+      totalPoints: parseFloat(summaryResult.rows[0].total_points) || 0,
       summary: summaryResult.rows[0],
       pagination: {
         page: parseInt(page),

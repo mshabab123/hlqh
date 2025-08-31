@@ -3,6 +3,61 @@ const router = express.Router();
 const db = require('../config/database');
 const { authenticateToken: requireAuth } = require('../middleware/auth');
 
+// Get attendance for a specific student
+router.get('/student/:studentId', requireAuth, async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const { semester_id, class_id, limit = 30 } = req.query;
+    
+    let query = `
+      SELECT 
+        sa.*,
+        s.display_name as semester_name,
+        c.name as class_name
+      FROM semester_attendance sa
+      LEFT JOIN semesters s ON sa.semester_id = s.id
+      LEFT JOIN classes c ON sa.class_id = c.id
+      WHERE sa.student_id = $1
+    `;
+    
+    const params = [studentId];
+    let paramIndex = 2;
+    
+    if (semester_id) {
+      query += ` AND sa.semester_id = $${paramIndex}`;
+      params.push(semester_id);
+      paramIndex++;
+    }
+    
+    if (class_id) {
+      query += ` AND sa.class_id = $${paramIndex}`;
+      params.push(class_id);
+      paramIndex++;
+    }
+    
+    query += ` ORDER BY sa.attendance_date DESC LIMIT $${paramIndex}`;
+    params.push(limit);
+    
+    const result = await db.query(query, params);
+    
+    // Calculate attendance percentage
+    const totalDays = result.rows.length;
+    const presentDays = result.rows.filter(r => r.is_present).length;
+    const percentage = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0;
+    
+    res.json({
+      attendance: result.rows,
+      totalDays,
+      presentDays,
+      absentDays: totalDays - presentDays,
+      percentage
+    });
+  } catch (error) {
+    console.error('Error fetching student attendance:', error);
+    res.status(500).json({ error: 'فشل في جلب بيانات حضور الطالب' });
+  }
+});
+
 // Get attendance for a semester and class
 router.get('/semester/:semesterId/class/:classId', requireAuth, async (req, res) => {
   try {
