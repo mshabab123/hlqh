@@ -24,6 +24,7 @@ import PasswordManagement from "./pages/PasswordManagement";
 import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
 import MyStudentsPage from "./pages/MyStudentsPage";
+import MyClasses from "./pages/MyClasses";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import About from "./pages/About";
@@ -308,6 +309,16 @@ export default function App() {
               <ProtectedRoute requiredRole={["parent", "admin", "administrator", "teacher"]}>
                 <Layout>
                   <Children />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/my-classes"
+            element={
+              <ProtectedRoute requiredRole="teacher">
+                <Layout>
+                  <MyClasses />
                 </Layout>
               </ProtectedRoute>
             }

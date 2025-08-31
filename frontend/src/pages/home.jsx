@@ -195,6 +195,14 @@ export default function Home() {
       path: "/my-schedule",
       color: "bg-fuchsia-500",
       roles: ["student", "teacher", "parent"]
+    },
+    {
+      title: "حلقاتي",
+      description: "عرض الحلقات التي أدرّسها ومعلومات الطلاب",
+      icon: FaUsers,
+      path: "/my-classes",
+      color: "bg-indigo-600",
+      roles: ["teacher"]
     }
   ];
 
@@ -210,7 +218,7 @@ export default function Home() {
   return (
     <>
       {/* <AuthNavbar /> */}
-      <div className="bg-[url('/baground.svg')] bg-cover bg-center bg-no-repeat bg-fixed bg-blend-overlay min-h-screen flex flex-col items-center justify-center font-[var(--font-family-arabic)] py-8">
+      <div className="bg-[url('/baground.svg')] bg-cover bg-center bg-no-repeat bg-fixed min-h-screen flex flex-col items-center justify-center font-[var(--font-family-arabic)] py-8">
         
         {/* Inactive User Warning */}
         {user && (user.is_active === false || user.account_status === 'pending_activation') && (
@@ -257,6 +265,41 @@ export default function Home() {
               ? "مدير عام"
               : user.role}
           </div>
+          
+          {/* Class Information */}
+          {user.class_name && (
+            <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+              <div className="text-sm font-semibold text-blue-700">الحلقة:</div>
+              <div className="text-blue-600">{user.class_name}</div>
+            </div>
+          )}
+          
+          {user.school_name && (
+            <div className="mt-2 p-3 bg-green-50 rounded-lg">
+              <div className="text-sm font-semibold text-green-700">
+                {user.role === "student" ? "المركز:" : "مجمع الحلقات:"}
+              </div>
+              <div className="text-green-600">{user.school_name}</div>
+            </div>
+          )}
+          
+          {user.classes && user.classes.length > 0 && (
+            <div className="mt-3 p-3 bg-purple-50 rounded-lg">
+              <div className="text-sm font-semibold text-purple-700 mb-2">
+                {user.role === "teacher" ? "الحلقات التي تدرس فيها:" : "الحلقات:"}
+              </div>
+              <div className="flex flex-wrap gap-2 justify-center">
+                {user.classes.map((className, index) => (
+                  <span 
+                    key={index}
+                    className="px-2 py-1 bg-purple-100 text-purple-600 rounded-full text-xs"
+                  >
+                    {className}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Navigation Cards */}

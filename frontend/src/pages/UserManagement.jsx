@@ -89,11 +89,20 @@ const RoleEditModal = ({ user, onClose, onUpdate, schools, classes }) => {
         class_id: ['teacher', 'student'].includes(selectedRole) ? selectedClassId || null : null
       };
 
-      await axios.put(`${API_BASE}/api/users/${user.id || user.user_id}`, updateData, {
+      console.log('Updating user role:', {
+        userId: user.id || user.user_id,
+        currentRole: user.role,
+        newRole: selectedRole,
+        updateData
+      });
+
+      const response = await axios.put(`${API_BASE}/api/users/${user.id || user.user_id}`, updateData, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token')}`
         }
       });
+
+      console.log('Role update response:', response.data);
 
       onUpdate();
       onClose();
@@ -862,6 +871,13 @@ export default function UserManagement() {
       } else if (response.data.data && Array.isArray(response.data.data)) {
         allUsers = response.data.data;
       }
+
+      console.log('Fetched users:', allUsers.map(user => ({
+        id: user.id || user.user_id,
+        name: `${user.first_name} ${user.last_name}`,
+        role: user.role,
+        is_active: user.is_active
+      })));
 
       setUsers(allUsers);
       setError("");
