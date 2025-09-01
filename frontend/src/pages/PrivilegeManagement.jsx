@@ -158,27 +158,61 @@ const PERMISSION_CATEGORIES = {
 
 // Permission Editor Modal
 const PermissionEditorModal = ({ user, isOpen, onClose, onSave, allPermissions }) => {
-  const [selectedPermissions, setSelectedPermissions] = useState([]);
+  const [selectedPermissions, setSelectedPermissions] = useState({});
   const [loading, setLoading] = useState(false);
+
+  // Permission categories and actions structure
+  const permissionStructure = {
+    system: { view: 'عرض النظام', manage: 'إدارة النظام' },
+    schools: { view: 'عرض المجمعات', edit: 'تعديل المجمعات', manage: 'إدارة المجمعات' },
+    users: { view: 'عرض المستخدمين', create: 'إنشاء المستخدمين', edit: 'تعديل المستخدمين', delete: 'حذف المستخدمين', manage: 'إدارة المستخدمين' },
+    academic: { view: 'عرض الأكاديمية', edit: 'تعديل الأكاديمية', manage: 'إدارة الأكاديمية' },
+    attendance: { view: 'عرض الحضور', edit: 'تعديل الحضور', manage: 'إدارة الحضور' },
+    reports: { view: 'عرض التقارير', create: 'إنشاء التقارير' }
+  };
+
+  const getCategoryDisplayName = (categoryKey) => {
+    const names = {
+      system: 'النظام',
+      schools: 'المجمعات',
+      users: 'المستخدمين',
+      academic: 'الأكاديمية',
+      attendance: 'الحضور',
+      reports: 'التقارير'
+    };
+    return names[categoryKey] || categoryKey;
+  };
 
   useEffect(() => {
     if (user) {
       // Parse existing permissions if they exist
       try {
-        const existing = user.permissions ? JSON.parse(user.permissions) : [];
-        setSelectedPermissions(Array.isArray(existing) ? existing : []);
+        const existing = user.permissions || {};
+        setSelectedPermissions(typeof existing === 'object' ? existing : {});
       } catch {
-        setSelectedPermissions([]);
+        setSelectedPermissions({});
       }
     }
   }, [user]);
 
-  const handlePermissionToggle = (permission) => {
-    setSelectedPermissions(prev => 
-      prev.includes(permission) 
-        ? prev.filter(p => p !== permission)
-        : [...prev, permission]
-    );
+  const handlePermissionToggle = (category, action) => {
+    setSelectedPermissions(prev => {
+      const updated = { ...prev };
+      if (!updated[category]) {
+        updated[category] = {};
+      }
+      
+      // Toggle the specific action
+      updated[category][action] = !updated[category][action];
+      
+      // Clean up empty categories
+      if (Object.keys(updated[category]).length === 0 || 
+          Object.values(updated[category]).every(v => !v)) {
+        delete updated[category];
+      }
+      
+      return updated;
+    });
   };
 
   const handleSave = async () => {
@@ -210,7 +244,7 @@ const PermissionEditorModal = ({ user, isOpen, onClose, onSave, allPermissions }
         {/* User Info */}
         <div className="mb-6 p-4 bg-gray-50 rounded-lg">
           <h4 className="font-semibold mb-2">معلومات المستخدم:</h4>
-          <p><strong>الاسم:</strong> {user.first_name} {user.last_name}</p>
+          <p><strong>الاسم:</strong> {user.name}</p>
           <p><strong>الإيميل:</strong> {user.email}</p>
           <p><strong>الدور:</strong> 
             <span className={`ml-2 px-2 py-1 rounded text-sm ${ROLE_CONFIG[user.role]?.color}`}>
@@ -221,23 +255,21 @@ const PermissionEditorModal = ({ user, isOpen, onClose, onSave, allPermissions }
 
         {/* Permission Categories */}
         <div className="space-y-6">
-          {Object.entries(PERMISSION_CATEGORIES).map(([categoryKey, category]) => (
+          {Object.entries(permissionStructure).map(([categoryKey, actions]) => (
             <div key={categoryKey} className="border rounded-lg p-4">
               <h4 className="text-lg font-semibold mb-4 text-[var(--color-primary-700)]">
-                {category.name}
+                {getCategoryDisplayName(categoryKey)}
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {category.permissions
-                  .filter(permission => allPermissions[permission])
-                  .map(permission => (
-                  <label key={permission} className="flex items-center space-x-3 cursor-pointer p-2 hover:bg-gray-50 rounded">
+                {Object.entries(actions).map(([actionKey, actionName]) => (
+                  <label key={`${categoryKey}-${actionKey}`} className="flex items-center space-x-3 cursor-pointer p-2 hover:bg-gray-50 rounded" dir="rtl">
                     <input
                       type="checkbox"
-                      checked={selectedPermissions.includes(permission)}
-                      onChange={() => handlePermissionToggle(permission)}
-                      className="w-4 h-4 text-blue-600"
+                      checked={selectedPermissions[categoryKey]?.[actionKey] || false}
+                      onChange={() => handlePermissionToggle(categoryKey, actionKey)}
+                      className="w-4 h-4 text-blue-600 ml-2"
                     />
-                    <span className="text-sm">{allPermissions[permission]}</span>
+                    <span className="text-sm">{actionName}</span>
                   </label>
                 ))}
               </div>
@@ -282,7 +314,7 @@ export default function PrivilegeManagement() {
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${API_BASE}/api/users`, {
+      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/privileges`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token')}`
         }
@@ -312,8 +344,8 @@ export default function PrivilegeManagement() {
 
   const handleSavePermissions = async (userId, permissions) => {
     try {
-      await axios.put(`${API_BASE}/api/users/${userId}/permissions`, {
-        permissions: JSON.stringify(permissions)
+      await axios.put(`${import.meta.env.VITE_API_URL}/api/privileges/${userId}`, {
+        permissions: permissions
       }, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token')}`
@@ -323,7 +355,7 @@ export default function PrivilegeManagement() {
       // Update local state
       setUsers(prev => prev.map(user => 
         user.id === userId 
-          ? { ...user, permissions: JSON.stringify(permissions) }
+          ? { ...user, permissions: permissions }
           : user
       ));
     } catch (error) {
@@ -335,8 +367,8 @@ export default function PrivilegeManagement() {
   const filteredUsers = users.filter(user => {
     const matchesRole = roleFilter === "all" || user.role === roleFilter;
     const matchesSearch = searchTerm === "" || 
-      `${user.first_name} ${user.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchTerm.toLowerCase());
+      user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.email?.toLowerCase().includes(searchTerm.toLowerCase());
     
     return matchesRole && matchesSearch;
   });
@@ -409,7 +441,7 @@ export default function PrivilegeManagement() {
                 const roleConfig = ROLE_CONFIG[user.role] || {};
                 let customPermissions = [];
                 try {
-                  customPermissions = user.permissions ? JSON.parse(user.permissions) : [];
+                  customPermissions = user.permissions || {};
                 } catch {
                   customPermissions = [];
                 }
@@ -418,7 +450,7 @@ export default function PrivilegeManagement() {
                   <tr key={user.id} className="hover:bg-gray-50">
                     <td className="p-4">
                       <div>
-                        <div className="font-medium">{user.first_name} {user.last_name}</div>
+                        <div className="font-medium">{user.name}</div>
                         <div className="text-sm text-gray-600">{user.email}</div>
                       </div>
                     </td>

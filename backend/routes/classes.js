@@ -841,12 +841,11 @@ router.get('/:id/teachers', async (req, res) => {
     const result = await db.query(`
       SELECT 
         u.id, u.first_name, u.second_name, u.third_name, u.last_name,
-        u.email, u.phone, u.is_active,
-        t.specialization
+        u.email, u.phone, u.is_active, u.role,
+        tca.is_active as assignment_active
       FROM teacher_class_assignments tca
-      JOIN teachers t ON tca.teacher_id = t.id
-      JOIN users u ON t.id = u.id
-      WHERE tca.class_id = $1 AND tca.is_active = TRUE
+      JOIN users u ON tca.teacher_id = u.id
+      WHERE tca.class_id = $1 AND tca.is_active = TRUE AND u.role = 'teacher'
       ORDER BY u.first_name, u.last_name
     `, [id]);
 

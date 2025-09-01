@@ -261,76 +261,82 @@ router.get('/:id', async (req, res) => {
 router.get('/', async (req, res) => {
   try {
     const { user_type = 'teacher', school_id, is_active } = req.query;
-    let query, tableName, additionalFields;
-
-    switch (user_type) {
-      case 'teacher':
-        tableName = 'teachers';
-        additionalFields = "'teacher' as role_type";
-        break;
-      case 'admin':
-        tableName = 'admins';
-        additionalFields = "'admin' as role_type";
-        break;
-      case 'administrator':
-        tableName = 'administrators';
-        additionalFields = "'administrator' as role_type";
-        break;
-      case 'supervisor':
-        tableName = 'supervisors';
-        additionalFields = "'supervisor' as role_type";
-        break;
-      default:
-        return res.status(400).json({ error: 'نوع المستخدم غير صحيح' });
-    }
-
-    let whereClause = 'WHERE 1=1';
-    let params = [];
     
-    // Add school filtering if provided (using qualifications column with SCHOOL_ID prefix)
-    if (school_id) {
-      whereClause += ` AND t.qualifications LIKE $${params.length + 1}`;
-      params.push(`SCHOOL_ID:${school_id}%`);
-    }
-
+    // Use the new users.role column
+    let whereClause = 'WHERE u.role = $1';
+    let params = [user_type];
+    
     // Add active status filtering if provided
     if (is_active !== undefined) {
       whereClause += ` AND u.is_active = $${params.length + 1}`;
       params.push(is_active === 'true');
     }
 
-    query = `
-      SELECT 
-        u.id, u.first_name, u.second_name, u.third_name, u.last_name,
-        u.email, u.phone, u.address, u.is_active, u.created_at, 
-        ${additionalFields}, '${user_type}' as user_type,
-        CASE 
-          WHEN t.qualifications LIKE 'SCHOOL_ID:%' 
-          THEN substring(t.qualifications from 'SCHOOL_ID:([^|]+)')
-          ELSE NULL 
-        END as school_id,
-        CASE 
-          WHEN t.qualifications LIKE 'SCHOOL_ID:%|%' 
-          THEN substring(t.qualifications from 'SCHOOL_ID:[^|]+\\|(.+)')
-          ELSE CASE 
-            WHEN t.qualifications LIKE 'SCHOOL_ID:%' 
-            THEN NULL
-            ELSE t.qualifications 
-          END
-        END as actual_qualifications,
-        COALESCE(
-          ARRAY_AGG(DISTINCT tca.class_id) FILTER (WHERE tca.class_id IS NOT NULL),
-          ARRAY[]::UUID[]
-        ) as class_ids
-      FROM users u
-      JOIN ${tableName} t ON u.id = t.id
-      LEFT JOIN teacher_class_assignments tca ON u.id = tca.teacher_id AND tca.is_active = TRUE
-      ${whereClause}
-      GROUP BY u.id, u.first_name, u.second_name, u.third_name, u.last_name,
-               u.email, u.phone, u.address, u.is_active, u.created_at, 
-               t.qualifications
-      ORDER BY u.is_active DESC, u.first_name, u.last_name
-    `;
+    // Build query based on whether we have school filtering
+    let query;
+    if (school_id) {
+      // If school_id is provided, filter by classes in that school
+      whereClause += ` AND c.school_id = $${params.length + 1}`;
+      params.push(school_id);
+      
+      query = `
+        SELECT DISTINCT
+          u.id, 
+          u.first_name, 
+          u.second_name, 
+          u.third_name, 
+          u.last_name,
+          u.email, 
+          u.phone, 
+          u.address, 
+          u.is_active, 
+          u.created_at,
+          u.role as role_type,
+          u.role as user_type,
+          c.school_id,
+          COALESCE(
+            ARRAY_AGG(DISTINCT tca.class_id) FILTER (WHERE tca.class_id IS NOT NULL),
+            ARRAY[]::UUID[]
+          ) as class_ids
+        FROM users u
+        LEFT JOIN teacher_class_assignments tca ON u.id = tca.teacher_id AND tca.is_active = TRUE
+        LEFT JOIN classes c ON tca.class_id = c.id
+        ${whereClause}
+        GROUP BY u.id, u.first_name, u.second_name, u.third_name, u.last_name,
+                 u.email, u.phone, u.address, u.is_active, u.created_at, 
+                 u.role, c.school_id
+        ORDER BY u.is_active DESC, u.first_name, u.last_name
+      `;
+    } else {
+      // No school filtering - get all users with the specified role
+      query = `
+        SELECT 
+          u.id, 
+          u.first_name, 
+          u.second_name, 
+          u.third_name, 
+          u.last_name,
+          u.email, 
+          u.phone, 
+          u.address, 
+          u.is_active, 
+          u.created_at,
+          u.role as role_type,
+          u.role as user_type,
+          NULL as school_id,
+          COALESCE(
+            ARRAY_AGG(DISTINCT tca.class_id) FILTER (WHERE tca.class_id IS NOT NULL),
+            ARRAY[]::UUID[]
+          ) as class_ids
+        FROM users u
+        LEFT JOIN teacher_class_assignments tca ON u.id = tca.teacher_id AND tca.is_active = TRUE
+        ${whereClause}
+        GROUP BY u.id, u.first_name, u.second_name, u.third_name, u.last_name,
+                 u.email, u.phone, u.address, u.is_active, u.created_at, 
+                 u.role
+        ORDER BY u.is_active DESC, u.first_name, u.last_name
+      `;
+    }
 
     const result = await db.query(query, params);
 

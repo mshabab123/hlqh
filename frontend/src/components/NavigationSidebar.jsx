@@ -63,19 +63,72 @@ const NavigationSidebar = ({ isOpen, setIsOpen, className = "" }) => {
   }, [setIsOpen]);
 
   const handleLogout = () => {
+    // Clear privilege cache on logout
+    if (privilegeUtils && privilegeUtils.clearPrivilegeCache) {
+      privilegeUtils.clearPrivilegeCache();
+    }
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     navigate("/login");
   };
 
-  const hasAccess = (requiredRoles) => {
+  // Import privilege utils at component level to use in async function
+  const [privilegeUtils, setPrivilegeUtils] = useState(null);
+  const [accessCache, setAccessCache] = useState(new Map());
+
+  useEffect(() => {
+    const loadPrivilegeUtils = async () => {
+      try {
+        const utils = await import('../utils/privilegeUtils');
+        setPrivilegeUtils(utils);
+      } catch (error) {
+        console.error('Error loading privilege utils:', error);
+      }
+    };
+    loadPrivilegeUtils();
+  }, []);
+
+  const hasAccess = async (requiredRoles, itemPath = null) => {
     if (!user || !user.role) return false;
     if (!requiredRoles) return true;
-    if (Array.isArray(requiredRoles)) {
-      return requiredRoles.includes(user.role);
+    
+    const cacheKey = `${user.id}-${JSON.stringify(requiredRoles)}-${itemPath}`;
+    
+    // Check cache first for performance
+    if (accessCache.has(cacheKey)) {
+      return accessCache.get(cacheKey);
     }
-    return user.role === requiredRoles;
+    
+    // Basic role-based check (legacy support)
+    let basicAccess;
+    if (Array.isArray(requiredRoles)) {
+      basicAccess = requiredRoles.includes(user.role);
+    } else {
+      basicAccess = user.role === requiredRoles;
+    }
+    
+    // If basic access is granted or no privilege utils loaded, return basic result
+    if (basicAccess || !privilegeUtils) {
+      setAccessCache(prev => new Map(prev).set(cacheKey, basicAccess));
+      return basicAccess;
+    }
+    
+    // Check custom privileges if basic access is denied
+    try {
+      const customAccess = await privilegeUtils.canAccessNavItem(user, requiredRoles, itemPath);
+      setAccessCache(prev => new Map(prev).set(cacheKey, customAccess));
+      return customAccess;
+    } catch (error) {
+      console.error('Error checking custom privileges:', error);
+      setAccessCache(prev => new Map(prev).set(cacheKey, basicAccess));
+      return basicAccess; // Fallback to basic check
+    }
   };
+
+  // Clear access cache when user changes
+  useEffect(() => {
+    setAccessCache(new Map());
+  }, [user?.id]);
 
   const getRoleName = (role) => {
     const roleNames = {
@@ -388,68 +441,16 @@ const NavigationSidebar = ({ isOpen, setIsOpen, className = "" }) => {
         {/* Navigation Menu */}
         <nav className="flex-1 overflow-y-auto p-4 scrollbar-thin scrollbar-thumb-primary-400/40 scrollbar-track-primary-900/20">
           {menuSections.map((section, sectionIndex) => {
-            const accessibleItems = section.items.filter(item => hasAccess(item.roles));
-            
-            if (accessibleItems.length === 0) return null;
-
             return (
-              <div key={sectionIndex} className={`${isCollapsed ? 'mb-4' : 'mb-6'}`}>
-                {!isCollapsed ? (
-                  <div className="flex items-center gap-2 mb-3 px-3 text-primary-200/80">
-                    <section.icon className="text-base" />
-                    <h3 className="text-xs font-bold uppercase tracking-wider">
-                      {section.title}
-                    </h3>
-                  </div>
-                ) : (
-                  <div className="flex justify-center mb-2 text-primary-300/60" title={section.title}>
-                    <section.icon className="text-base" />
-                  </div>
-                )}
-                
-                <ul className="space-y-1">
-                  {accessibleItems.map((item, itemIndex) => {
-                    const isActive = location.pathname === item.path;
-                    const IconComponent = item.icon;
-                    
-                    return (
-                      <li key={itemIndex}>
-                        <Link
-                          to={item.path}
-                          onClick={() => {
-                            if (window.innerWidth < 1024) {
-                              setIsOpen(false);
-                            }
-                          }}
-                          className={`
-                            flex items-center gap-3 px-3 py-3 rounded-lg transition-all duration-200 group
-                            ${isActive 
-                              ? 'bg-gradient-to-r from-primary-400/20 to-primary-300/15 text-white border-r-2 border-primary-400 shadow-lg' 
-                              : 'text-primary-100/90 hover:bg-white/10 hover:text-white'
-                            }
-                            ${isCollapsed ? 'justify-center px-2' : ''}
-                          `}
-                          title={isCollapsed ? item.title : item.description}
-                        >
-                          <IconComponent className={`
-                            ${isCollapsed ? 'text-xl' : 'text-lg'} 
-                            ${isActive ? 'text-primary-300' : 'text-primary-200/70 group-hover:text-primary-100'}
-                            transition-colors duration-200
-                          `} />
-                          {!isCollapsed && (
-                            <span className="font-medium text-sm truncate flex-1">
-                              {item.title}
-                            </span>
-                          )}
-                          {isActive && !isCollapsed && (
-                            <div className="w-2 h-2 bg-primary-400 rounded-full shadow-sm"></div>
-                          )}
-                        </Link>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
+              <NavigationSection
+                key={sectionIndex}
+                section={section}
+                user={user}
+                location={location}
+                isCollapsed={isCollapsed}
+                setIsOpen={setIsOpen}
+                privilegeUtils={privilegeUtils}
+              />
             );
           })}
         </nav>
@@ -473,6 +474,124 @@ const NavigationSidebar = ({ isOpen, setIsOpen, className = "" }) => {
         </div>
       </div>
     </>
+  );
+};
+
+// Component for handling async privilege checking in navigation sections
+const NavigationSection = ({ section, user, location, isCollapsed, setIsOpen, privilegeUtils }) => {
+  const [accessibleItems, setAccessibleItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const checkSectionAccess = async () => {
+      if (!user || !section.items) {
+        setAccessibleItems([]);
+        setLoading(false);
+        return;
+      }
+
+      const itemsWithAccess = [];
+      
+      for (const item of section.items) {
+        let hasAccess = false;
+
+        // Basic role-based check first
+        if (!item.roles) {
+          hasAccess = true;
+        } else if (Array.isArray(item.roles)) {
+          hasAccess = item.roles.includes(user.role);
+        } else {
+          hasAccess = user.role === item.roles;
+        }
+
+        // If basic access denied, check custom privileges
+        if (!hasAccess && privilegeUtils) {
+          try {
+            hasAccess = await privilegeUtils.canAccessNavItem(user, item.roles, item.path);
+          } catch (error) {
+            console.error('Error checking item privileges:', error);
+            hasAccess = false;
+          }
+        }
+
+        if (hasAccess) {
+          itemsWithAccess.push(item);
+        }
+      }
+
+      setAccessibleItems(itemsWithAccess);
+      setLoading(false);
+    };
+
+    checkSectionAccess();
+  }, [section, user, privilegeUtils]);
+
+  if (loading) {
+    return null; // Or a loading skeleton
+  }
+
+  if (accessibleItems.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className={`${isCollapsed ? 'mb-4' : 'mb-6'}`}>
+      {!isCollapsed ? (
+        <div className="flex items-center gap-2 mb-3 px-3 text-primary-200/80">
+          <section.icon className="text-base" />
+          <h3 className="text-xs font-bold uppercase tracking-wider">
+            {section.title}
+          </h3>
+        </div>
+      ) : (
+        <div className="flex justify-center mb-2 text-primary-300/60" title={section.title}>
+          <section.icon className="text-base" />
+        </div>
+      )}
+      
+      <ul className="space-y-1">
+        {accessibleItems.map((item, itemIndex) => {
+          const isActive = location.pathname === item.path;
+          const IconComponent = item.icon;
+          
+          return (
+            <li key={itemIndex}>
+              <Link
+                to={item.path}
+                onClick={() => {
+                  if (window.innerWidth < 1024) {
+                    setIsOpen(false);
+                  }
+                }}
+                className={`
+                  flex items-center gap-3 px-3 py-3 rounded-lg transition-all duration-200 group
+                  ${isActive 
+                    ? 'bg-gradient-to-r from-primary-400/20 to-primary-300/15 text-white border-r-2 border-primary-400 shadow-lg' 
+                    : 'text-primary-100/90 hover:bg-white/10 hover:text-white'
+                  }
+                  ${isCollapsed ? 'justify-center px-2' : ''}
+                `}
+                title={isCollapsed ? item.title : item.description}
+              >
+                <IconComponent className={`
+                  ${isCollapsed ? 'text-xl' : 'text-lg'} 
+                  ${isActive ? 'text-primary-300' : 'text-primary-200/70 group-hover:text-primary-100'}
+                  transition-colors duration-200
+                `} />
+                {!isCollapsed && (
+                  <span className="font-medium text-sm truncate flex-1">
+                    {item.title}
+                  </span>
+                )}
+                {isActive && !isCollapsed && (
+                  <div className="w-2 h-2 bg-primary-400 rounded-full shadow-sm"></div>
+                )}
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 };
 

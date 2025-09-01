@@ -177,11 +177,12 @@ router.put('/:id', requireAuth, requireAdmin, schoolValidationRules, async (req,
   }
 });
 
-// DELETE /api/schools/:id - Delete school (soft delete)
+// DELETE /api/schools/:id - Delete school (soft delete or cascade delete)
 router.delete('/:id', requireAuth, requireAdmin, async (req, res) => {
   const client = await db.connect();
   try {
     const { id } = req.params;
+    const { force = false } = req.query; // Add force parameter for cascade delete
 
     await client.query('BEGIN');
 
@@ -201,29 +202,75 @@ router.delete('/:id', requireAuth, requireAdmin, async (req, res) => {
       });
     }
 
-    // Check if school has students
-    const studentsCheck = await client.query('SELECT COUNT(*) as count FROM students WHERE school_id = $1', [id]);
-    if (studentsCheck.rows[0].count > 0) {
+    // Check if school has semesters
+    const semestersCheck = await client.query('SELECT COUNT(*) as count FROM semesters WHERE school_id = $1', [id]);
+    if (semestersCheck.rows[0].count > 0) {
       await client.query('ROLLBACK');
       return res.status(400).json({ 
-        error: 'لا يمكن حذف مجمع الحلقات لوجود طلاب مسجلين به. يجب نقل الطلاب إلى مجمع آخر أولاً' 
+        error: 'لا يمكن حذف مجمع الحلقات لوجود فصول دراسية مرتبطة به. يجب حذف الفصول الدراسية أولاً' 
       });
     }
 
-    // Soft delete - set is_active to false instead of hard delete
-    await client.query(`
-      UPDATE schools SET 
-        is_active = false,
-        name = name || ' (محذوف)'
-      WHERE id = $1
-    `, [id]);
+    // Check if school has semester courses
+    const semesterCoursesCheck = await client.query('SELECT COUNT(*) as count FROM semester_courses WHERE school_id = $1', [id]);
+    if (semesterCoursesCheck.rows[0].count > 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ 
+        error: 'لا يمكن حذف مجمع الحلقات لوجود مقررات دراسية مرتبطة به. يجب حذف المقررات أولاً' 
+      });
+    }
 
-    await client.query('COMMIT');
-    
-    res.json({ 
-      message: '✅ تم حذف مجمع الحلقات بنجاح',
-      schoolId: id
-    });
+    // Check if school has daily reports
+    const dailyReportsCheck = await client.query('SELECT COUNT(*) as count FROM daily_reports WHERE school_id = $1', [id]);
+    if (dailyReportsCheck.rows[0].count > 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ 
+        error: 'لا يمكن حذف مجمع الحلقات لوجود تقارير يومية مرتبطة به' 
+      });
+    }
+
+    if (force === 'true') {
+      // Force delete - remove all dependent records first
+      console.log('Force deleting school and all dependencies:', id);
+      
+      // Delete in reverse order of dependencies
+      await client.query('DELETE FROM daily_reports WHERE school_id = $1', [id]);
+      await client.query('DELETE FROM semester_courses WHERE school_id = $1', [id]);
+      await client.query('DELETE FROM classes WHERE school_id = $1', [id]);
+      await client.query('DELETE FROM semesters WHERE school_id = $1', [id]);
+      
+      // Update references in other tables to NULL
+      await client.query('UPDATE administrators SET school_id = NULL WHERE school_id = $1', [id]);
+      await client.query('UPDATE supervisors SET school_id = NULL WHERE school_id = $1', [id]);
+      await client.query('UPDATE teachers SET school_id = NULL WHERE school_id = $1', [id]);
+      
+      // Finally delete the school
+      await client.query('DELETE FROM schools WHERE id = $1', [id]);
+      
+      await client.query('COMMIT');
+      
+      res.json({ 
+        message: '✅ تم حذف مجمع الحلقات وجميع البيانات المرتبطة به نهائياً',
+        schoolId: id,
+        deleted: true
+      });
+    } else {
+      // Soft delete - set is_active to false instead of hard delete
+      await client.query(`
+        UPDATE schools SET 
+          is_active = false,
+          name = name || ' (محذوف)'
+        WHERE id = $1
+      `, [id]);
+      
+      await client.query('COMMIT');
+      
+      res.json({ 
+        message: '✅ تم إلغاء تفعيل مجمع الحلقات',
+        schoolId: id,
+        deactivated: true
+      });
+    }
 
   } catch (err) {
     await client.query('ROLLBACK');

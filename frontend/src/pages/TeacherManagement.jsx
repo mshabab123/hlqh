@@ -169,9 +169,12 @@ const TeacherForm = ({ teacher, onSubmit, onCancel, isEditing = false, onTeacher
           <div>
             <label className="block text-sm font-medium mb-1">الحلقات المسندة</label>
             <div className="space-y-2 max-h-40 overflow-y-auto border rounded-lg p-3">
-              {classes
-                .filter(cls => cls.school_id === teacher.school_id)
-                .map(cls => (
+              {classes.length === 0 ? (
+                <p className="text-sm text-gray-500">لا توجد حلقات متاحة</p>
+              ) : (
+                classes
+                  .filter(cls => !teacher.school_id || cls.school_id === teacher.school_id)
+                  .map(cls => (
                   <label key={cls.id} className="flex items-center gap-2 hover:bg-gray-50 p-1 rounded cursor-pointer">
                     <input
                       type="checkbox"
@@ -196,7 +199,7 @@ const TeacherForm = ({ teacher, onSubmit, onCancel, isEditing = false, onTeacher
                     </span>
                   </label>
                 ))
-              }
+              )}
             </div>
             <p className="text-xs text-gray-500 mt-1">
               يمكنك تعيين المعلم لعدة حلقات أو تركه بدون حلقة
@@ -303,9 +306,13 @@ export default function TeacherManagement() {
           Authorization: `Bearer ${localStorage.getItem('token')}`
         }
       });
-      setClasses(response.data.classes || response.data || []);
+      // The API returns an array directly, not wrapped in an object
+      const classesData = Array.isArray(response.data) ? response.data : (response.data.classes || []);
+      console.log('Fetched classes:', classesData);
+      setClasses(classesData);
     } catch (err) {
       console.error('Error fetching classes:', err);
+      setClasses([]);
     }
   };
 
@@ -515,12 +522,18 @@ export default function TeacherManagement() {
               
               {/* Display assigned classes */}
               {(() => {
-                // Check if teacher has class_ids array (multiple assignments) or is assigned to classes via teacher_id
+                // Check if teacher has class_ids array (multiple assignments)
                 const teacherClassIds = teacher.class_ids || [];
-                const teacherClasses = classes.filter(cls => 
-                  teacherClassIds.includes(cls.id) || cls.teacher_id === teacher.id
-                );
+                // Also check if teacher is assigned through the assigned_teacher_ids in classes
+                const teacherClasses = classes.filter(cls => {
+                  // Check if teacher is in the class's assigned_teacher_ids array
+                  const assignedTeacherIds = cls.assigned_teacher_ids || [];
+                  return assignedTeacherIds.includes(teacher.id) || 
+                         teacherClassIds.includes(cls.id) || 
+                         cls.teacher_id === teacher.id;
+                });
                 
+                console.log(`Teacher ${teacher.id} classes:`, teacherClasses);
                 
                 if (teacherClasses.length > 0) {
                   return (
@@ -557,12 +570,34 @@ export default function TeacherManagement() {
                 <>
                   <button
                     onClick={() => {
-                      // Find all classes assigned to this teacher
-                      const teacherClasses = classes.filter(cls => cls.teacher_id === teacher.id);
-                      const classIds = teacherClasses.map(cls => cls.id);
+                      // Find all classes assigned to this teacher using multiple methods
+                      const assignedClassIds = [];
+                      
+                      // Method 1: Check teacher's class_ids array (from API)
+                      if (teacher.class_ids && Array.isArray(teacher.class_ids)) {
+                        assignedClassIds.push(...teacher.class_ids);
+                      }
+                      
+                      // Method 2: Check classes where teacher is in assigned_teacher_ids
+                      classes.forEach(cls => {
+                        const assignedTeacherIds = cls.assigned_teacher_ids || [];
+                        if (assignedTeacherIds.includes(teacher.id) && !assignedClassIds.includes(cls.id)) {
+                          assignedClassIds.push(cls.id);
+                        }
+                      });
+                      
+                      // Method 3: Legacy check - classes where teacher_id matches
+                      classes.forEach(cls => {
+                        if (cls.teacher_id === teacher.id && !assignedClassIds.includes(cls.id)) {
+                          assignedClassIds.push(cls.id);
+                        }
+                      });
+                      
+                      console.log(`Loading edit for teacher ${teacher.id} with classes:`, assignedClassIds);
+                      
                       setEditingTeacher({
                         ...teacher,
-                        class_ids: classIds
+                        class_ids: assignedClassIds
                       });
                     }}
                     className="flex items-center gap-1 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"

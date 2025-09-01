@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { AiOutlinePlus, AiOutlineEdit, AiOutlineDelete, AiOutlineUser, AiOutlineBook } from "react-icons/ai";
+import { AiOutlinePlus, AiOutlineEdit, AiOutlineDelete, AiOutlineUser, AiOutlineBook, AiOutlineReload } from "react-icons/ai";
 import ClassForm from "../components/ClassForm";
 import StudentListModal from "../components/StudentListModal";
 import { 
@@ -131,9 +131,12 @@ export default function ClassManagement() {
 
   const fetchTeachers = async () => {
     try {
-      const response = await axios.get(`${API_BASE}/api/teachers?user_type=teacher`, {
+      // Add timestamp to prevent caching
+      const response = await axios.get(`${API_BASE}/api/teachers?user_type=teacher&t=${Date.now()}`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
         }
       });
       setTeachers(response.data.teachers || []);
@@ -292,12 +295,27 @@ export default function ClassManagement() {
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-[var(--color-primary-700)]">إدارة الحلقة</h1>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 bg-[var(--color-primary-500)] text-white px-4 py-2 rounded-lg hover:bg-[var(--color-primary-600)]"
-        >
-          <AiOutlinePlus /> إضافة حلقة جديدة
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              fetchTeachers();
+              fetchClasses(schoolFilter || null, semesterFilter || null);
+            }}
+            className="flex items-center gap-2 bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600"
+            title="تحديث قائمة المعلمين والحلقات"
+          >
+            <AiOutlineReload /> تحديث
+          </button>
+          <button
+            onClick={() => {
+              fetchTeachers(); // Refresh teachers before opening modal
+              setShowAddModal(true);
+            }}
+            className="flex items-center gap-2 bg-[var(--color-primary-500)] text-white px-4 py-2 rounded-lg hover:bg-[var(--color-primary-600)]"
+          >
+            <AiOutlinePlus /> إضافة حلقة جديدة
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -481,10 +499,13 @@ export default function ClassManagement() {
                   {canManageClassWithContext(classItem) && (
                     <div className="flex gap-2">
                       <button
-                        onClick={() => setEditingClass({
-                          ...classItem,
-                          teacher_ids: classItem.assigned_teacher_ids || []
-                        })}
+                        onClick={() => {
+                          fetchTeachers(); // Refresh teachers before editing
+                          setEditingClass({
+                            ...classItem,
+                            teacher_ids: classItem.assigned_teacher_ids || []
+                          });
+                        }}
                         className="flex items-center gap-1 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm flex-1 justify-center"
                       >
                         <AiOutlineEdit /> تعديل
