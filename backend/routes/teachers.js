@@ -37,8 +37,7 @@ const teacherValidationRules = [
     .isIn(['teacher', 'admin', 'administrator', 'supervisor'])
     .withMessage('نوع المستخدم يجب أن يكون معلم أو مدير أو مسؤول أو مشرف'),
   body('school_id')
-    .notEmpty()
-    .withMessage('يرجى اختيار مجمع الحلقات')
+    .optional({ checkFalsy: true })
     .isUUID()
     .withMessage('معرف مجمع الحلقات غير صحيح'),
   body('specialization')
@@ -80,10 +79,12 @@ router.post('/', registerLimiter, teacherValidationRules, async (req, res) => {
 
     await client.query('BEGIN');
 
-    // Validate school exists
-    const schoolCheck = await client.query('SELECT id FROM schools WHERE id = $1', [school_id]);
-    if (schoolCheck.rows.length === 0) {
-      return res.status(400).json({ error: 'مجمع الحلقات المحدد غير موجود' });
+    // Validate school exists (only if provided and not for administrators)
+    if (school_id && user_type !== 'administrator') {
+      const schoolCheck = await client.query('SELECT id FROM schools WHERE id = $1', [school_id]);
+      if (schoolCheck.rows.length === 0) {
+        return res.status(400).json({ error: 'مجمع الحلقات المحدد غير موجود' });
+      }
     }
 
     // Hash password
@@ -97,6 +98,9 @@ router.post('/', registerLimiter, teacherValidationRules, async (req, res) => {
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
     `, [id, first_name, second_name, third_name, last_name, email, phone, hashedPassword, address || null, false]);
 
+    // Log the registration attempt
+    console.log(`Registering user ${id} as ${user_type}`);
+    
     // Insert into appropriate role table based on user_type
     switch (user_type) {
       case 'teacher':
@@ -118,13 +122,17 @@ router.post('/', registerLimiter, teacherValidationRules, async (req, res) => {
         break;
 
       case 'administrator':
-        // Store school_id in qualifications field with prefix
-        const adminQualifications = qualifications ? `SCHOOL_ID:${school_id}|${qualifications}` : `SCHOOL_ID:${school_id}`;
+        // Store school_id in qualifications field with prefix (if provided)
+        const adminQualifications = school_id 
+          ? (qualifications ? `SCHOOL_ID:${school_id}|${qualifications}` : `SCHOOL_ID:${school_id}`)
+          : qualifications || null;
+        console.log(`Inserting administrator ${id} with role 'administrator'`);
         await client.query(`
           INSERT INTO administrators (
-            id, qualifications, salary
-          ) VALUES ($1, $2, $3)
-        `, [id, adminQualifications, salary || null]);
+            id, role, qualifications, salary
+          ) VALUES ($1, $2, $3, $4)
+        `, [id, 'administrator', adminQualifications, salary || null]);
+        console.log(`Administrator ${id} inserted successfully`);
         break;
 
       case 'supervisor':

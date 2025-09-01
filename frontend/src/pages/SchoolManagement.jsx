@@ -345,8 +345,8 @@ export default function SchoolManagement() {
               <p><strong>العنوان:</strong> {school.address}</p>
               {school.phone && <p><strong>الهاتف:</strong> {school.phone}</p>}
               {school.email && <p><strong>البريد:</strong> {school.email}</p>}
-              {school.administrator_first_name && school.administrator_last_name ? (
-                <p><strong>المشرف:</strong> {school.administrator_first_name} {school.administrator_last_name}</p>
+              {school.administrator_first_name ? (
+                <p><strong>المشرف:</strong> {school.administrator_first_name} {school.administrator_second_name || ''} {school.administrator_third_name || ''} {school.administrator_last_name || ''}</p>
               ) : (
                 <p><strong>المشرف:</strong> <span className="text-orange-600">لم يتم تعيين مشرف</span></p>
               )}

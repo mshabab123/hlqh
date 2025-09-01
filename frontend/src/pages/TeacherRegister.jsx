@@ -80,7 +80,10 @@ export default function TeacherRegister() {
 
     if (!form.user_type) errors.user_type = "يرجى اختيار نوع المستخدم";
 
-    if (!form.school_id) errors.school_id = "يرجى اختيار مجمع الحلقات";
+    // Only require school_id for non-administrators
+    if (form.user_type !== 'administrator' && !form.school_id) {
+      errors.school_id = "يرجى اختيار مجمع الحلقات";
+    }
 
     return errors;
   };

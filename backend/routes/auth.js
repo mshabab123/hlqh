@@ -48,7 +48,7 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'رقم الهوية أو كلمة المرور غير صحيحة' });
     }
     const user = result.rows[0];
-    console.log('User found:', user.id, user.first_name, 'Active:', user.is_active);
+    console.log('User found:', user.id, user.first_name, 'Role:', user.role, 'Active:', user.is_active);
 
     // 2. Check password
     const valid = await bcrypt.compare(password, user.password);

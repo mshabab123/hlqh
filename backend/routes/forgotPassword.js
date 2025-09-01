@@ -9,26 +9,44 @@ const router = express.Router();
 // Auto-create password_reset_tokens table if it doesn't exist
 const initializeTable = async () => {
   try {
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS password_reset_tokens (
-        id SERIAL PRIMARY KEY,
-        user_id VARCHAR(10) NOT NULL,
-        token VARCHAR(255) NOT NULL UNIQUE,
-        expires_at TIMESTAMP NOT NULL,
-        used BOOLEAN DEFAULT FALSE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-      )
+    // Check if table exists first
+    const tableExists = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'password_reset_tokens'
+      );
     `);
     
-    // Create indexes
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_token ON password_reset_tokens(token)`);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user_id ON password_reset_tokens(user_id)`);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_expires_at ON password_reset_tokens(expires_at)`);
-    
-    console.log('Password reset tokens table initialized successfully');
+    if (!tableExists.rows[0].exists) {
+      await pool.query(`
+        CREATE TABLE password_reset_tokens (
+          id SERIAL PRIMARY KEY,
+          user_id VARCHAR(10) NOT NULL,
+          token VARCHAR(255) NOT NULL UNIQUE,
+          expires_at TIMESTAMP NOT NULL,
+          used BOOLEAN DEFAULT FALSE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+      `);
+      
+      // Create indexes only if table was just created
+      await pool.query(`CREATE INDEX idx_password_reset_tokens_token ON password_reset_tokens(token)`);
+      await pool.query(`CREATE INDEX idx_password_reset_tokens_user_id ON password_reset_tokens(user_id)`);
+      await pool.query(`CREATE INDEX idx_password_reset_tokens_expires_at ON password_reset_tokens(expires_at)`);
+      
+      console.log('Password reset tokens table created successfully');
+    } else {
+      console.log('Password reset tokens table already exists');
+    }
   } catch (error) {
-    console.error('Error initializing password reset tokens table:', error);
+    // If it's a permission error, just log and continue
+    if (error.message.includes('must be owner')) {
+      console.log('⚠️  Password reset tokens table exists but no owner permissions. This is OK if table is already set up.');
+    } else {
+      console.error('Error initializing password reset tokens table:', error.message);
+    }
   }
 };
 

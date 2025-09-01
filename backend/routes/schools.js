@@ -60,12 +60,23 @@ router.get('/', requireAuth, async (req, res) => {
     console.log('GET /schools called');
     const result = await db.query(`
       SELECT 
-        s.id, s.name, s.address, s.phone, s.email, s.established_date, s.is_active, s.created_at,
+        s.id, 
+        s.name, 
+        s.address, 
+        s.phone, 
+        s.email, 
+        s.is_active, 
+        s.created_at,
         s.administrator_id,
         u.first_name as administrator_first_name,
-        u.last_name as administrator_last_name
+        u.second_name as administrator_second_name,
+        u.third_name as administrator_third_name,
+        u.last_name as administrator_last_name,
+        u.email as administrator_email,
+        u.phone as administrator_phone
       FROM schools s
-      LEFT JOIN users u ON s.administrator_id = u.id
+      LEFT JOIN administrators a ON s.administrator_id = a.id
+      LEFT JOIN users u ON a.id = u.id
       ORDER BY s.created_at DESC
     `);
     console.log('Schools found:', result.rows.length);

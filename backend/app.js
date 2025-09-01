@@ -32,6 +32,7 @@ app.use('/api/forgot-password', require('./routes/forgotPassword')); // Password
 app.use('/api/attendance-system', require('./routes/attendanceSystem')); // Attendance system
 app.use('/api/daily-reports', require('./routes/dailyReports')); // Daily reports system
 app.use('/api/points', require('./routes/points')); // Points system
+app.use('/api/privileges', require('./routes/privileges')); // Privileges management
 
 // Default route
 app.get('/', (req, res) => {

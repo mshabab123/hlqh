@@ -33,6 +33,7 @@ import DailyReports from "./pages/DailyReports";
 import PointsManagement from "./pages/PointsManagement";
 import StudentPoints from "./pages/StudentPoints";
 import Children from "./pages/Children";
+import PrivilegeManagement from "./pages/PrivilegeManagement";
 import Navbar from "./components/Navbar";
 import AuthNavbar from "./components/AuthNavbar";
 import Layout from "./components/Layout";
@@ -42,7 +43,7 @@ export default function App() {
   const isLoggedIn = !!localStorage.getItem("token");
   
   // Routes that shouldn't show navbar
-  const noNavbarRoutes = ["/Login", "/", "/forgot-password", "/reset-password"];
+  const noNavbarRoutes = ["/Login", "/forgot-password", "/reset-password"];
   const showNavbar = !noNavbarRoutes.includes(location.pathname);
 
   return (
@@ -319,6 +320,16 @@ export default function App() {
               <ProtectedRoute requiredRole="teacher">
                 <Layout>
                   <MyClasses />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/privilege-management"
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <Layout>
+                  <PrivilegeManagement />
                 </Layout>
               </ProtectedRoute>
             }

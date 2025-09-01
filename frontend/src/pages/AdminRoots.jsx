@@ -11,8 +11,10 @@ import {
   AiOutlineSearch,
   AiOutlineCrown,
   AiOutlineKey,
-  AiOutlineSetting
+  AiOutlineSetting,
+  AiOutlineSafety
 } from "react-icons/ai";
+import { Link } from "react-router-dom";
 
 const AdminRoots = () => {
   const [adminRoots, setAdminRoots] = useState([]);
@@ -226,6 +228,81 @@ const AdminRoots = () => {
               {error}
             </div>
           )}
+        </div>
+
+        {/* Admin Control Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+          {/* Privilege Management Card */}
+          <Link to="/privilege-management" className="group">
+            <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg p-6 hover:shadow-xl transition-all duration-200 group-hover:scale-[1.02]">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="p-3 bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl shadow-lg">
+                  <AiOutlineSafety className="text-white text-2xl" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-800">إدارة الصلاحيات</h3>
+                  <p className="text-gray-600 text-sm">التحكم في صلاحيات المستخدمين</p>
+                </div>
+              </div>
+              <p className="text-gray-700 mb-4">
+                إدارة شاملة لصلاحيات جميع المستخدمين في النظام مع إمكانية التحكم التفصيلي في كل وحدة
+              </p>
+              <div className="flex items-center justify-between">
+                <span className="text-purple-600 font-medium">انتقل إلى الصفحة</span>
+                <div className="w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center group-hover:bg-purple-200 transition-colors">
+                  <span className="text-purple-600 text-sm">←</span>
+                </div>
+              </div>
+            </div>
+          </Link>
+
+          {/* User Management Card */}
+          <Link to="/user-management" className="group">
+            <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg p-6 hover:shadow-xl transition-all duration-200 group-hover:scale-[1.02]">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="p-3 bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl shadow-lg">
+                  <AiOutlineUser className="text-white text-2xl" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-800">إدارة المستخدمين</h3>
+                  <p className="text-gray-600 text-sm">إدارة جميع المستخدمين</p>
+                </div>
+              </div>
+              <p className="text-gray-700 mb-4">
+                عرض وإدارة جميع المستخدمين المسجلين في النظام
+              </p>
+              <div className="flex items-center justify-between">
+                <span className="text-blue-600 font-medium">انتقل إلى الصفحة</span>
+                <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center group-hover:bg-blue-200 transition-colors">
+                  <span className="text-blue-600 text-sm">←</span>
+                </div>
+              </div>
+            </div>
+          </Link>
+
+          {/* Database Management Card */}
+          <Link to="/database" className="group">
+            <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg p-6 hover:shadow-xl transition-all duration-200 group-hover:scale-[1.02]">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="p-3 bg-gradient-to-r from-green-500 to-green-600 rounded-xl shadow-lg">
+                  <AiOutlineSetting className="text-white text-2xl" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-800">إدارة قاعدة البيانات</h3>
+                  <p className="text-gray-600 text-sm">إعدادات قاعدة البيانات</p>
+                </div>
+              </div>
+              <p className="text-gray-700 mb-4">
+                إدارة وصيانة قاعدة البيانات والجداول
+              </p>
+              <div className="flex items-center justify-between">
+                <span className="text-green-600 font-medium">انتقل إلى الصفحة</span>
+                <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center group-hover:bg-green-200 transition-colors">
+                  <span className="text-green-600 text-sm">←</span>
+                </div>
+              </div>
+            </div>
+          </Link>
         </div>
 
         {/* Search and Add */}

@@ -44,11 +44,33 @@ export default function ClassManagement() {
   });
 
   useEffect(() => {
-    fetchClasses();
     fetchSchools();
     fetchTeachers();
     fetchSemesters();
+    fetchClasses(); // Load all classes initially
   }, []);
+  
+  // Reset semester filter when school changes
+  useEffect(() => {
+    if (schoolFilter) {
+      // Check if current semester belongs to selected school
+      const currentSemesterInSchool = semesters.find(s => 
+        s.id === semesterFilter && s.school_id === schoolFilter
+      );
+      // If current semester doesn't belong to selected school, reset it
+      if (semesterFilter && !currentSemesterInSchool) {
+        setSemesterFilter("");
+      }
+    } else {
+      // If no school selected, reset semester filter
+      setSemesterFilter("");
+    }
+  }, [schoolFilter, semesters]);
+
+  // Fetch classes when school or semester filter changes
+  useEffect(() => {
+    fetchClasses(schoolFilter || null, semesterFilter || null);
+  }, [schoolFilter, semesterFilter]);
 
   const fetchCourses = async (semesterId, classId) => {
     try {
@@ -64,10 +86,24 @@ export default function ClassManagement() {
     }
   };
 
-  const fetchClasses = async () => {
+  const fetchClasses = async (schoolId = null, semesterId = null) => {
     try {
       setLoading(true);
-      const response = await axios.get(`${API_BASE}/api/classes`, {
+      
+      // Build query params
+      const params = new URLSearchParams();
+      if (schoolId) {
+        params.append('school_id', schoolId);
+      }
+      if (semesterId) {
+        params.append('semester_id', semesterId);
+      }
+      
+      const url = params.toString() 
+        ? `${API_BASE}/api/classes?${params.toString()}`
+        : `${API_BASE}/api/classes`;
+        
+      const response = await axios.get(url, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token')}`
         }
@@ -153,7 +189,7 @@ export default function ClassManagement() {
         max_students: 20,
         is_active: true
       });
-      fetchClasses();
+      fetchClasses(schoolFilter || null, semesterFilter || null);
     } catch (err) {
       setError(err.response?.data?.error || "فشل في إضافة الحلقة");
     }
@@ -184,7 +220,7 @@ export default function ClassManagement() {
       }
       
       setEditingClass(null);
-      fetchClasses();
+      fetchClasses(schoolFilter || null, semesterFilter || null);
     } catch (err) {
       setError(err.response?.data?.error || "فشل في تحديث الحلقة");
     }
@@ -198,7 +234,7 @@ export default function ClassManagement() {
             Authorization: `Bearer ${localStorage.getItem('token')}`
           }
         });
-        fetchClasses();
+        fetchClasses(schoolFilter || null, semesterFilter || null);
       } catch (err) {
         setError(err.response?.data?.error || "فشل في حذف الحلقة");
       }
@@ -214,7 +250,7 @@ export default function ClassManagement() {
           Authorization: `Bearer ${localStorage.getItem('token')}`
         }
       });
-      fetchClasses();
+      fetchClasses(schoolFilter || null, semesterFilter || null);
     } catch (err) {
       setError(err.response?.data?.error || "فشل في تغيير حالة الفصل");
     }
@@ -226,15 +262,7 @@ export default function ClassManagement() {
   const getFilteredClassesWithContext = () => {
     let filteredClasses = getFilteredClasses(classes, userRole, userSchoolId);
     
-    // Apply additional filters
-    if (schoolFilter) {
-      filteredClasses = filteredClasses.filter(cls => cls.school_id === schoolFilter);
-    }
-    
-    if (semesterFilter) {
-      filteredClasses = filteredClasses.filter(cls => cls.semester_id === semesterFilter);
-    }
-    
+    // Only apply status filter client-side since school and semester are filtered server-side
     if (statusFilter !== "all") {
       const isActive = statusFilter === "active";
       filteredClasses = filteredClasses.filter(cls => cls.is_active === isActive);
@@ -301,14 +329,19 @@ export default function ClassManagement() {
             <select
               value={semesterFilter}
               onChange={(e) => setSemesterFilter(e.target.value)}
-              className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={!schoolFilter}
+              className={`w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                !schoolFilter ? 'bg-gray-100 cursor-not-allowed' : ''
+              }`}
             >
-              <option value="">جميع الفصول</option>
+              <option value="">
+                {schoolFilter ? 'جميع فصول هذا المجمع' : 'اختر المجمع أولاً'}
+              </option>
               {semesters
-                .filter(semester => !schoolFilter || semester.school_id === schoolFilter)
+                .filter(semester => schoolFilter && semester.school_id === schoolFilter)
                 .map(semester => (
                 <option key={semester.id} value={semester.id}>
-                  الفصل {semester.type === 'first' ? 'الأول' : semester.type === 'second' ? 'الثاني' : 'الصيفي'} {semester.year}
+                  {semester.display_name || `الفصل ${semester.type === 'first' ? 'الأول' : semester.type === 'second' ? 'الثاني' : 'الصيفي'} ${semester.year}`}
                 </option>
               ))}
             </select>

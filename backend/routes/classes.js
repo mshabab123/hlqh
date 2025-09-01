@@ -125,7 +125,7 @@ const classValidationRules = [
 // GET /api/classes - Get all classes with enhanced information (using current schema)
 router.get('/', requireAuth, async (req, res) => {
   try {
-    const { school_id, is_active } = req.query;
+    const { school_id, semester_id, is_active } = req.query;
     
     // Get current user info to check role for teacher privileges
     const userResult = await db.query('SELECT role FROM users WHERE id = $1', [req.user.id]);
@@ -171,6 +171,12 @@ router.get('/', requireAuth, async (req, res) => {
     if (school_id) {
       query += ` AND c.school_id = $${paramIndex}`;
       params.push(school_id);
+      paramIndex++;
+    }
+
+    if (semester_id) {
+      query += ` AND c.semester_id = $${paramIndex}`;
+      params.push(parseInt(semester_id));
       paramIndex++;
     }
 

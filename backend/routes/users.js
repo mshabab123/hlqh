@@ -17,8 +17,7 @@ router.get('/', async (req, res) => {
   try {
     client = await db.connect();
     
-    // Get all users with their basic info and role
-    // Start simple and only include columns we know exist
+    // Get all users with their basic info and determine their role
     const query = `
       SELECT 
         u.id,
@@ -33,25 +32,34 @@ router.get('/', async (req, res) => {
         u.school_level,
         u.neighborhood,
         u.notes,
-        u.role,
+        -- Determine role based on which table the user exists in
+        -- Check more specific roles first
+        CASE 
+          WHEN adm.id IS NOT NULL THEN 'admin'
+          WHEN ad.id IS NOT NULL THEN 'administrator'
+          WHEN sv.id IS NOT NULL THEN 'supervisor'
+          WHEN t.id IS NOT NULL THEN 'teacher'
+          WHEN p.id IS NOT NULL AND st.id IS NOT NULL THEN 'parent_student'
+          WHEN p.id IS NOT NULL THEN 'parent'
+          WHEN st.id IS NOT NULL THEN 'student'
+          ELSE 'user'
+        END as role,
         u.is_active,
         u.created_at,
         u.updated_at,
         -- Get parent_id from students table if user is a student
         st.parent_id,
-        -- Only get school_id from role tables that we know exist
-        COALESCE(
-          t.school_id,
-          s.school_id,
-          a.school_id
-        ) as school_id,
-        -- For now, set class_id as NULL since we're not sure about table structure
+        -- Get school_id from role tables (currently not properly stored)
+        NULL as school_id,
+        -- Get class_id if exists
         NULL as class_id
       FROM users u
-      LEFT JOIN teachers t ON u.id = t.id AND u.role = 'teacher'
-      LEFT JOIN supervisors s ON u.id = s.id AND u.role = 'supervisor'  
-      LEFT JOIN administrators a ON u.id = a.id AND u.role = 'administrator'
-      LEFT JOIN students st ON u.id = st.id AND u.role = 'student'
+      LEFT JOIN parents p ON u.id = p.id
+      LEFT JOIN students st ON u.id = st.id
+      LEFT JOIN teachers t ON u.id = t.id
+      LEFT JOIN admins adm ON u.id = adm.id
+      LEFT JOIN administrators ad ON u.id = ad.id
+      LEFT JOIN supervisors sv ON u.id = sv.id
       ORDER BY u.is_active DESC, u.first_name, u.last_name
     `;
     

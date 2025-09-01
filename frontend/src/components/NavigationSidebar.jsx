@@ -19,7 +19,8 @@ import {
   AiOutlineCheckCircle,
   AiOutlineCrown,
   AiOutlineHeart,
-  AiOutlineStar
+  AiOutlineStar,
+  AiOutlineSafety
 } from "react-icons/ai";
 import { 
   FaChalkboardTeacher, 
@@ -154,6 +155,13 @@ const NavigationSidebar = ({ isOpen, setIsOpen, className = "" }) => {
           icon: AiOutlineLock,
           roles: ["admin", "administrator"],
           description: "إعادة تعيين كلمات المرور"
+        },
+        {
+          title: "إدارة الصلاحيات",
+          path: "/privilege-management",
+          icon: AiOutlineSafety,
+          roles: ["admin"],
+          description: "التحكم في صلاحيات المستخدمين"
         }
       ]
     },
