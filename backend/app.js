@@ -6,8 +6,17 @@ require('dotenv').config();
 const app = express();
 
 // Middleware
-app.use(cors());
-app.use(express.json()); // Required for req.body
+const corsOptions = {
+  origin: process.env.NODE_ENV === 'production' 
+    ? process.env.FRONTEND_URL || 'https://your-domain.com'
+    : true, // Allow all origins in development
+  credentials: true,
+  optionsSuccessStatus: 200
+};
+
+app.use(cors(corsOptions));
+app.use(express.json({ limit: '10mb' })); // Increased limit for file uploads
+app.use(express.urlencoded({ extended: true, limit: '10mb' })); // For form data
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
@@ -33,6 +42,7 @@ app.use('/api/attendance-system', require('./routes/attendanceSystem')); // Atte
 app.use('/api/daily-reports', require('./routes/dailyReports')); // Daily reports system
 app.use('/api/points', require('./routes/points')); // Points system
 app.use('/api/privileges', require('./routes/privileges')); // Privileges management
+app.use('/api/debug', require('./routes/debug')); // Debug endpoints
 
 // Default route
 app.get('/', (req, res) => {

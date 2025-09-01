@@ -129,11 +129,11 @@ router.post('/', registerLimiter, parentValidationRules, async (req, res) => {
 
       // Create relationship regardless of whether student exists (constraints removed)
       await client.query(`
-        INSERT INTO parent_student_relationships (parent_id, student_id, is_primary, relationship_type, is_pending)
-        VALUES ($1, $2, true, 'parent', $3)
+        INSERT INTO parent_student_relationships (parent_id, student_id, is_primary, relationship_type)
+        VALUES ($1, $2, true, 'parent')
         ON CONFLICT (parent_id, student_id) DO UPDATE 
-        SET is_pending = $3
-      `, [id, trimmedChildId, studentCheck.rows.length === 0]);
+        SET relationship_type = 'parent'
+      `, [id, trimmedChildId]);
       
       if (studentCheck.rows.length > 0) {
         // Student exists, update their parent_id if not set

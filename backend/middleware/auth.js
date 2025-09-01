@@ -10,10 +10,17 @@ const SECRET_KEY = process.env.JWT_SECRET;
 function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
-  if (!token) return res.status(401).json({ error: 'Token missing' });
+  
+  if (!token) {
+    console.log('Auth: No token provided');
+    return res.status(401).json({ error: 'Token missing' });
+  }
 
   jwt.verify(token, SECRET_KEY, async (err, user) => {
-    if (err) return res.status(403).json({ error: 'Invalid token' });
+    if (err) {
+      console.log('Auth: Token verification failed:', err.message);
+      return res.status(403).json({ error: 'Invalid token', details: err.message });
+    }
     
     try {
       // Check if user account is active
@@ -33,33 +40,9 @@ function authenticateToken(req, res, next) {
         return res.status(403).json({ error: 'Account deactivated. Contact administrator.' });
       }
       
-      // For staff roles (administrator, supervisor, teacher), check employment status
-      if (['administrator', 'supervisor', 'teacher'].includes(userData.role)) {
-        let employmentTable;
-        switch (userData.role) {
-          case 'administrator': employmentTable = 'administrators'; break;
-          case 'supervisor': employmentTable = 'supervisors'; break;
-          case 'teacher': employmentTable = 'teachers'; break;
-        }
-        
-        const employmentResult = await db.query(
-          `SELECT status FROM ${employmentTable} WHERE id = $1`,
-          [user.id]
-        );
-        
-        if (employmentResult.rows.length === 0) {
-          return res.status(403).json({ error: 'Employment record not found. Contact administrator.' });
-        }
-        
-        const employmentStatus = employmentResult.rows[0].status;
-        if (employmentStatus !== 'active') {
-          return res.status(403).json({ 
-            error: employmentStatus === 'inactive' ? 
-              'Your employment is inactive. Contact administrator.' :
-              'You are currently on leave. Contact administrator.' 
-          });
-        }
-      }
+      // For staff roles, we now rely on the is_active field in users table
+      // The old employment status checking is removed as we use users.role column
+      // If needed, additional status checks can be added here later
       
       // Update user object with current role from database
       req.user = { ...user, role: userData.role };
@@ -67,7 +50,10 @@ function authenticateToken(req, res, next) {
       
     } catch (dbError) {
       console.error('Authentication database error:', dbError);
-      return res.status(500).json({ error: 'Authentication check failed' });
+      return res.status(500).json({ 
+        error: 'Authentication check failed',
+        details: dbError.message 
+      });
     }
   });
 }
