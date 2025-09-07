@@ -159,7 +159,7 @@ export default function AuthNavbar() {
               </span>
               {user && (
                 <span className="text-xs text-white/80 font-medium hidden md:block">
-                  مرحباً، {user.first_name || 'المستخدم'}
+                  مرحباً، {user.first_name || 'المستخدم'} {user.last_name || ''}
                 </span>
               )}
             </div>
@@ -227,7 +227,7 @@ export default function AuthNavbar() {
             {user && (
               <div className="px-4 py-3 bg-white/10 rounded-lg mb-2">
                 <p className="text-white font-semibold">
-                  مرحباً، {user.first_name || 'المستخدم'}
+                  مرحباً، {user.first_name || 'المستخدم'} {user.last_name || ''}
                 </p>
                 <p className="text-white/70 text-sm">
                   {user.email}
