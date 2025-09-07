@@ -42,6 +42,7 @@ app.use('/api/attendance-system', require('./routes/attendanceSystem')); // Atte
 app.use('/api/daily-reports', require('./routes/dailyReports')); // Daily reports system
 app.use('/api/points', require('./routes/points')); // Points system
 app.use('/api/privileges', require('./routes/privileges')); // Privileges management
+app.use('/api/grading', require('./routes/grading')); // Comprehensive grading system
 app.use('/api/debug', require('./routes/debug')); // Debug endpoints
 
 // Default route

@@ -15,6 +15,7 @@ import StudentManagement from "./pages/StudentManagement";
 import UserManagement from "./pages/UserManagement";
 import SemesterManagement from "./pages/SemesterManagement";
 import StudentGrading from "./pages/StudentGrading";
+import ComprehensiveGrading from "./pages/ComprehensiveGrading";
 import AttendanceManagement from "./pages/AttendanceManagement";
 import AttendanceSystem from "./pages/AttendanceSystem";
 import ClassCourseManagement from "./pages/ClassCourseManagement";
@@ -37,6 +38,7 @@ import PrivilegeManagement from "./pages/PrivilegeManagement";
 import Navbar from "./components/Navbar";
 import AuthNavbar from "./components/AuthNavbar";
 import Layout from "./components/Layout";
+import ConditionalLayout from "./components/ConditionalLayout";
 
 export default function App() {
   const location = useLocation();
@@ -68,9 +70,7 @@ export default function App() {
             path="/home"
             element={
               <ProtectedRoute>
-                <Layout>
-                  <Home />
-                </Layout>
+                <Home />
               </ProtectedRoute>
             }
           />
@@ -78,9 +78,7 @@ export default function App() {
             path="/Home"
             element={
               <ProtectedRoute>
-                <Layout>
-                  <Home />
-                </Layout>
+                <Home />
               </ProtectedRoute>
             }
           />
@@ -88,9 +86,9 @@ export default function App() {
             path="/schools"
             element={
               <ProtectedRoute requiredRole="admin">
-                <Layout>
+                <ConditionalLayout>
                   <SchoolManagement />
-                </Layout>
+                </ConditionalLayout>
               </ProtectedRoute>
             }
           />
@@ -98,9 +96,9 @@ export default function App() {
             path="/classes"
             element={
               <ProtectedRoute requiredRole={["admin", "administrator"]}>
-                <Layout>
+                <ConditionalLayout>
                   <ClassManagement />
-                </Layout>
+                </ConditionalLayout>
               </ProtectedRoute>
             }
           />
@@ -108,9 +106,9 @@ export default function App() {
             path="/teachers"
             element={
               <ProtectedRoute requiredRole={["admin", "supervisor"]}>
-                <Layout>
+                <ConditionalLayout>
                   <TeacherManagement />
-                </Layout>
+                </ConditionalLayout>
               </ProtectedRoute>
             }
           />
@@ -118,9 +116,9 @@ export default function App() {
             path="/parents"
             element={
               <ProtectedRoute requiredRole={["admin", "supervisor"]}>
-                <Layout>
+                <ConditionalLayout>
                   <ParentManagement />
-                </Layout>
+                </ConditionalLayout>
               </ProtectedRoute>
             }
           />
@@ -128,9 +126,9 @@ export default function App() {
             path="/administrators"
             element={
               <ProtectedRoute requiredRole="admin">
-                <Layout>
+                <ConditionalLayout>
                   <AdministratorManagement />
-                </Layout>
+                </ConditionalLayout>
               </ProtectedRoute>
             }
           />
@@ -138,9 +136,9 @@ export default function App() {
             path="/admin-roots"
             element={
               <ProtectedRoute requiredRole="admin">
-                <Layout>
+                <ConditionalLayout>
                   <AdminRoots />
-                </Layout>
+                </ConditionalLayout>
               </ProtectedRoute>
             }
           />
@@ -148,9 +146,9 @@ export default function App() {
             path="/user-management"
             element={
               <ProtectedRoute requiredRole="admin">
-                <Layout>
+                <ConditionalLayout>
                   <UserManagement />
-                </Layout>
+                </ConditionalLayout>
               </ProtectedRoute>
             }
           />
@@ -158,9 +156,9 @@ export default function App() {
             path="/students"
             element={
               <ProtectedRoute>
-                <Layout>
+                <ConditionalLayout>
                   <StudentManagement />
-                </Layout>
+                </ConditionalLayout>
               </ProtectedRoute>
             }
           />
@@ -168,9 +166,9 @@ export default function App() {
             path="/semesters"
             element={
               <ProtectedRoute requiredRole={["admin", "administrator"]}>
-                <Layout>
+                <ConditionalLayout>
                   <SemesterManagement />
-                </Layout>
+                </ConditionalLayout>
               </ProtectedRoute>
             }
           />
@@ -178,9 +176,19 @@ export default function App() {
             path="/grading"
             element={
               <ProtectedRoute requiredRole={["admin", "administrator", "teacher"]}>
-                <Layout>
+                <ConditionalLayout>
                   <StudentGrading />
-                </Layout>
+                </ConditionalLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/comprehensive-grading"
+            element={
+              <ProtectedRoute requiredRole={["admin", "administrator", "teacher"]}>
+                <ConditionalLayout>
+                  <ComprehensiveGrading />
+                </ConditionalLayout>
               </ProtectedRoute>
             }
           />
@@ -188,9 +196,9 @@ export default function App() {
             path="/attendance"
             element={
               <ProtectedRoute requiredRole={["admin", "administrator", "teacher"]}>
-                <Layout>
+                <ConditionalLayout>
                   <AttendanceManagement />
-                </Layout>
+                </ConditionalLayout>
               </ProtectedRoute>
             }
           />
@@ -198,9 +206,9 @@ export default function App() {
             path="/attendance-system"
             element={
               <ProtectedRoute requiredRole={["admin", "administrator", "teacher"]}>
-                <Layout>
+                <ConditionalLayout>
                   <AttendanceSystem />
-                </Layout>
+                </ConditionalLayout>
               </ProtectedRoute>
             }
           />
@@ -208,9 +216,9 @@ export default function App() {
             path="/class-courses"
             element={
               <ProtectedRoute requiredRole={["admin", "administrator"]}>
-                <Layout>
+                <ConditionalLayout>
                   <ClassCourseManagement />
-                </Layout>
+                </ConditionalLayout>
               </ProtectedRoute>
             }
           />
@@ -218,9 +226,9 @@ export default function App() {
             path="/database"
             element={
               <ProtectedRoute requiredRole="admin">
-                <Layout>
+                <ConditionalLayout>
                   <DatabaseManagement />
-                </Layout>
+                </ConditionalLayout>
               </ProtectedRoute>
             }
           />
@@ -228,9 +236,9 @@ export default function App() {
             path="/database/table/:tableName"
             element={
               <ProtectedRoute requiredRole="admin">
-                <Layout>
+                <ConditionalLayout>
                   <DatabaseTableDetails />
-                </Layout>
+                </ConditionalLayout>
               </ProtectedRoute>
             }
           />
@@ -238,9 +246,9 @@ export default function App() {
             path="/password-management"
             element={
               <ProtectedRoute requiredRole={["admin", "administrator"]}>
-                <Layout>
+                <ConditionalLayout>
                   <PasswordManagement />
-                </Layout>
+                </ConditionalLayout>
               </ProtectedRoute>
             }
           />
@@ -248,9 +256,9 @@ export default function App() {
             path="/dashboard"
             element={
               <ProtectedRoute>
-                <Layout>
+                <ConditionalLayout>
                   <Dashboard />
-                </Layout>
+                </ConditionalLayout>
               </ProtectedRoute>
             }
           />
@@ -258,9 +266,9 @@ export default function App() {
             path="/profile"
             element={
               <ProtectedRoute>
-                <Layout>
+                <ConditionalLayout>
                   <Profile />
-                </Layout>
+                </ConditionalLayout>
               </ProtectedRoute>
             }
           />
@@ -268,9 +276,9 @@ export default function App() {
             path="/my-students"
             element={
               <ProtectedRoute requiredRole="parent">
-                <Layout>
+                <ConditionalLayout>
                   <MyStudentsPage />
-                </Layout>
+                </ConditionalLayout>
               </ProtectedRoute>
             }
           />
@@ -278,9 +286,9 @@ export default function App() {
             path="/daily-reports"
             element={
               <ProtectedRoute requiredRole={["admin", "administrator", "supervisor"]}>
-                <Layout>
+                <ConditionalLayout>
                   <DailyReports />
-                </Layout>
+                </ConditionalLayout>
               </ProtectedRoute>
             }
           />
@@ -288,9 +296,9 @@ export default function App() {
             path="/points-management"
             element={
               <ProtectedRoute requiredRole={["admin", "administrator", "supervisor", "teacher"]}>
-                <Layout>
+                <ConditionalLayout>
                   <PointsManagement />
-                </Layout>
+                </ConditionalLayout>
               </ProtectedRoute>
             }
           />
@@ -298,9 +306,9 @@ export default function App() {
             path="/student-points"
             element={
               <ProtectedRoute requiredRole={["student"]}>
-                <Layout>
+                <ConditionalLayout>
                   <StudentPoints />
-                </Layout>
+                </ConditionalLayout>
               </ProtectedRoute>
             }
           />
@@ -308,9 +316,9 @@ export default function App() {
             path="/children"
             element={
               <ProtectedRoute requiredRole={["parent", "admin", "administrator", "teacher"]}>
-                <Layout>
+                <ConditionalLayout>
                   <Children />
-                </Layout>
+                </ConditionalLayout>
               </ProtectedRoute>
             }
           />
@@ -318,9 +326,9 @@ export default function App() {
             path="/my-classes"
             element={
               <ProtectedRoute requiredRole="teacher">
-                <Layout>
+                <ConditionalLayout>
                   <MyClasses />
-                </Layout>
+                </ConditionalLayout>
               </ProtectedRoute>
             }
           />
@@ -328,9 +336,9 @@ export default function App() {
             path="/privilege-management"
             element={
               <ProtectedRoute requiredRole="admin">
-                <Layout>
+                <ConditionalLayout>
                   <PrivilegeManagement />
-                </Layout>
+                </ConditionalLayout>
               </ProtectedRoute>
             }
           />

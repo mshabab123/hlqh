@@ -275,8 +275,12 @@ router.get('/', async (req, res) => {
     // Build query based on whether we have school filtering
     let query;
     if (school_id) {
-      // If school_id is provided, filter by classes in that school
-      whereClause += ` AND c.school_id = $${params.length + 1}`;
+      // If school_id is provided, filter by teachers in that school
+      // Teachers can be in a school either through class assignments or direct school assignment
+      whereClause = `${whereClause} AND (
+        c.school_id = $${params.length + 1} OR 
+        (t.qualifications LIKE 'SCHOOL_ID:' || $${params.length + 1} || '%')
+      )`;
       params.push(school_id);
       
       query = `
@@ -293,18 +297,34 @@ router.get('/', async (req, res) => {
           u.created_at,
           u.role as role_type,
           u.role as user_type,
-          c.school_id,
+          t.specialization,
+          COALESCE(
+            c.school_id,
+            CASE 
+              WHEN t.qualifications LIKE 'SCHOOL_ID:%' THEN 
+                SUBSTRING(t.qualifications FROM 'SCHOOL_ID:([^|]+)')::UUID
+              ELSE NULL
+            END
+          ) as school_id,
+          CASE 
+            WHEN t.qualifications LIKE 'SCHOOL_ID:%|%' THEN 
+              SUBSTRING(t.qualifications FROM 'SCHOOL_ID:[^|]+\|(.+)')
+            WHEN t.qualifications LIKE 'SCHOOL_ID:%' THEN 
+              NULL
+            ELSE t.qualifications
+          END as actual_qualifications,
           COALESCE(
             ARRAY_AGG(DISTINCT tca.class_id) FILTER (WHERE tca.class_id IS NOT NULL),
             ARRAY[]::UUID[]
           ) as class_ids
         FROM users u
+        LEFT JOIN teachers t ON u.id = t.id
         LEFT JOIN teacher_class_assignments tca ON u.id = tca.teacher_id AND tca.is_active = TRUE
         LEFT JOIN classes c ON tca.class_id = c.id
         ${whereClause}
         GROUP BY u.id, u.first_name, u.second_name, u.third_name, u.last_name,
                  u.email, u.phone, u.address, u.is_active, u.created_at, 
-                 u.role, c.school_id
+                 u.role, c.school_id, t.qualifications, t.specialization
         ORDER BY u.is_active DESC, u.first_name, u.last_name
       `;
     } else {
@@ -323,25 +343,42 @@ router.get('/', async (req, res) => {
           u.created_at,
           u.role as role_type,
           u.role as user_type,
-          NULL as school_id,
+          t.qualifications,
+          t.specialization,
+          CASE 
+            WHEN t.qualifications LIKE 'SCHOOL_ID:%' THEN 
+              SUBSTRING(t.qualifications FROM 'SCHOOL_ID:([^|]+)')::UUID
+            ELSE NULL
+          END as school_id,
           COALESCE(
             ARRAY_AGG(DISTINCT tca.class_id) FILTER (WHERE tca.class_id IS NOT NULL),
             ARRAY[]::UUID[]
           ) as class_ids
         FROM users u
+        LEFT JOIN teachers t ON u.id = t.id
         LEFT JOIN teacher_class_assignments tca ON u.id = tca.teacher_id AND tca.is_active = TRUE
         ${whereClause}
         GROUP BY u.id, u.first_name, u.second_name, u.third_name, u.last_name,
                  u.email, u.phone, u.address, u.is_active, u.created_at, 
-                 u.role
+                 u.role, t.qualifications, t.specialization
         ORDER BY u.is_active DESC, u.first_name, u.last_name
       `;
     }
 
     const result = await db.query(query, params);
 
+    // Clean up the response - use actual_qualifications if available
+    const cleanedRows = result.rows.map(row => {
+      const cleanRow = { ...row };
+      if (row.actual_qualifications !== undefined) {
+        cleanRow.qualifications = row.actual_qualifications;
+        delete cleanRow.actual_qualifications;
+      }
+      return cleanRow;
+    });
+
     const responseKey = user_type === 'teacher' ? 'teachers' : `${user_type}s`;
-    res.json({ [responseKey]: result.rows });
+    res.json({ [responseKey]: cleanedRows });
 
   } catch (err) {
     console.error('Get users error:', err);
@@ -491,12 +528,12 @@ router.patch('/:id/activate', async (req, res) => {
   }
 });
 
-// POST /api/teachers/:id/classes - Assign multiple classes to teacher
+// POST /api/teachers/:id/classes - Assign multiple classes to teacher with role designation
 router.post('/:id/classes', async (req, res) => {
   const client = await db.connect();
   try {
     const { id } = req.params;
-    const { class_ids = [] } = req.body; // Array of class IDs
+    const { class_ids = [], class_roles = {} } = req.body; // Array of class IDs and optional role mapping
 
     await client.query('BEGIN');
 
@@ -515,11 +552,25 @@ router.post('/:id/classes', async (req, res) => {
         // Verify class exists
         const classCheck = await client.query('SELECT id FROM classes WHERE id = $1', [classId]);
         if (classCheck.rows.length > 0) {
+          // Determine teacher role for this class
+          const role = class_roles[classId] || 'secondary';
+          
+          // Check if there's already a primary teacher for this class
+          if (role === 'primary') {
+            // Demote any existing primary teacher to secondary
+            await client.query(`
+              UPDATE teacher_class_assignments 
+              SET teacher_role = 'secondary'
+              WHERE class_id = $1 AND teacher_role = 'primary' AND teacher_id != $2
+            `, [classId, id]);
+          }
+          
           await client.query(`
-            INSERT INTO teacher_class_assignments (teacher_id, class_id)
-            VALUES ($1, $2)
-            ON CONFLICT (teacher_id, class_id) DO NOTHING
-          `, [id, classId]);
+            INSERT INTO teacher_class_assignments (teacher_id, class_id, teacher_role)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (teacher_id, class_id) DO UPDATE 
+            SET teacher_role = $3, is_active = TRUE
+          `, [id, classId, role]);
         }
       }
     }

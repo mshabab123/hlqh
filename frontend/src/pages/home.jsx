@@ -5,6 +5,7 @@ import { AiOutlineExclamationCircle } from "react-icons/ai";
 import { FaChalkboardTeacher, FaSchool, FaUsers, FaUserGraduate, FaUserTie, FaClipboardCheck, FaTrophy, FaChartBar, FaChild, FaUserFriends, FaCog, FaDatabase, FaUserShield } from "react-icons/fa";
 import { MdAssignment, MdDashboard, MdSettings } from "react-icons/md";
 import AuthNavbar from "../components/AuthNavbar";
+import Layout from "../components/Layout";
 
 export default function Home() {
   const [user, setUser] = useState(null);
@@ -28,6 +29,14 @@ export default function Home() {
   };
 
   const navigationCards = [
+    {
+      title: "حلقاتي",
+      description: "عرض الحلقات التي أدرّسها ومعلومات الطلاب",
+      icon: FaUsers,
+      path: "/my-classes",
+      color: "bg-indigo-600",
+      roles: ["teacher"]
+    },
     {
       title: "إدارة المعلمين",
       description: "إدارة بيانات المعلمين وتعيين الفصول",
@@ -77,11 +86,11 @@ export default function Home() {
       roles: ["admin", "administrator"]
     },
     {
-      title: "درجات الطلاب",
-      description: "إدخال وإدارة درجات الطلاب في المقررات",
-      icon: "📝",
-      path: "/grading",
-      color: "bg-teal-500",
+      title: "نظام الدرجات الشامل",
+      description: "عرض شامل لدرجات وحضور ونقاط الطلاب مع إمكانية التعديل",
+      icon: "📊",
+      path: "/comprehensive-grading",
+      color: "bg-blue-600",
       roles: ["admin", "administrator", "teacher"]
     },
     {
@@ -195,14 +204,6 @@ export default function Home() {
       path: "/my-schedule",
       color: "bg-fuchsia-500",
       roles: ["student", "teacher", "parent"]
-    },
-    {
-      title: "حلقاتي",
-      description: "عرض الحلقات التي أدرّسها ومعلومات الطلاب",
-      icon: FaUsers,
-      path: "/my-classes",
-      color: "bg-indigo-600",
-      roles: ["teacher"]
     }
   ];
 
@@ -211,14 +212,19 @@ export default function Home() {
     return cardRoles.includes(user.role);
   };
 
+  // Determine if user should see the sidebar
+  const shouldShowSidebar = () => {
+    if (!user || !user.role) return true; // Default to showing sidebar
+    return !['student', 'teacher', 'parent'].includes(user.role);
+  };
+
   if (!user) {
     return null; // Or a loading spinner
   }
 
-  return (
-    <>
-      {/* <AuthNavbar /> */}
-      <div className="bg-[url('/baground.svg')] bg-cover bg-center bg-no-repeat bg-fixed min-h-screen flex flex-col items-center justify-center font-[var(--font-family-arabic)] py-8">
+  // Main content component
+  const HomeContent = () => (
+    <div className="bg-[url('/baground.svg')] bg-cover bg-center bg-no-repeat bg-fixed min-h-screen flex flex-col items-center justify-center font-[var(--font-family-arabic)] py-8">
         
         {/* Inactive User Warning */}
         {user && (user.is_active === false || user.account_status === 'pending_activation') && (
@@ -302,6 +308,7 @@ export default function Home() {
           )}
         </div>
 
+
         {/* Navigation Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 max-w-7xl w-full px-4 mb-8">
           {navigationCards.map((card, index) => {
@@ -353,6 +360,22 @@ export default function Home() {
           </button>
         </div>
       </div>
+  );
+
+  // Conditional rendering based on user role
+  if (shouldShowSidebar()) {
+    return (
+      <Layout>
+        <HomeContent />
+      </Layout>
+    );
+  }
+
+  // For admin and other roles without sidebar
+  return (
+    <>
+      {/* <AuthNavbar /> */}
+      <HomeContent />
     </>
   );
 }

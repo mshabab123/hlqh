@@ -240,5 +240,19 @@ export const getFilteredClasses = (classes, userRole, userSchoolId) => {
 
 export const getFilteredTeachers = (teachers, schoolId) => {
   if (!schoolId) return [];
-  return teachers.filter(teacher => teacher.school_id === schoolId);
+  // Filter teachers that belong to the specified school
+  // Check both school_id field and schools array (some APIs return it differently)
+  return teachers.filter(teacher => {
+    // Direct school_id match
+    if (teacher.school_id === schoolId) return true;
+    // Check if teacher has schools array with matching school
+    if (teacher.schools && Array.isArray(teacher.schools)) {
+      return teacher.schools.some(school => school.id === schoolId);
+    }
+    // Check if teacher is in a specific school (for teachers with assignments)
+    if (teacher.school_ids && Array.isArray(teacher.school_ids)) {
+      return teacher.school_ids.includes(schoolId);
+    }
+    return false;
+  });
 };

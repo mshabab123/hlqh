@@ -145,7 +145,12 @@ router.get('/', requireAuth, async (req, res) => {
         COALESCE(
           ARRAY_AGG(DISTINCT CONCAT(tu.first_name, ' ', tu.last_name)) FILTER (WHERE tu.id IS NOT NULL),
           ARRAY[]::TEXT[]
-        ) as assigned_teacher_names
+        ) as assigned_teacher_names,
+        COALESCE(
+          ARRAY_AGG(DISTINCT jsonb_build_object('id', tca.teacher_id, 'name', CONCAT(tu.first_name, ' ', tu.last_name), 'role', tca.teacher_role)) 
+          FILTER (WHERE tca.teacher_id IS NOT NULL),
+          ARRAY[]::JSONB[]
+        ) as teachers_with_roles
       FROM classes c
       LEFT JOIN schools s ON c.school_id = s.id
       LEFT JOIN semesters sem ON c.semester_id = sem.id
@@ -735,13 +740,28 @@ router.get('/:id/student/:studentId/profile', requireAuth, async (req, res) => {
       WHERE id = $1
     `, [studentId]);
     
-    // Get class courses
-    const courses = await db.query(`
-      SELECT id, name, percentage, requires_surah, description
-      FROM semester_courses
-      WHERE class_id = $1 AND is_active = true
-      ORDER BY name
+    // First get class information including semester_id
+    const classInfo = await db.query(`
+      SELECT id, semester_id, school_id
+      FROM classes
+      WHERE id = $1
     `, [classId]);
+    
+    if (classInfo.rows.length === 0) {
+      return res.status(404).json({ error: 'الحلقة غير موجودة' });
+    }
+    
+    const classData = classInfo.rows[0];
+    
+    // Get class courses - prioritize class-specific courses, then semester-wide courses
+    const courses = await db.query(`
+      SELECT DISTINCT ON (name) id, name, percentage, requires_surah, description
+      FROM semester_courses
+      WHERE semester_id = $1 
+        AND (class_id = $2 OR class_id IS NULL)
+        AND (is_active IS NULL OR is_active = true)
+      ORDER BY name, CASE WHEN class_id = $2 THEN 0 ELSE 1 END
+    `, [classData.semester_id, classId]);
     
     // Get all grades for this student in this class
     const grades = await db.query(`
@@ -783,12 +803,12 @@ router.get('/:id/student/:studentId/profile', requireAuth, async (req, res) => {
   }
 });
 
-// POST /api/classes/:id/teachers - Assign multiple teachers to class
+// POST /api/classes/:id/teachers - Assign multiple teachers to class with primary/secondary roles
 router.post('/:id/teachers', async (req, res) => {
   const client = await db.connect();
   try {
     const { id } = req.params;
-    const { teacher_ids = [] } = req.body; // Array of teacher IDs
+    const { teacher_ids = [], primary_teacher_id } = req.body; // Array of teacher IDs and optional primary teacher
 
     await client.query('BEGIN');
 
@@ -803,15 +823,25 @@ router.post('/:id/teachers', async (req, res) => {
 
     // Add new assignments
     if (teacher_ids.length > 0) {
-      for (const teacherId of teacher_ids) {
+      // Ensure we have at least one primary teacher
+      const primaryId = primary_teacher_id || teacher_ids[0];
+      
+      for (let i = 0; i < teacher_ids.length; i++) {
+        const teacherId = teacher_ids[i];
+        
         // Verify teacher exists
         const teacherCheck = await client.query('SELECT id FROM teachers WHERE id = $1', [teacherId]);
         if (teacherCheck.rows.length > 0) {
+          // Determine if this is the primary teacher
+          const isPrimary = teacherId === primaryId;
+          const role = isPrimary ? 'primary' : 'secondary';
+          
           await client.query(`
-            INSERT INTO teacher_class_assignments (teacher_id, class_id)
-            VALUES ($1, $2)
-            ON CONFLICT (teacher_id, class_id) DO NOTHING
-          `, [teacherId, id]);
+            INSERT INTO teacher_class_assignments (teacher_id, class_id, teacher_role)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (teacher_id, class_id) DO UPDATE 
+            SET teacher_role = $3, is_active = TRUE
+          `, [teacherId, id, role]);
         }
       }
     }
@@ -821,7 +851,8 @@ router.post('/:id/teachers', async (req, res) => {
     res.json({ 
       message: '✅ تم تحديث تعيينات المعلمين للحلقة بنجاح',
       classId: id,
-      assignedTeachers: teacher_ids.length
+      assignedTeachers: teacher_ids.length,
+      primaryTeacher: primary_teacher_id || teacher_ids[0]
     });
 
   } catch (err) {
@@ -833,7 +864,7 @@ router.post('/:id/teachers', async (req, res) => {
   }
 });
 
-// GET /api/classes/:id/teachers - Get teachers assigned to class
+// GET /api/classes/:id/teachers - Get teachers assigned to class with their roles
 router.get('/:id/teachers', async (req, res) => {
   try {
     const { id } = req.params;
@@ -842,11 +873,13 @@ router.get('/:id/teachers', async (req, res) => {
       SELECT 
         u.id, u.first_name, u.second_name, u.third_name, u.last_name,
         u.email, u.phone, u.is_active, u.role,
-        tca.is_active as assignment_active
+        tca.teacher_role, tca.is_active as assignment_active
       FROM teacher_class_assignments tca
       JOIN users u ON tca.teacher_id = u.id
       WHERE tca.class_id = $1 AND tca.is_active = TRUE AND u.role = 'teacher'
-      ORDER BY u.first_name, u.last_name
+      ORDER BY 
+        CASE WHEN tca.teacher_role = 'primary' THEN 0 ELSE 1 END,
+        u.first_name, u.last_name
     `, [id]);
 
     res.json({ teachers: result.rows });

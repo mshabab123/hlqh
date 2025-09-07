@@ -14,7 +14,9 @@
       "Bash(cat:*)",
       "Bash(grep:*)",
       "Bash(find:*)",
-      "Bash(git check-ignore:*)"
+      "Bash(git check-ignore:*)",
+      "Bash(pkill:*)",
+      "Bash(timeout 30s npm run build)"
     ],
     "deny": [],
     "ask": [],

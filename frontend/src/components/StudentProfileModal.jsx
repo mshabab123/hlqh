@@ -810,17 +810,29 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
             {/* Courses and Grade Entry Buttons */}
             <div>
               <h3 className="text-lg font-semibold mb-3">المواد الدراسية</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {studentData.courses?.map(course => (
-                  <button
-                    key={course.id}
-                    onClick={() => handleAddGrade(course)}
-                    className="p-3 bg-blue-500 text-white rounded hover:bg-blue-600 text-center font-medium"
-                  >
-                    {course.name}
-                  </button>
-                ))}
-              </div>
+              {(!studentData.courses || studentData.courses.length === 0) ? (
+                <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-center">
+                  <p className="text-yellow-700 mb-2">لا توجد مقررات مضافة لهذه الحلقة</p>
+                  <p className="text-sm text-yellow-600">يرجى إضافة المقررات من صفحة إدارة الحلقات أولاً</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {studentData.courses.map(course => (
+                    <button
+                      key={course.id}
+                      onClick={() => handleAddGrade(course)}
+                      className="p-3 bg-blue-500 text-white rounded hover:bg-blue-600 text-center font-medium"
+                    >
+                      {course.name}
+                      {course.percentage && (
+                        <span className="block text-xs mt-1 opacity-75">
+                          ({course.percentage}%)
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Grade Entry Form */}

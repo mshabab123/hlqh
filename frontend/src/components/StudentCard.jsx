@@ -65,7 +65,11 @@ const StudentCard = ({ student, onView, onEdit, onToggleStatus, onQuranProgress,
       {student.email && <p>البريد: {student.email}</p>}
       {student.phone && <p>الهاتف: {student.phone}</p>}
       {student.school_name && <p>مجمع الحلقات: {student.school_name}</p>}
-      {student.class_name && <p>الحلقة: {student.class_name}</p>}
+      {student.class_name && (
+        <p>الحلقة: {student.class_name}
+          {student.semester_name && <span className="text-xs text-gray-500"> - {student.semester_name}</span>}
+        </p>
+      )}
       {student.enrollment_date && (
         <p>تاريخ التسجيل: {new Date(student.enrollment_date).toLocaleDateString('ar-SA')}</p>
       )}

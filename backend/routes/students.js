@@ -185,12 +185,14 @@ router.get('/', auth, async (req, res) => {
         s.school_level, s.status, s.enrollment_date, s.graduation_date, s.notes,
         s.memorized_surah_id, s.memorized_ayah_number, s.target_surah_id, s.target_ayah_number,
         sc.name as school_name, sc.id as school_id,
-        c.name as class_name, c.id as class_id
+        c.name as class_name, c.id as class_id, c.semester_id,
+        sem.display_name as semester_name
       FROM users u
       JOIN students s ON u.id = s.id
       LEFT JOIN student_enrollments se ON s.id = se.student_id AND se.status = 'enrolled'
       LEFT JOIN classes c ON se.class_id = c.id
       LEFT JOIN schools sc ON c.school_id = sc.id
+      LEFT JOIN semesters sem ON c.semester_id = sem.id
       WHERE 1=1
     `;
     

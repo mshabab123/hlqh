@@ -185,15 +185,40 @@ const StudentForm = ({ student, onSubmit, onCancel, isEditing = false, onStudent
               className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">لا يوجد - غير منتسب لحلقة</option>
-              {classes && classes
-                .filter(cls => !student.school_id || cls.school_id == student.school_id)
-                .map(cls => (
-                  <option key={cls.id} value={cls.id}>{cls.name}</option>
-                ))
-              }
+              {classes && (() => {
+                const filteredClasses = classes.filter(cls => !student.school_id || cls.school_id == student.school_id);
+                
+                // Group classes by semester
+                const groupedClasses = filteredClasses.reduce((groups, cls) => {
+                  const semester = cls.semester_name || 'بدون فصل دراسي';
+                  if (!groups[semester]) {
+                    groups[semester] = [];
+                  }
+                  groups[semester].push(cls);
+                  return groups;
+                }, {});
+                
+                // Sort semesters and classes within each semester
+                const sortedSemesters = Object.keys(groupedClasses).sort((a, b) => 
+                  a.localeCompare(b, 'ar')
+                );
+                
+                return sortedSemesters.map(semesterName => (
+                  <optgroup key={semesterName} label={semesterName}>
+                    {groupedClasses[semesterName]
+                      .sort((a, b) => a.name.localeCompare(b.name, 'ar'))
+                      .map(cls => (
+                        <option key={cls.id} value={cls.id} title={`المستوى: ${cls.school_level || 'غير محدد'}`}>
+                          {cls.name}
+                        </option>
+                      ))
+                    }
+                  </optgroup>
+                ));
+              })()}
             </select>
             <p className="text-xs text-gray-500 mt-1">
-              يمكن تغيير مجمع الحلقات بدون تحديد حلقة. سيتم إلحاق الطالب بحلقة لاحقاً.
+              يتم تجميع الحلقات حسب الفصل الدراسي للتمييز بينها. يمكن تغيير مجمع الحلقات بدون تحديد حلقة.
             </p>
           </div>
         </div>

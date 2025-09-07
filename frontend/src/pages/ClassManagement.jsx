@@ -158,23 +158,26 @@ export default function ClassManagement() {
     }
   };
 
-  const handleAddClass = async (e) => {
+  const handleAddClass = async (e, dataToSubmit) => {
     e.preventDefault();
+    const classData = dataToSubmit || newClass;
+    
     try {
       // First create the class
       const response = await axios.post(`${API_BASE}/api/classes`, {
-        ...newClass,
-        teacher_id: newClass.teacher_ids?.length > 0 ? newClass.teacher_ids[0] : null // Keep backward compatibility
+        ...classData,
+        teacher_id: classData.teacher_ids?.length > 0 ? classData.teacher_ids[0] : null // Keep backward compatibility
       }, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token')}`
         }
       });
       
-      // If we have teachers selected, assign them using the new API
-      if (newClass.teacher_ids?.length > 0 && response.data.classId) {
+      // If we have teachers selected, assign them using the new API with primary teacher
+      if (classData.teacher_ids?.length > 0 && response.data.classId) {
         await axios.post(`${API_BASE}/api/classes/${response.data.classId}/teachers`, {
-          teacher_ids: newClass.teacher_ids
+          teacher_ids: classData.teacher_ids,
+          primary_teacher_id: classData.primary_teacher_id || classData.teacher_ids[0]
         }, {
           headers: {
             Authorization: `Bearer ${localStorage.getItem('token')}`
@@ -193,28 +196,32 @@ export default function ClassManagement() {
         is_active: true
       });
       fetchClasses(schoolFilter || null, semesterFilter || null);
+      fetchTeachers(); // Refresh teachers to update their assignments
     } catch (err) {
       setError(err.response?.data?.error || "فشل في إضافة الحلقة");
     }
   };
 
-  const handleEditClass = async (e) => {
+  const handleEditClass = async (e, dataToSubmit) => {
     e.preventDefault();
+    const classData = dataToSubmit || editingClass;
+    
     try {
       // First update the class basic info
-      await axios.put(`${API_BASE}/api/classes/${editingClass.id}`, {
-        ...editingClass,
-        teacher_id: editingClass.teacher_ids?.length > 0 ? editingClass.teacher_ids[0] : null // Keep backward compatibility
+      await axios.put(`${API_BASE}/api/classes/${classData.id}`, {
+        ...classData,
+        teacher_id: classData.teacher_ids?.length > 0 ? classData.teacher_ids[0] : null // Keep backward compatibility
       }, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token')}`
         }
       });
       
-      // Update teacher assignments using the new API
-      if (editingClass.teacher_ids !== undefined) {
-        await axios.post(`${API_BASE}/api/classes/${editingClass.id}/teachers`, {
-          teacher_ids: editingClass.teacher_ids || []
+      // Update teacher assignments using the new API with primary teacher
+      if (classData.teacher_ids !== undefined) {
+        await axios.post(`${API_BASE}/api/classes/${classData.id}/teachers`, {
+          teacher_ids: classData.teacher_ids || [],
+          primary_teacher_id: classData.primary_teacher_id || classData.teacher_ids?.[0]
         }, {
           headers: {
             Authorization: `Bearer ${localStorage.getItem('token')}`
@@ -224,6 +231,7 @@ export default function ClassManagement() {
       
       setEditingClass(null);
       fetchClasses(schoolFilter || null, semesterFilter || null);
+      fetchTeachers(); // Refresh teachers to update their assignments
     } catch (err) {
       setError(err.response?.data?.error || "فشل في تحديث الحلقة");
     }
@@ -499,11 +507,20 @@ export default function ClassManagement() {
                   {canManageClassWithContext(classItem) && (
                     <div className="flex gap-2">
                       <button
-                        onClick={() => {
-                          fetchTeachers(); // Refresh teachers before editing
+                        onClick={async () => {
+                          await fetchTeachers(); // Refresh teachers before editing
+                          
+                          // Extract primary teacher from teachers_with_roles if available
+                          let primaryTeacherId = null;
+                          if (classItem.teachers_with_roles && Array.isArray(classItem.teachers_with_roles)) {
+                            const primaryTeacher = classItem.teachers_with_roles.find(t => t.role === 'primary');
+                            primaryTeacherId = primaryTeacher?.id || classItem.assigned_teacher_ids?.[0];
+                          }
+                          
                           setEditingClass({
                             ...classItem,
-                            teacher_ids: classItem.assigned_teacher_ids || []
+                            teacher_ids: classItem.assigned_teacher_ids || [],
+                            primary_teacher_id: primaryTeacherId
                           });
                         }}
                         className="flex items-center gap-1 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm flex-1 justify-center"

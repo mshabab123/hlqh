@@ -284,6 +284,13 @@ const NavigationSidebar = ({ isOpen, setIsOpen, className = "" }) => {
           description: "إدارة الدرجات والتقييمات"
         },
         {
+          title: "نظام الدرجات الشامل",
+          path: "/comprehensive-grading",
+          icon: AiOutlineBook,
+          roles: ["admin", "administrator", "teacher"],
+          description: "عرض شامل للدرجات والحضور والنقاط"
+        },
+        {
           title: "نقاطي",
           path: "/student-points",
           icon: AiOutlineStar,
