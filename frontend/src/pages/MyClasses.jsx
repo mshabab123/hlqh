@@ -10,7 +10,10 @@ import {
   AiOutlineInfoCircle,
   AiOutlineHome,
   AiOutlineTeam,
-  AiOutlineNumber
+  AiOutlineNumber,
+  AiOutlinePlus,
+  AiOutlineEdit,
+  AiOutlineDelete
 } from 'react-icons/ai';
 import { FaUsers, FaChalkboardTeacher } from 'react-icons/fa';
 import StudentListModal from '../components/StudentListModal';
@@ -28,6 +31,25 @@ export default function MyClasses() {
   const [selectedClassForStudents, setSelectedClassForStudents] = useState(null);
   const [selectedClassForCourses, setSelectedClassForCourses] = useState(null);
   const [selectedClassForAttendance, setSelectedClassForAttendance] = useState(null);
+  
+  // Grade management state
+  const [showGradeModal, setShowGradeModal] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [selectedClassForGrades, setSelectedClassForGrades] = useState(null);
+  const [studentGrades, setStudentGrades] = useState([]);
+  const [availableCourses, setAvailableCourses] = useState([]);
+  const [editingGrade, setEditingGrade] = useState(null);
+  const [showGradeForm, setShowGradeForm] = useState(false);
+  const [gradeForm, setGradeForm] = useState({
+    course_id: '',
+    grade_value: '',
+    max_grade: 100,
+    notes: '',
+    grade_type: 'regular',
+    start_reference: '',
+    end_reference: '',
+    date_graded: new Date().toISOString().split('T')[0]
+  });
 
   useEffect(() => {
     fetchMyClasses();
@@ -141,6 +163,150 @@ export default function MyClasses() {
   const formatDate = (dateString) => {
     if (!dateString) return 'غير محدد';
     return new Date(dateString).toLocaleDateString('ar-SA');
+  };
+
+  // Grade management functions
+  const openGradeModal = async (student, classItem) => {
+    setSelectedStudent(student);
+    setSelectedClassForGrades(classItem);
+    setShowGradeModal(true);
+    setEditingGrade(null);
+    setShowGradeForm(false);
+    setGradeForm({
+      course_id: '',
+      grade_value: '',
+      max_grade: 100,
+      notes: '',
+      grade_type: 'regular',
+      start_reference: '',
+      end_reference: '',
+      date_graded: new Date().toISOString().split('T')[0]
+    });
+    await loadStudentGrades(student.id, classItem.id);
+  };
+
+  const loadStudentGrades = async (studentId, classId) => {
+    try {
+      const token = localStorage.getItem("token");
+      
+      // Get semester ID from the class
+      const classResponse = await axios.get(`${API_BASE}/api/classes/${classId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      const semesterId = classResponse.data.semester_id;
+      
+      // Load student grades and available courses
+      const [gradesResponse, coursesResponse] = await Promise.all([
+        axios.get(
+          `${API_BASE}/api/grading/student/${studentId}/class/${classId}/semester/${semesterId}/grades`,
+          {
+            headers: { Authorization: `Bearer ${token}` }
+          }
+        ),
+        axios.get(`${API_BASE}/api/semester-courses?semester_id=${semesterId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+      ]);
+      
+      setStudentGrades(gradesResponse.data.courseGrades || []);
+      setAvailableCourses(coursesResponse.data.courses || coursesResponse.data || []);
+    } catch (error) {
+      console.error("Error loading student grades:", error);
+    }
+  };
+
+  const handleAddNewGrade = () => {
+    setEditingGrade(null);
+    setShowGradeForm(true);
+    setGradeForm({
+      course_id: '',
+      grade_value: '',
+      max_grade: 100,
+      notes: '',
+      grade_type: 'regular',
+      start_reference: '',
+      end_reference: '',
+      date_graded: new Date().toISOString().split('T')[0]
+    });
+  };
+
+  const handleEditGrade = (grade) => {
+    setEditingGrade(grade);
+    setShowGradeForm(true);
+    setGradeForm({
+      course_id: grade.course_id,
+      grade_value: grade.grade_value,
+      max_grade: grade.max_grade,
+      notes: grade.notes || '',
+      grade_type: grade.grade_type || 'regular',
+      start_reference: grade.start_reference || '',
+      end_reference: grade.end_reference || '',
+      date_graded: grade.date_graded ? 
+        new Date(grade.date_graded).toISOString().split('T')[0] : 
+        new Date().toISOString().split('T')[0]
+    });
+  };
+
+  const handleSaveGrade = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      
+      // Get semester ID
+      const classResponse = await axios.get(`${API_BASE}/api/classes/${selectedClassForGrades.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const semesterId = classResponse.data.semester_id;
+      
+      if (editingGrade) {
+        // Update existing grade
+        await axios.put(
+          `${API_BASE}/api/grading/grade/${editingGrade.id}`,
+          gradeForm,
+          {
+            headers: { Authorization: `Bearer ${token}` }
+          }
+        );
+      } else {
+        // Add new grade
+        const gradeData = {
+          ...gradeForm,
+          student_id: selectedStudent.id,
+          semester_id: semesterId,
+          class_id: selectedClassForGrades.id
+        };
+        
+        await axios.post(`${API_BASE}/api/grading/grade`, gradeData, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      }
+      
+      // Refresh grades
+      await loadStudentGrades(selectedStudent.id, selectedClassForGrades.id);
+      
+      setEditingGrade(null);
+      setShowGradeForm(false);
+      
+    } catch (error) {
+      console.error("Error saving grade:", error);
+      alert("حدث خطأ في حفظ الدرجة");
+    }
+  };
+
+  const handleDeleteGrade = async (gradeId) => {
+    if (window.confirm("هل أنت متأكد من حذف هذه الدرجة؟")) {
+      try {
+        const token = localStorage.getItem("token");
+        await axios.delete(`${API_BASE}/api/grading/grade/${gradeId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        await loadStudentGrades(selectedStudent.id, selectedClassForGrades.id);
+      } catch (error) {
+        console.error("Error deleting grade:", error);
+        alert("حدث خطأ في حذف الدرجة");
+      }
+    }
   };
 
   return (
@@ -348,6 +514,7 @@ export default function MyClasses() {
                               <th className="text-right py-2">المرحلة</th>
                               <th className="text-right py-2">الحالة</th>
                               <th className="text-right py-2">تاريخ الالتحاق</th>
+                              <th className="text-center py-2">الإجراءات</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -366,6 +533,14 @@ export default function MyClasses() {
                                   </span>
                                 </td>
                                 <td className="py-2">{formatDate(student.enrollment_date)}</td>
+                                <td className="py-2 text-center">
+                                  <button
+                                    onClick={() => openGradeModal(student, selectedClass)}
+                                    className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-xs"
+                                  >
+                                    الدرجات
+                                  </button>
+                                </td>
                               </tr>
                             ))}
                           </tbody>
@@ -461,6 +636,200 @@ export default function MyClasses() {
               >
                 الذهاب إلى نظام الحضور
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Grade Management Modal */}
+      {showGradeModal && selectedStudent && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-800">
+                درجات {selectedStudent.first_name} {selectedStudent.last_name}
+              </h2>
+              <button
+                onClick={() => {
+                  setShowGradeModal(false);
+                  setShowGradeForm(false);
+                  setEditingGrade(null);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <AiOutlineClose className="text-2xl" />
+              </button>
+            </div>
+            
+            <div className="p-6">
+              {/* Add New Grade Button */}
+              <div className="mb-6">
+                <button
+                  onClick={handleAddNewGrade}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+                >
+                  <AiOutlinePlus />
+                  إضافة درجة جديدة
+                </button>
+              </div>
+
+              {/* Grade Form */}
+              {(editingGrade !== null || showGradeForm) && (
+                <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                  <h3 className="text-lg font-semibold mb-4">
+                    {editingGrade ? 'تعديل الدرجة' : 'إضافة درجة جديدة'}
+                  </h3>
+                  
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">المقرر:</label>
+                      <select
+                        value={gradeForm.course_id}
+                        onChange={(e) => setGradeForm({...gradeForm, course_id: e.target.value})}
+                        className="w-full p-2 border rounded"
+                      >
+                        <option value="">اختر المقرر</option>
+                        {availableCourses.map(course => (
+                          <option key={course.id} value={course.id}>{course.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium mb-1">نوع الدرجة:</label>
+                      <select
+                        value={gradeForm.grade_type}
+                        onChange={(e) => setGradeForm({...gradeForm, grade_type: e.target.value})}
+                        className="w-full p-2 border rounded"
+                      >
+                        <option value="regular">عادية</option>
+                        <option value="memorization">حفظ</option>
+                        <option value="recitation">تلاوة</option>
+                        <option value="behavior">سلوك</option>
+                      </select>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">الدرجة:</label>
+                      <input
+                        type="number"
+                        value={gradeForm.grade_value}
+                        onChange={(e) => setGradeForm({...gradeForm, grade_value: e.target.value})}
+                        className="w-full p-2 border rounded"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium mb-1">الدرجة الكاملة:</label>
+                      <input
+                        type="number"
+                        value={gradeForm.max_grade}
+                        onChange={(e) => setGradeForm({...gradeForm, max_grade: e.target.value})}
+                        className="w-full p-2 border rounded"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium mb-1">تاريخ الدرجة:</label>
+                    <input
+                      type="date"
+                      value={gradeForm.date_graded}
+                      onChange={(e) => setGradeForm({...gradeForm, date_graded: e.target.value})}
+                      className="w-full p-2 border rounded"
+                    />
+                  </div>
+                  
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium mb-1">ملاحظات:</label>
+                    <textarea
+                      value={gradeForm.notes}
+                      onChange={(e) => setGradeForm({...gradeForm, notes: e.target.value})}
+                      className="w-full p-2 border rounded"
+                      rows="2"
+                    />
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleSaveGrade}
+                      className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+                    >
+                      حفظ
+                    </button>
+                    <button
+                      onClick={() => {
+                        setEditingGrade(null);
+                        setShowGradeForm(false);
+                        setGradeForm({
+                          course_id: '',
+                          grade_value: '',
+                          max_grade: 100,
+                          notes: '',
+                          grade_type: 'regular',
+                          start_reference: '',
+                          end_reference: '',
+                          date_graded: new Date().toISOString().split('T')[0]
+                        });
+                      }}
+                      className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+                    >
+                      إلغاء
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Existing Grades */}
+              <div className="space-y-4">
+                {studentGrades.map(courseGrade => (
+                  <div key={courseGrade.course_name} className="border rounded-lg p-4">
+                    <h3 className="text-lg font-semibold mb-3 text-blue-800">
+                      {courseGrade.course_name}
+                    </h3>
+                    
+                    <div className="space-y-2">
+                      {courseGrade.grades.map(grade => (
+                        <div key={grade.id} className="flex items-center justify-between bg-gray-50 p-3 rounded">
+                          <div>
+                            <span className="font-medium">
+                              {grade.grade_value}/{grade.max_grade} ({((grade.grade_value / grade.max_grade) * 100).toFixed(1)}%)
+                            </span>
+                            <span className="text-sm text-gray-500 mr-4">
+                              {new Date(grade.date_graded || grade.created_at).toLocaleDateString('ar-SA')}
+                            </span>
+                            {grade.notes && (
+                              <div className="text-sm text-gray-600 mt-1">{grade.notes}</div>
+                            )}
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleEditGrade(grade)}
+                              className="text-blue-600 hover:text-blue-800"
+                            >
+                              <AiOutlineEdit />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteGrade(grade.id)}
+                              className="text-red-600 hover:text-red-800"
+                            >
+                              <AiOutlineDelete />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      
+                      {courseGrade.grades.length === 0 && (
+                        <div className="text-center text-gray-500 py-4">
+                          لا توجد درجات لهذا المقرر
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>

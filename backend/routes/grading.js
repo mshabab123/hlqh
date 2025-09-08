@@ -169,13 +169,25 @@ router.get('/student/:studentId/class/:classId/semester/:semesterId/grades', aut
     });
 
     // Get available courses for this class/semester
-    const coursesResult = await db.query(`
+    // First try to get class-specific courses
+    let coursesResult = await db.query(`
       SELECT id, name, percentage, requires_surah, description
       FROM semester_courses
-      WHERE semester_id = $1 AND (class_id = $2 OR class_id IS NULL)
+      WHERE semester_id = $1 AND class_id = $2
       AND (is_active IS NULL OR is_active = true)
       ORDER BY name
     `, [semesterId, classId]);
+    
+    // If no class-specific courses, get general courses for this semester
+    if (coursesResult.rows.length === 0) {
+      coursesResult = await db.query(`
+        SELECT id, name, percentage, requires_surah, description
+        FROM semester_courses
+        WHERE semester_id = $1 AND class_id IS NULL
+        AND (is_active IS NULL OR is_active = true)
+        ORDER BY name
+      `, [semesterId]);
+    }
 
     res.json({
       success: true,

@@ -32,6 +32,7 @@ const ComprehensiveGrading = () => {
   
   // Grade form state
   const [editingGrade, setEditingGrade] = useState(null);
+  const [showGradeForm, setShowGradeForm] = useState(false);
   const [gradeForm, setGradeForm] = useState({
     course_id: '',
     grade_value: '',
@@ -126,11 +127,14 @@ const ComprehensiveGrading = () => {
   const handleStudentGradeClick = async (student, classId) => {
     setSelectedStudent(student);
     setShowGradeModal(true);
+    setShowGradeForm(false);  // Reset the form visibility
+    setEditingGrade(null);     // Reset editing state
     await loadStudentGrades(student.id, classId);
   };
 
   const handleEditGrade = (grade) => {
     setEditingGrade(grade);
+    setShowGradeForm(true);  // Show the form when editing
     
     // Format the date from the grade (could be date_graded or created_at)
     let gradeDate = grade.date_graded || grade.created_at;
@@ -154,6 +158,7 @@ const ComprehensiveGrading = () => {
 
   const handleAddNewGrade = () => {
     setEditingGrade(null);
+    setShowGradeForm(true);
     setGradeForm({
       course_id: '',
       grade_value: '',
@@ -200,6 +205,7 @@ const ComprehensiveGrading = () => {
       ]);
       
       setEditingGrade(null);
+      setShowGradeForm(false);
       
     } catch (error) {
       console.error("Error saving grade:", error);
@@ -488,7 +494,7 @@ const ComprehensiveGrading = () => {
               </div>
 
               {/* Grade Form */}
-              {(editingGrade !== null || gradeForm.course_id) && (
+              {(editingGrade !== null || showGradeForm) && (
                 <div className="mb-6 p-4 bg-gray-50 rounded-lg">
                   <h3 className="text-lg font-semibold mb-4">
                     {editingGrade ? 'تعديل الدرجة' : 'إضافة درجة جديدة'}
@@ -576,6 +582,7 @@ const ComprehensiveGrading = () => {
                     <button
                       onClick={() => {
                         setEditingGrade(null);
+                        setShowGradeForm(false);
                         setGradeForm({
                           course_id: '',
                           grade_value: '',
