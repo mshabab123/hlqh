@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
+import { QURAN_SURAHS, getSurahNameFromId } from "../utils/quranData";
 
 const StudentGrading = () => {
   const [semesters, setSemesters] = useState([]);
@@ -27,123 +28,7 @@ const StudentGrading = () => {
     notes: ""
   });
 
-  // Quran surahs data
-  const surahs = [
-    { number: 1, name: "الفاتحة", ayahs: 7 },
-    { number: 2, name: "البقرة", ayahs: 286 },
-    { number: 3, name: "آل عمران", ayahs: 200 },
-    { number: 4, name: "النساء", ayahs: 176 },
-    { number: 5, name: "المائدة", ayahs: 120 },
-    { number: 6, name: "الأنعام", ayahs: 165 },
-    { number: 7, name: "الأعراف", ayahs: 206 },
-    { number: 8, name: "الأنفال", ayahs: 75 },
-    { number: 9, name: "التوبة", ayahs: 129 },
-    { number: 10, name: "يونس", ayahs: 109 },
-    { number: 11, name: "هود", ayahs: 123 },
-    { number: 12, name: "يوسف", ayahs: 111 },
-    { number: 13, name: "الرعد", ayahs: 43 },
-    { number: 14, name: "إبراهيم", ayahs: 52 },
-    { number: 15, name: "الحجر", ayahs: 99 },
-    { number: 16, name: "النحل", ayahs: 128 },
-    { number: 17, name: "الإسراء", ayahs: 111 },
-    { number: 18, name: "الكهف", ayahs: 110 },
-    { number: 19, name: "مريم", ayahs: 98 },
-    { number: 20, name: "طه", ayahs: 135 },
-    { number: 21, name: "الأنبياء", ayahs: 112 },
-    { number: 22, name: "الحج", ayahs: 78 },
-    { number: 23, name: "المؤمنون", ayahs: 118 },
-    { number: 24, name: "النور", ayahs: 64 },
-    { number: 25, name: "الفرقان", ayahs: 77 },
-    { number: 26, name: "الشعراء", ayahs: 227 },
-    { number: 27, name: "النمل", ayahs: 93 },
-    { number: 28, name: "القصص", ayahs: 88 },
-    { number: 29, name: "العنكبوت", ayahs: 69 },
-    { number: 30, name: "الروم", ayahs: 60 },
-    { number: 31, name: "لقمان", ayahs: 34 },
-    { number: 32, name: "السجدة", ayahs: 30 },
-    { number: 33, name: "الأحزاب", ayahs: 73 },
-    { number: 34, name: "سبأ", ayahs: 54 },
-    { number: 35, name: "فاطر", ayahs: 45 },
-    { number: 36, name: "يس", ayahs: 83 },
-    { number: 37, name: "الصافات", ayahs: 182 },
-    { number: 38, name: "ص", ayahs: 88 },
-    { number: 39, name: "الزمر", ayahs: 75 },
-    { number: 40, name: "غافر", ayahs: 85 },
-    { number: 41, name: "فصلت", ayahs: 54 },
-    { number: 42, name: "الشورى", ayahs: 53 },
-    { number: 43, name: "الزخرف", ayahs: 89 },
-    { number: 44, name: "الدخان", ayahs: 59 },
-    { number: 45, name: "الجاثية", ayahs: 37 },
-    { number: 46, name: "الأحقاف", ayahs: 35 },
-    { number: 47, name: "محمد", ayahs: 38 },
-    { number: 48, name: "الفتح", ayahs: 29 },
-    { number: 49, name: "الحجرات", ayahs: 18 },
-    { number: 50, name: "ق", ayahs: 45 },
-    { number: 51, name: "الذاريات", ayahs: 60 },
-    { number: 52, name: "الطور", ayahs: 49 },
-    { number: 53, name: "النجم", ayahs: 62 },
-    { number: 54, name: "القمر", ayahs: 55 },
-    { number: 55, name: "الرحمن", ayahs: 78 },
-    { number: 56, name: "الواقعة", ayahs: 96 },
-    { number: 57, name: "الحديد", ayahs: 29 },
-    { number: 58, name: "المجادلة", ayahs: 22 },
-    { number: 59, name: "الحشر", ayahs: 24 },
-    { number: 60, name: "الممتحنة", ayahs: 13 },
-    { number: 61, name: "الصف", ayahs: 14 },
-    { number: 62, name: "الجمعة", ayahs: 11 },
-    { number: 63, name: "المنافقون", ayahs: 11 },
-    { number: 64, name: "التغابن", ayahs: 18 },
-    { number: 65, name: "الطلاق", ayahs: 12 },
-    { number: 66, name: "التحريم", ayahs: 12 },
-    { number: 67, name: "الملك", ayahs: 30 },
-    { number: 68, name: "القلم", ayahs: 52 },
-    { number: 69, name: "الحاقة", ayahs: 52 },
-    { number: 70, name: "المعارج", ayahs: 44 },
-    { number: 71, name: "نوح", ayahs: 28 },
-    { number: 72, name: "الجن", ayahs: 28 },
-    { number: 73, name: "المزمل", ayahs: 20 },
-    { number: 74, name: "المدثر", ayahs: 56 },
-    { number: 75, name: "القيامة", ayahs: 40 },
-    { number: 76, name: "الإنسان", ayahs: 31 },
-    { number: 77, name: "المرسلات", ayahs: 50 },
-    { number: 78, name: "النبأ", ayahs: 40 },
-    { number: 79, name: "النازعات", ayahs: 46 },
-    { number: 80, name: "عبس", ayahs: 42 },
-    { number: 81, name: "التكوير", ayahs: 29 },
-    { number: 82, name: "الإنفطار", ayahs: 19 },
-    { number: 83, name: "المطففين", ayahs: 36 },
-    { number: 84, name: "الإنشقاق", ayahs: 25 },
-    { number: 85, name: "البروج", ayahs: 22 },
-    { number: 86, name: "الطارق", ayahs: 17 },
-    { number: 87, name: "الأعلى", ayahs: 19 },
-    { number: 88, name: "الغاشية", ayahs: 26 },
-    { number: 89, name: "الفجر", ayahs: 30 },
-    { number: 90, name: "البلد", ayahs: 20 },
-    { number: 91, name: "الشمس", ayahs: 15 },
-    { number: 92, name: "الليل", ayahs: 21 },
-    { number: 93, name: "الضحى", ayahs: 11 },
-    { number: 94, name: "الشرح", ayahs: 8 },
-    { number: 95, name: "التين", ayahs: 8 },
-    { number: 96, name: "العلق", ayahs: 19 },
-    { number: 97, name: "القدر", ayahs: 5 },
-    { number: 98, name: "البينة", ayahs: 8 },
-    { number: 99, name: "الزلزلة", ayahs: 8 },
-    { number: 100, name: "العاديات", ayahs: 11 },
-    { number: 101, name: "القارعة", ayahs: 11 },
-    { number: 102, name: "التكاثر", ayahs: 8 },
-    { number: 103, name: "العصر", ayahs: 3 },
-    { number: 104, name: "الهمزة", ayahs: 9 },
-    { number: 105, name: "الفيل", ayahs: 5 },
-    { number: 106, name: "قريش", ayahs: 4 },
-    { number: 107, name: "الماعون", ayahs: 7 },
-    { number: 108, name: "الكوثر", ayahs: 3 },
-    { number: 109, name: "الكافرون", ayahs: 6 },
-    { number: 110, name: "النصر", ayahs: 3 },
-    { number: 111, name: "المسد", ayahs: 5 },
-    { number: 112, name: "الإخلاص", ayahs: 4 },
-    { number: 113, name: "الفلق", ayahs: 5 },
-    { number: 114, name: "الناس", ayahs: 6 }
-  ];
+  // Using centralized Quran data from utils/quranData.js
 
   // Load user data
   const [user, setUser] = useState(null);
@@ -268,12 +153,16 @@ const StudentGrading = () => {
     // Load existing grade if available
     const existingGrade = grades.find(g => g.student_id === student.id && g.course_id === course.id);
     if (existingGrade) {
+      // If to_ayah is null, use the max ayah for that surah
+      const toAyahValue = existingGrade.to_ayah || 
+        (existingGrade.to_surah ? getMaxAyahs(existingGrade.to_surah) : 1);
+      
       setGradeForm({
         score: existingGrade.score || 0,
         from_surah: existingGrade.from_surah || "",
         from_ayah: existingGrade.from_ayah || 1,
         to_surah: existingGrade.to_surah || "",
-        to_ayah: existingGrade.to_ayah || 1,
+        to_ayah: toAyahValue,
         notes: existingGrade.notes || ""
       });
     } else {
@@ -299,6 +188,7 @@ const StudentGrading = () => {
         student_id: selectedStudent.id,
         course_id: selectedCourse.id,
         semester_id: selectedSemester,
+        class_id: selectedClass,
         score: gradeForm.score,
         from_surah: selectedCourse.requires_surah ? gradeForm.from_surah : null,
         from_ayah: selectedCourse.requires_surah ? gradeForm.from_ayah : null,
@@ -334,14 +224,13 @@ const StudentGrading = () => {
     return grade ? grade.score : "-";
   };
 
-  const getSurahName = (surahNumber) => {
-    const surah = surahs.find(s => s.number === parseInt(surahNumber));
-    return surah ? surah.name : "";
+  const getSurahName = (surahId) => {
+    return getSurahNameFromId(surahId) || "";
   };
 
-  const getMaxAyahs = (surahNumber) => {
-    const surah = surahs.find(s => s.number === parseInt(surahNumber));
-    return surah ? surah.ayahs : 1;
+  const getMaxAyahs = (surahId) => {
+    const surah = QURAN_SURAHS.find(s => s.id === parseInt(surahId));
+    return surah ? surah.ayahCount : 1;
   };
 
   const getSemesterTypeText = (type) => {
@@ -526,21 +415,43 @@ const StudentGrading = () => {
                       <label className="block text-gray-700 font-semibold mb-2">من سورة:</label>
                       <select
                         value={gradeForm.from_surah}
-                        onChange={(e) => setGradeForm({...gradeForm, from_surah: e.target.value, from_ayah: 1})}
+                        onChange={(e) => {
+                          const surahId = e.target.value;
+                          if (surahId) {
+                            const maxAyah = getMaxAyahs(surahId);
+                            console.log(`Selected Surah ID: ${surahId}, Max Ayah: ${maxAyah}`); // Debug
+                            setGradeForm({
+                              ...gradeForm, 
+                              from_surah: surahId, 
+                              from_ayah: 1,
+                              to_surah: surahId,  // Auto-set the same surah
+                              to_ayah: maxAyah    // Auto-set to last ayah
+                            });
+                          } else {
+                            setGradeForm({
+                              ...gradeForm, 
+                              from_surah: "", 
+                              from_ayah: 1,
+                              to_surah: "",
+                              to_ayah: 1
+                            });
+                          }
+                        }}
                         className="w-full p-3 border border-gray-300 rounded-lg"
                       >
                         <option value="">اختر السورة</option>
-                        {surahs && surahs.map ? surahs.map(surah => (
-                          <option key={surah.number} value={surah.number}>
-                            {surah.number}. {surah.name}
+                        {[...QURAN_SURAHS].sort((a, b) => a.id - b.id).map(surah => (
+                          <option key={surah.id} value={surah.id}>
+                            {surah.id}. {surah.name}
                           </option>
-                        )) : null}
+                        ))}
                       </select>
                     </div>
 
                     <div>
                       <label className="block text-gray-700 font-semibold mb-2">من آية:</label>
                       <select
+                        key={`from-ayah-${gradeForm.from_surah}`}
                         value={gradeForm.from_ayah}
                         onChange={(e) => setGradeForm({...gradeForm, from_ayah: parseInt(e.target.value)})}
                         className="w-full p-3 border border-gray-300 rounded-lg"
@@ -558,21 +469,26 @@ const StudentGrading = () => {
                       <label className="block text-gray-700 font-semibold mb-2">إلى سورة:</label>
                       <select
                         value={gradeForm.to_surah}
-                        onChange={(e) => setGradeForm({...gradeForm, to_surah: e.target.value, to_ayah: 1})}
+                        onChange={(e) => {
+                          const surahId = e.target.value;
+                          const maxAyah = surahId ? getMaxAyahs(surahId) : 1;
+                          setGradeForm({...gradeForm, to_surah: surahId, to_ayah: maxAyah});
+                        }}
                         className="w-full p-3 border border-gray-300 rounded-lg"
                       >
                         <option value="">اختر السورة</option>
-                        {surahs && surahs.map ? surahs.map(surah => (
-                          <option key={surah.number} value={surah.number}>
-                            {surah.number}. {surah.name}
+                        {[...QURAN_SURAHS].sort((a, b) => a.id - b.id).map(surah => (
+                          <option key={surah.id} value={surah.id}>
+                            {surah.id}. {surah.name}
                           </option>
-                        )) : null}
+                        ))}
                       </select>
                     </div>
 
                     <div>
                       <label className="block text-gray-700 font-semibold mb-2">إلى آية:</label>
                       <select
+                        key={`to-ayah-${gradeForm.to_surah}`}
                         value={gradeForm.to_ayah}
                         onChange={(e) => setGradeForm({...gradeForm, to_ayah: parseInt(e.target.value)})}
                         className="w-full p-3 border border-gray-300 rounded-lg"

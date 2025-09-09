@@ -2,40 +2,12 @@ const express = require('express');
 const router = express.Router();
 const db = require('../config/database');
 const { body, validationResult } = require('express-validator');
-const { calculateMemorizedPages, TOTAL_QURAN_PAGES } = require('../utils/quranData');
+const { calculateMemorizedPages, TOTAL_QURAN_PAGES, QURAN_SURAHS, getSurahIdFromName, getSurahNameFromId } = require('../utils/quranData');
 
 // Import authentication middleware
 const { authenticateToken: requireAuth } = require('../middleware/auth');
 
-// Helper function to convert Surah name to ID (reverse order: الناس=1, البقرة=114)
-const getSurahIdFromName = (surahName) => {
-  const surahMapping = {
-    'الناس': 114, 'الفلق': 113, 'الإخلاص': 112, 'المسد': 111, 'النصر': 110,
-    'الكافرون': 109, 'الكوثر': 108, 'الماعون': 107, 'قريش': 106, 'الفيل': 105,
-    'الهمزة': 104, 'العصر': 103, 'التكاثر': 102, 'القارعة': 101, 'العاديات': 100,
-    'الزلزلة': 99, 'البينة': 98, 'القدر': 97, 'العلق': 96, 'التين': 95,
-    'الشرح': 94, 'الضحى': 93, 'الليل': 92, 'الشمس': 91, 'البلد': 90,
-    'الفجر': 89, 'الغاشية': 88, 'الأعلى': 87, 'الطارق': 86, 'البروج': 85,
-    'الانشقاق': 84, 'المطففين': 83, 'الانفطار': 82, 'التكوير': 81, 'عبس': 80,
-    'النازعات': 79, 'النبأ': 78, 'المرسلات': 77, 'الإنسان': 76, 'القيامة': 75,
-    'المدثر': 74, 'المزمل': 73, 'الجن': 72, 'نوح': 71, 'المعارج': 70,
-    'الحاقة': 69, 'القلم': 68, 'الملك': 67, 'التحريم': 66, 'الطلاق': 65,
-    'التغابن': 64, 'المنافقون': 63, 'الجمعة': 62, 'الصف': 61, 'الممتحنة': 60,
-    'الحشر': 59, 'المجادلة': 58, 'الحديد': 57, 'الواقعة': 56, 'الرحمن': 55,
-    'القمر': 54, 'النجم': 53, 'الطور': 52, 'الذاريات': 51, 'ق': 50,
-    'الحجرات': 49, 'الفتح': 48, 'محمد': 47, 'الأحقاف': 46, 'الجاثية': 45,
-    'الدخان': 44, 'الزخرف': 43, 'الشورى': 42, 'فصلت': 41, 'غافر': 40,
-    'الزمر': 39, 'ص': 38, 'الصافات': 37, 'يس': 36, 'فاطر': 35,
-    'سبأ': 34, 'الأحزاب': 33, 'السجدة': 32, 'لقمان': 31, 'الروم': 30,
-    'العنكبوت': 29, 'القصص': 28, 'النمل': 27, 'الشعراء': 26, 'الفرقان': 25,
-    'النور': 24, 'المؤمنون': 23, 'الحج': 22, 'الأنبياء': 21, 'طه': 20,
-    'مريم': 19, 'الكهف': 18, 'الإسراء': 17, 'النحل': 16, 'الحجر': 15,
-    'إبراهيم': 14, 'الرعد': 13, 'يوسف': 12, 'هود': 11, 'يونس': 10,
-    'التوبة': 9, 'الأنفال': 8, 'الأعراف': 7, 'الأنعام': 6, 'المائدة': 5,
-    'النساء': 4, 'آل عمران': 3, 'البقرة': 2, 'الفاتحة': 1
-  };
-  return surahMapping[surahName] || null;
-};
+// Helper functions are now imported from QuranData.js
 
 // Function to update student's overall memorization progress
 const updateStudentMemorizationProgress = async (studentId) => {

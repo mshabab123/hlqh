@@ -1,6 +1,8 @@
-// Qur'an Surahs with their ayah counts and page information - reusable data component
+// Frontend utility for Quran data - mirrors backend/utils/quranData.js
+// This should ideally be fetched from the backend API, but for now we'll maintain consistency
+
 const QURAN_SURAHS = [
-   { id: 1, name: "الفاتحة", ayahCount: 7, startPage: 1, endPage: 1, totalPages: 1 },
+  { id: 1, name: "الفاتحة", ayahCount: 7, startPage: 1, endPage: 1, totalPages: 1 },
   { id: 2, name: "الناس", ayahCount: 6, startPage: 604, endPage: 604, totalPages: 1 },
   { id: 3, name: "الفلق", ayahCount: 5, startPage: 604, endPage: 604, totalPages: 1 },
   { id: 4, name: "الإخلاص", ayahCount: 4, startPage: 604, endPage: 604, totalPages: 1 },
@@ -119,43 +121,6 @@ const QURAN_SURAHS = [
 // Total Quran pages
 const TOTAL_QURAN_PAGES = 604;
 
-// Helper function to calculate pages for a given ayah position within a surah
-const calculatePagesForAyah = (surahId, ayahNumber) => {
-  const surah = QURAN_SURAHS.find(s => s.id == surahId);
-  if (!surah) return 0;
-
-  // If memorizing the complete surah
-  if (ayahNumber >= surah.ayahCount) {
-    return surah.totalPages;
-  }
-
-  // Calculate approximate pages based on ayah progress within the surah
-  const ayahProgress = ayahNumber / surah.ayahCount;
-  return Math.ceil(ayahProgress * surah.totalPages);
-};
-
-// Helper function to calculate total memorized pages
-const calculateMemorizedPages = (memorizedSurahId, memorizedAyahNumber) => {
-  if (!memorizedSurahId || !memorizedAyahNumber) {
-    return 0;
-  }
-
-  let memorizedPages = 0;
-  
-  // Add all pages from completed surahs (from 114 down to current surah + 1)
-  for (let surahId = 114; surahId > memorizedSurahId; surahId--) {
-    const surah = QURAN_SURAHS.find(s => s.id === surahId);
-    if (surah) {
-      memorizedPages += surah.totalPages;
-    }
-  }
-  
-  // Add pages from current surah
-  memorizedPages += calculatePagesForAyah(memorizedSurahId, memorizedAyahNumber);
-  
-  return memorizedPages;
-};
-
 // Helper function to get Surah ID from name
 const getSurahIdFromName = (surahName) => {
   if (!surahName) return null;
@@ -172,10 +137,11 @@ const getSurahNameFromId = (surahId) => {
   return surah ? surah.name : null;
 };
 
-module.exports = {
+
+
+export {
   QURAN_SURAHS,
   TOTAL_QURAN_PAGES,
-  calculateMemorizedPages,
   getSurahIdFromName,
   getSurahNameFromId
 };

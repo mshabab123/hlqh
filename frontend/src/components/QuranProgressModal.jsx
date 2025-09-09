@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { AiOutlineBook, AiOutlineCheck } from "react-icons/ai";
-import { QURAN_SURAHS, TOTAL_QURAN_PAGES } from "./QuranData";
+import { QURAN_SURAHS, TOTAL_QURAN_PAGES } from "../utils/quranData";
 import { calculateQuranProgress, calculateStudentGoalProgress, getProgressColor, getProgressBgColor, generateAyahOptions } from "../utils/studentUtils";
 
 const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) => {
@@ -315,7 +315,7 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
                     className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                   >
                     <option value="">اختر السورة</option>
-                    {[...QURAN_SURAHS].reverse().map(surah => (
+                    {[...QURAN_SURAHS].sort((a, b) => a.id - b.id).map(surah => (
                       <option key={surah.id} value={surah.id}>
                         {surah.id}. {surah.name}
                       </option>
@@ -378,7 +378,7 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
                     className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">اختر السورة</option>
-                    {[...QURAN_SURAHS].reverse().map(surah => (
+                    {[...QURAN_SURAHS].sort((a, b) => a.id - b.id).map(surah => (
                       <option key={surah.id} value={surah.id}>
                         {surah.id}. {surah.name}
                       </option>
@@ -460,7 +460,7 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
                     }}
                   >
                     <option value="">اختر السورة</option>
-                    {[...QURAN_SURAHS].reverse().map(surah => (
+                    {[...QURAN_SURAHS].sort((a, b) => a.id - b.id).map(surah => (
                       <option key={surah.id} value={surah.id}>
                         {surah.id}. {surah.name}
                       </option>

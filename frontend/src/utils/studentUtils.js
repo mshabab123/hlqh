@@ -1,4 +1,4 @@
-import { QURAN_SURAHS, TOTAL_QURAN_PAGES } from "../components/QuranData";
+import { QURAN_SURAHS, TOTAL_QURAN_PAGES } from "./quranData";
 
 // Helper function to calculate pages for a given ayah position within a surah
 const calculatePagesForAyah = (surahId, ayahNumber) => {

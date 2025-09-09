@@ -1,14 +1,13 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { AiOutlineStar, AiOutlineUserAdd, AiOutlineSave, AiOutlineClose } from "react-icons/ai";
-import { QURAN_SURAHS, TOTAL_QURAN_PAGES } from "./QuranData";
+import { QURAN_SURAHS, TOTAL_QURAN_PAGES } from "../utils/quranData";
 import { 
-  surahGroups, 
   getMaxVerse, 
-  getSurahIdFromName,
   calculateStudentGoalProgress,
   calculateTotalScore
 } from "../utils/classUtils";
+import { getSurahIdFromName, getSurahNameFromId } from "../utils/quranData";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
@@ -30,6 +29,9 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
   // Attendance modal state
   const [showAttendanceModal, setShowAttendanceModal] = useState(false);
   const [attendanceStatus, setAttendanceStatus] = useState("present");
+  
+  // Grade modal state
+  const [showGradeModal, setShowGradeModal] = useState(false);
   const [gradeInput, setGradeInput] = useState({
     grade_value: '',
     max_grade: 100,
@@ -234,11 +236,18 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
       return;
     }
 
-    // Build reference strings for Quran verses
+    // Build reference strings for Quran verses - convert Surah names to IDs
     const start_ref = gradeInput.start_surah && gradeInput.start_verse ? 
-      `${gradeInput.start_surah}:${gradeInput.start_verse}` : '';
+      `${getSurahIdFromName(gradeInput.start_surah)}:${gradeInput.start_verse}` : '';
     const end_ref = gradeInput.end_surah && gradeInput.end_verse ? 
-      `${gradeInput.end_surah}:${gradeInput.end_verse}` : '';
+      `${getSurahIdFromName(gradeInput.end_surah)}:${gradeInput.end_verse}` : '';
+    
+    console.log('Saving grade references:', { 
+      start_surah_name: gradeInput.start_surah, 
+      start_surah_id: getSurahIdFromName(gradeInput.start_surah),
+      start_ref, 
+      end_ref 
+    });
 
     try {
       setSaving(true);
@@ -472,6 +481,7 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                 <div className="text-xs sm:text-sm text-gray-600">الحلقة</div>
               </div>
             </div>
+
  
             {/* Goal and Progress Section */}
             {studentData.goal?.target_surah_id && (
@@ -807,9 +817,9 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
               </div>
             )}
 
-            {/* Courses and Grade Entry Buttons */}
+            {/* Course Buttons for Grade Entry */}
             <div>
-              <h3 className="text-lg font-semibold mb-3">المواد الدراسية</h3>
+              <h3 className="text-lg font-semibold mb-3">إضافة درجات - المواد الدراسية</h3>
               {(!studentData.courses || studentData.courses.length === 0) ? (
                 <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-center">
                   <p className="text-yellow-700 mb-2">لا توجد مقررات مضافة لهذه الحلقة</p>
@@ -820,7 +830,10 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                   {studentData.courses.map(course => (
                     <button
                       key={course.id}
-                      onClick={() => handleAddGrade(course)}
+                      onClick={() => {
+                        setSelectedCourse(course);
+                        setShowGradeModal(true);
+                      }}
                       className="p-3 bg-blue-500 text-white rounded hover:bg-blue-600 text-center font-medium"
                     >
                       {course.name}
@@ -835,14 +848,61 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
               )}
             </div>
 
-            {/* Grade Entry Form */}
-            {selectedCourse && (
-              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                <h3 className="text-lg font-semibold mb-4">
-                  إضافة درجة جديدة - {selectedCourse.name}
-                </h3>
+          </div>
+        )}
 
-                <div className="space-y-4">
+        <div className="flex justify-between mt-6">
+          <button
+            onClick={onBack}
+            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+          >
+            العودة لقائمة الطلاب
+          </button>
+          <button
+            onClick={onBack}
+            className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
+          >
+            إغلاق
+          </button>
+        </div>
+      </div>
+
+      {/* Grade Modal */}
+      {showGradeModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-900">
+                إضافة درجة جديدة - {student.first_name} {student.last_name}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowGradeModal(false);
+                  setSelectedCourse(null);
+                  setGradeInput({
+                    grade_value: '', max_grade: 100, notes: '',
+                    start_surah: '', start_verse: '', end_surah: '', end_verse: ''
+                  });
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <AiOutlineClose className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              {/* Course Display */}
+              {selectedCourse && (
+                <div className="bg-gray-50 p-3 rounded-lg border">
+                  <div className="text-sm font-medium text-gray-700">المادة المحددة:</div>
+                  <div className="text-lg font-bold text-blue-700">
+                    {selectedCourse.name} {selectedCourse.percentage && `(${selectedCourse.percentage}%)`}
+                  </div>
+                </div>
+              )}
+
+              {selectedCourse && (
+                <>
                   {/* Grade Input */}
                   <div className="flex items-center gap-4 flex-wrap">
                     <div className="flex items-center gap-2">
@@ -877,17 +937,36 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                           <select
                             className="flex-1 p-2 border rounded"
                             value={gradeInput.start_surah}
-                            onChange={(e) => setGradeInput({...gradeInput, start_surah: e.target.value, start_verse: ''})}
+                            onChange={(e) => {
+                              const surahName = e.target.value;
+                              console.log('Selected surah:', surahName);
+                              if (surahName) {
+                                const maxVerse = getMaxVerse(surahName);
+                                console.log('Max verse for', surahName, ':', maxVerse);
+                                setGradeInput({
+                                  ...gradeInput, 
+                                  start_surah: surahName, 
+                                  start_verse: '1',
+                                  end_surah: surahName,     // Auto-set same surah
+                                  end_verse: maxVerse.toString()  // Auto-set last verse
+                                });
+                                console.log('New gradeInput:', {
+                                  ...gradeInput, 
+                                  start_surah: surahName, 
+                                  start_verse: '1',
+                                  end_surah: surahName,
+                                  end_verse: maxVerse.toString()
+                                });
+                              } else {
+                                setGradeInput({...gradeInput, start_surah: '', start_verse: '', end_surah: '', end_verse: ''});
+                              }
+                            }}
                           >
                             <option value="">اختر السورة</option>
-                            {surahGroups.map((group, groupIndex) => (
-                              <optgroup key={groupIndex} label={group.title}>
-                                {group.surahs.map((surah, surahIndex) => (
-                                  <option key={surahIndex} value={surah}>
-                                    {surah}
-                                  </option>
-                                ))}
-                              </optgroup>
+                            {[...QURAN_SURAHS].sort((a, b) => a.id - b.id).map(surah => (
+                              <option key={surah.id} value={surah.name}>
+                                {surah.id}. {surah.name}
+                              </option>
                             ))}
                           </select>
                           <input
@@ -900,6 +979,7 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                             onChange={(e) => {
                               const verse = parseInt(e.target.value);
                               const maxVerse = getMaxVerse(gradeInput.start_surah);
+                              console.log('Start verse input changed:', e.target.value, 'Current value:', gradeInput.start_verse);
                               if (verse <= maxVerse || !verse) {
                                 setGradeInput({...gradeInput, start_verse: e.target.value});
                               }
@@ -917,17 +997,28 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                           <select
                             className="flex-1 p-2 border rounded"
                             value={gradeInput.end_surah}
-                            onChange={(e) => setGradeInput({...gradeInput, end_surah: e.target.value, end_verse: ''})}
+                            onChange={(e) => {
+                              const surahName = e.target.value;
+                              console.log('Selected end surah:', surahName);
+                              if (surahName) {
+                                const maxVerse = getMaxVerse(surahName);
+                                console.log('Max verse for end surah', surahName, ':', maxVerse);
+                                setGradeInput({
+                                  ...gradeInput, 
+                                  end_surah: surahName, 
+                                  end_verse: maxVerse.toString()  // Auto-set to last verse
+                                });
+                                console.log('New end verse set to:', maxVerse.toString());
+                              } else {
+                                setGradeInput({...gradeInput, end_surah: '', end_verse: ''});
+                              }
+                            }}
                           >
                             <option value="">اختر السورة</option>
-                            {surahGroups.map((group, groupIndex) => (
-                              <optgroup key={groupIndex} label={group.title}>
-                                {group.surahs.map((surah, surahIndex) => (
-                                  <option key={surahIndex} value={surah}>
-                                    {surah}
-                                  </option>
-                                ))}
-                              </optgroup>
+                            {[...QURAN_SURAHS].sort((a, b) => a.id - b.id).map(surah => (
+                              <option key={surah.id} value={surah.name}>
+                                {surah.id}. {surah.name}
+                              </option>
                             ))}
                           </select>
                           <input
@@ -940,6 +1031,7 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                             onChange={(e) => {
                               const verse = parseInt(e.target.value);
                               const maxVerse = getMaxVerse(gradeInput.end_surah);
+                              console.log('End verse input changed:', e.target.value, 'Current value:', gradeInput.end_verse);
                               if (verse <= maxVerse || !verse) {
                                 setGradeInput({...gradeInput, end_verse: e.target.value});
                               }
@@ -962,99 +1054,109 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                       value={gradeInput.notes}
                       onChange={(e) => setGradeInput({...gradeInput, notes: e.target.value})}
                     />
+                  </div>
+                  
+                  <div className="flex gap-3 pt-4">
                     <button
-                      onClick={saveGrade}
-                      className="px-6 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
-                      disabled={saving}
-                    >
-                      {saving ? 'حفظ...' : 'حفظ الدرجة'}
-                    </button>
-                    <button
-                      onClick={() => setSelectedCourse(null)}
-                      className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+                      onClick={() => {
+                        setShowGradeModal(false);
+                        setSelectedCourse(null);
+                        setGradeInput({
+                          grade_value: '', max_grade: 100, notes: '',
+                          start_surah: '', start_verse: '', end_surah: '', end_verse: ''
+                        });
+                      }}
+                      className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
                     >
                       إلغاء
                     </button>
+                    <button
+                      onClick={() => {
+                        saveGrade();
+                        setShowGradeModal(false);
+                      }}
+                      className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                      disabled={saving || !gradeInput.grade_value}
+                    >
+                      <AiOutlineSave className="w-4 h-4 inline mr-2" />
+                      {saving ? 'حفظ...' : 'حفظ الدرجة'}
+                    </button>
                   </div>
-                </div>
 
-                {/* Course Grade History */}
-                <div className="mt-6">
-                  <h4 className="text-md font-semibold mb-3">تاريخ درجات {selectedCourse.name}</h4>
-                  <div className="bg-white rounded-lg border max-h-64 overflow-y-auto">
-                    <table className="w-full">
-                      <thead className="bg-gray-100 sticky top-0">
-                        <tr>
-                          <th className="p-2 text-center text-sm border">الدرجة</th>
-                          {!['السلوك', 'سلوك', 'السيرة', 'سيرة', 'العقيدة', 'عقيدة', 'الفقه', 'فقه'].includes(selectedCourse.name.toLowerCase()) && (
-                            <th className="p-2 text-center text-sm border">المرجع القرآني</th>
-                          )}
-                          <th className="p-2 text-center text-sm border">التاريخ</th>
-                          <th className="p-2 text-right text-sm border">ملاحظات</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {studentData.grades?.filter(grade => grade.course_id === selectedCourse.id).map(grade => (
-                          <tr key={grade.id} className="hover:bg-gray-50">
-                            <td className="p-2 text-center font-medium border text-sm">
-                              {grade.grade_value}/{grade.max_grade}
-                              <div className="text-xs text-gray-600">
-                                ({((parseFloat(grade.grade_value) / parseFloat(grade.max_grade)) * 100).toFixed(1)}%)
-                              </div>
-                            </td>
+                  {/* Course Grade History */}
+                  <div className="mt-6">
+                    <h4 className="text-md font-semibold mb-3">تاريخ درجات {selectedCourse.name}</h4>
+                    <div className="bg-white rounded-lg border max-h-64 overflow-y-auto">
+                      <table className="w-full">
+                        <thead className="bg-gray-100 sticky top-0">
+                          <tr>
+                            <th className="p-2 text-center text-sm border">الدرجة</th>
                             {!['السلوك', 'سلوك', 'السيرة', 'سيرة', 'العقيدة', 'عقيدة', 'الفقه', 'فقه'].includes(selectedCourse.name.toLowerCase()) && (
-                              <td className="p-2 text-center text-xs border">
-                                {grade.start_reference && grade.end_reference 
-                                  ? `${grade.start_reference} - ${grade.end_reference}`
-                                  : grade.start_reference || '-'
-                                }
-                              </td>
+                              <th className="p-2 text-center text-sm border">المرجع القرآني</th>
                             )}
-                            <td className="p-2 text-center text-xs border">
-                              {new Date(grade.date_graded || grade.created_at).toLocaleDateString('ar-SA', {
-                                year: 'numeric',
-                                month: 'short',
-                                day: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
-                            </td>
-                            <td className="p-2 text-xs border">
-                              {grade.notes || '-'}
-                            </td>
+                            <th className="p-2 text-center text-sm border">التاريخ</th>
+                            <th className="p-2 text-right text-sm border">ملاحظات</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    
-                    {(!studentData.grades?.filter(grade => grade.course_id === selectedCourse.id).length) && (
-                      <div className="text-center py-4 text-gray-500 text-sm">
-                        لا توجد درجات سابقة لهذه المادة
-                      </div>
-                    )}
+                        </thead>
+                        <tbody>
+                          {studentData.grades?.filter(grade => grade.course_id === selectedCourse.id).map(grade => (
+                            <tr key={grade.id} className="hover:bg-gray-50">
+                              <td className="p-2 text-center font-medium border text-sm">
+                                {grade.grade_value}/{grade.max_grade}
+                                <div className="text-xs text-gray-600">
+                                  ({((parseFloat(grade.grade_value) / parseFloat(grade.max_grade)) * 100).toFixed(1)}%)
+                                </div>
+                              </td>
+                              {!['السلوك', 'سلوك', 'السيرة', 'سيرة', 'العقيدة', 'عقيدة', 'الفقه', 'فقه'].includes(selectedCourse.name.toLowerCase()) && (
+                                <td className="p-2 text-center text-xs border">
+                                  {(() => {
+                                    // Helper function to convert reference ID format to readable format
+                                    const formatReference = (ref) => {
+                                      if (!ref) return '';
+                                      const [surahId, ayah] = ref.split(':');
+                                      const surahName = getSurahNameFromId(parseInt(surahId));
+                                      return surahName ? `${surahName}:${ayah}` : ref;
+                                    };
+
+                                    if (grade.start_reference && grade.end_reference) {
+                                      const startFormatted = formatReference(grade.start_reference);
+                                      const endFormatted = formatReference(grade.end_reference);
+                                      return `${startFormatted} - ${endFormatted}`;
+                                    }
+                                    return formatReference(grade.start_reference) || '-';
+                                  })()}
+                                </td>
+                              )}
+                              <td className="p-2 text-center text-xs border">
+                                {new Date(grade.date_graded || grade.created_at).toLocaleDateString('ar-SA', {
+                                  year: 'numeric',
+                                  month: 'short',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </td>
+                              <td className="p-2 text-xs border">
+                                {grade.notes || '-'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      
+                      {(!studentData.grades?.filter(grade => grade.course_id === selectedCourse.id).length) && (
+                        <div className="text-center py-4 text-gray-500 text-sm">
+                          لا توجد درجات سابقة لهذه المادة
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </div>
-            )}
-
+                </>
+              )}
+            </div>
           </div>
-        )}
-
-        <div className="flex justify-between mt-6">
-          <button
-            onClick={onBack}
-            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-          >
-            العودة لقائمة الطلاب
-          </button>
-          <button
-            onClick={onBack}
-            className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
-          >
-            إغلاق
-          </button>
         </div>
-      </div>
+      )}
 
       {/* Points Modal */}
       {showPointsModal && (

@@ -220,7 +220,32 @@ router.get('/semester/:semesterId/class/:classId', auth, async (req, res) => {
       ORDER BY u.first_name, u.last_name, c.name
     `, [semesterId, classId]);
     
-    res.json(result.rows);
+    // Parse the references for frontend compatibility
+    const grades = result.rows.map(grade => {
+      const parsed = { ...grade };
+      
+      // Parse start_reference (format: "surah:ayah")
+      if (grade.start_reference) {
+        const [fromSurah, fromAyah] = grade.start_reference.split(':');
+        parsed.from_surah = fromSurah;
+        parsed.from_ayah = parseInt(fromAyah) || 1;
+      }
+      
+      // Parse end_reference (format: "surah:ayah" or "surah:end")
+      if (grade.end_reference) {
+        const [toSurah, toAyah] = grade.end_reference.split(':');
+        parsed.to_surah = toSurah;
+        // If toAyah is 'end', we'll leave it for frontend to determine the max
+        parsed.to_ayah = toAyah === 'end' ? null : (parseInt(toAyah) || 1);
+      }
+      
+      // Also include score for backward compatibility
+      parsed.score = grade.grade_value;
+      
+      return parsed;
+    });
+    
+    res.json(grades);
   } catch (error) {
     console.error('Error fetching grades:', error);
     res.status(500).json({ message: 'خطأ في جلب الدرجات' });
@@ -353,8 +378,13 @@ router.post('/', auth, async (req, res) => {
 
     // Use the appropriate field values (support both old and new formats)
     const gradeValue = grade_value || score;
-    const startRef = start_reference || (from_surah && from_ayah ? `${from_surah}:${from_ayah}` : null);
-    const endRef = end_reference || (to_surah && to_ayah ? `${to_surah}:${to_ayah}` : null);
+    
+    // Handle default ayah values
+    const fromAyahValue = from_ayah || 1; // Default to first ayah
+    const toAyahValue = to_ayah || null; // Will be handled below if needed
+    
+    const startRef = start_reference || (from_surah ? `${from_surah}:${fromAyahValue}` : null);
+    const endRef = end_reference || (to_surah ? `${to_surah}:${toAyahValue || 'end'}` : null);
 
     // Check if grade already exists
     const existingGrade = await pool.query(
