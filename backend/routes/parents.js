@@ -116,7 +116,6 @@ router.post('/', registerLimiter, parentValidationRules, async (req, res) => {
     }
     
     const validChildIds = childIdArray.filter(childId => childId && childId.toString().trim().length === 10);
-    console.log(`Processing ${validChildIds.length} child IDs for parent ${id}`);
     
     for (const childId of validChildIds) {
       const trimmedChildId = childId.toString().trim();
@@ -142,10 +141,8 @@ router.post('/', registerLimiter, parentValidationRules, async (req, res) => {
           SET parent_id = $1 
           WHERE id = $2 AND parent_id IS NULL
         `, [id, trimmedChildId]);
-        console.log(`Linked existing student ${trimmedChildId} to parent ${id}`);
       } else {
         // Student doesn't exist yet - relationship created for future
-        console.log(`Created pending relationship for future student ${trimmedChildId} with parent ${id}`);
       }
     }
 

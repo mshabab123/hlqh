@@ -36,14 +36,10 @@ const initializeTable = async () => {
       await pool.query(`CREATE INDEX idx_password_reset_tokens_user_id ON password_reset_tokens(user_id)`);
       await pool.query(`CREATE INDEX idx_password_reset_tokens_expires_at ON password_reset_tokens(expires_at)`);
       
-      console.log('Password reset tokens table created successfully');
-    } else {
-      console.log('Password reset tokens table already exists');
     }
   } catch (error) {
     // If it's a permission error, just log and continue
     if (error.message.includes('must be owner')) {
-      console.log('⚠️  Password reset tokens table exists but no owner permissions. This is OK if table is already set up.');
     } else {
       console.error('Error initializing password reset tokens table:', error.message);
     }
@@ -117,7 +113,6 @@ router.post('/request',
       // In a real application, you would send an email here
       // For now, we'll log the reset link (in production, remove this!)
       const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`;
-      console.log(`Password reset link for user ${user.id} (${user.email}): ${resetLink}`);
       
       // TODO: Send email with reset link
       // await sendPasswordResetEmail(user.email, user.first_name, resetLink);
@@ -207,7 +202,6 @@ router.post('/reset',
         await client.query('COMMIT');
         
         // Log password reset for security audit
-        console.log(`Password reset completed for user ${tokenData.user_id} (${tokenData.email}) at ${new Date().toISOString()}`);
         
         res.json({ 
           message: 'Password has been reset successfully',

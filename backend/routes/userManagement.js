@@ -534,10 +534,7 @@ router.post('/reset-password',
         [hashedPassword, userId]
       );
 
-      // Log the password reset action (for security audit)
-      console.log(`Password reset for user ${userId} (${targetUser.email}) by ${currentUserRole} ${currentUserId} at ${new Date().toISOString()}`);
-
-      res.json({ 
+      res.json({
         message: 'Password reset successfully',
         user: {
           id: targetUser.id,

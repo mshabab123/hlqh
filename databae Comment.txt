@@ -1,0 +1,14 @@
+##########backup form VPS use############ 
+
+###This to backup everhtign with roles
+pg_dump -h localhost -U mshababalrizahs  -d hlaqh   -f backup-9-7.dump
+
+
+### this is if you wnat to trafare to your pc,  On the VPS, create a portable custom dump with owners/privileges stripped:
+ pg_dump -h localhost -U mshababalrizahs -d hlaqh  -Fc --no-owner --no-privileges   -f backup-9-14.custom
+  
+  
+  
+############resort in your PC#############  
+
+usre pgadmin dirclty 

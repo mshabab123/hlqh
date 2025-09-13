@@ -98,8 +98,6 @@ router.post('/', registerLimiter, teacherValidationRules, async (req, res) => {
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
     `, [id, first_name, second_name, third_name, last_name, email, phone, hashedPassword, address || null, false]);
 
-    // Log the registration attempt
-    console.log(`Registering user ${id} as ${user_type}`);
     
     // Insert into appropriate role table based on user_type
     switch (user_type) {
@@ -126,13 +124,11 @@ router.post('/', registerLimiter, teacherValidationRules, async (req, res) => {
         const adminQualifications = school_id 
           ? (qualifications ? `SCHOOL_ID:${school_id}|${qualifications}` : `SCHOOL_ID:${school_id}`)
           : qualifications || null;
-        console.log(`Inserting administrator ${id} with role 'administrator'`);
         await client.query(`
           INSERT INTO administrators (
             id, role, qualifications, salary
           ) VALUES ($1, $2, $3, $4)
         `, [id, 'administrator', adminQualifications, salary || null]);
-        console.log(`Administrator ${id} inserted successfully`);
         break;
 
       case 'supervisor':

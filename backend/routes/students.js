@@ -100,10 +100,8 @@ router.post('/', registerLimiter, studentValidationRules, async (req, res) => {
       if (parentCheck.rows.length > 0) {
         // Parent exists - set validParentId for students table
         validParentId = parent_id;
-        console.log(`Linked student ${id} to existing parent ${parent_id}`);
       } else {
         // Parent doesn't exist yet - relationship created for future
-        console.log(`Created pending relationship for future parent ${parent_id} with student ${id}`);
       }
     }
 
@@ -309,10 +307,7 @@ router.get('/:id', auth, async (req, res) => {
 });
 
 // POST /api/students/manage - Create new student for management (different from registration)
-router.post('/manage', (req, res, next) => {
-  console.log('POST /manage called with body:', req.body);
-  next();
-}, auth, [
+router.post('/manage', auth, [
   body('id')
     .optional()
     .isLength({ min: 10, max: 10 })
@@ -458,11 +453,7 @@ router.post('/manage', (req, res, next) => {
 });
 
 // PUT /api/students/:id - Update student information
-router.put('/:id', (req, res, next) => {
-  console.log('PUT /students/:id called for ID:', req.params.id);
-  console.log('Request body:', req.body);
-  next();
-}, auth, async (req, res) => {
+router.put('/:id', auth, async (req, res) => {
   try {
     // Basic validation for required fields if they are provided
     if (req.body.email && req.body.email.trim() && !/\S+@\S+\.\S+/.test(req.body.email)) {
@@ -852,7 +843,6 @@ const initializeGoalsTable = async () => {
       ON student_goals(student_id);
     `);
 
-    console.log('Student goals table initialized successfully');
   } catch (error) {
     console.error('Error initializing student goals table:', error);
   }

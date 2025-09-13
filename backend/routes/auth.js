@@ -12,7 +12,6 @@ const JWT_SECRET = process.env.JWT_SECRET;
 
 router.post('/login', async (req, res) => {
   const { id, password } = req.body;
-  console.log('Login attempt for ID:', id);
 
   try {
     // 1. Find user by id and determine their role(s)
@@ -44,11 +43,9 @@ router.post('/login', async (req, res) => {
     `, [id]);
 
     if (result.rows.length === 0) {
-      console.log('User not found in database');
       return res.status(401).json({ error: 'رقم الهوية أو كلمة المرور غير صحيحة' });
     }
     const user = result.rows[0];
-    console.log('User found:', user.id, user.first_name, 'Role:', user.role, 'Active:', user.is_active);
 
     // 2. Check password
     const valid = await bcrypt.compare(password, user.password);

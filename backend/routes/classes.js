@@ -12,7 +12,6 @@ const { authenticateToken: requireAuth } = require('../middleware/auth');
 // Function to update student's overall memorization progress
 const updateStudentMemorizationProgress = async (studentId) => {
   try {
-    console.log('Updating memorization progress for student:', studentId);
     
     // Get all memorization grades for this student, ordered by most recent first
     const grades = await db.query(`
@@ -26,7 +25,6 @@ const updateStudentMemorizationProgress = async (studentId) => {
     `, [studentId]);
     
     if (grades.rows.length === 0) {
-      console.log('No memorization grades found for student:', studentId);
       return;
     }
     
@@ -55,7 +53,6 @@ const updateStudentMemorizationProgress = async (studentId) => {
     
     // If no valid memorization found, don't update
     if (maxSurahId === null) {
-      console.log('No valid memorization references found for student:', studentId);
       return;
     }
     
@@ -69,7 +66,6 @@ const updateStudentMemorizationProgress = async (studentId) => {
       RETURNING memorized_surah_id, memorized_ayah_number
     `, [maxSurahId, maxAyah, studentId]);
     
-    console.log('Updated memorization progress:', result.rows[0]);
     
   } catch (error) {
     console.error('Error updating memorization progress:', error);
@@ -585,11 +581,6 @@ router.post('/:id/grades', requireAuth, async (req, res) => {
     }
     
     // **MARK ATTENDANCE WHEN GRADE IS ENTERED**
-    console.log(`\n🏫🏫🏫 CLASS GRADES ATTENDANCE MARKING 🏫🏫🏫`);
-    console.log(`   Student ID: ${student_id}`);
-    console.log(`   Semester ID: ${semesterId}`);
-    console.log(`   Class ID: ${classId}`);
-    console.log(`   Date: ${new Date().toISOString().split('T')[0]}`);
     
     try {
       const today = new Date().toISOString().split('T')[0];
@@ -607,7 +598,6 @@ router.post('/:id/grades', requireAuth, async (req, res) => {
           updated_at = NOW()
       `, [student_id, semesterId, classId, today]);
       
-      console.log(`✅ Successfully marked attendance for student ${student_id} on ${today} via class grades endpoint`);
     } catch (attendanceError) {
       console.error('❌ Failed to mark attendance from class grades:', attendanceError);
       // Don't fail the grade entry if attendance marking fails
@@ -666,8 +656,6 @@ router.put('/:id/student/:studentId/goal', requireAuth, async (req, res) => {
     const { id: classId, studentId } = req.params;
     const { target_surah_id, target_ayah_number } = req.body;
     
-    console.log('Updating goal for student:', studentId);
-    console.log('Goal data:', { target_surah_id, target_ayah_number });
     
     // First check if student exists
     const studentCheck = await db.query('SELECT id FROM students WHERE id = $1', [studentId]);
@@ -687,7 +675,6 @@ router.put('/:id/student/:studentId/goal', requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'فشل في تحديث الهدف' });
     }
     
-    console.log('Goal updated successfully:', result.rows[0]);
     
     res.json({ 
       success: true, 

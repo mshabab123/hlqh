@@ -16,7 +16,6 @@ async function runMigration() {
   const client = await pool.connect();
   
   try {
-    console.log('🚀 Starting migration: Add teacher role to assignments...');
     
     // Read migration file
     const migrationPath = path.join(__dirname, 'migrations', 'add_teacher_role_to_assignments.sql');
@@ -25,7 +24,6 @@ async function runMigration() {
     // Execute migration
     await client.query(migrationSQL);
     
-    console.log('✅ Migration completed successfully!');
     
     // Verify the changes
     const result = await client.query(`
@@ -36,7 +34,6 @@ async function runMigration() {
     `);
     
     if (result.rows.length > 0) {
-      console.log('✅ Column teacher_role added successfully:', result.rows[0]);
     }
     
     // Check how many primary teachers we have
@@ -46,7 +43,6 @@ async function runMigration() {
       WHERE teacher_role = 'primary' AND is_active = TRUE
     `);
     
-    console.log(`📊 Primary teachers assigned: ${primaryCount.rows[0].count}`);
     
   } catch (error) {
     console.error('❌ Migration failed:', error.message);

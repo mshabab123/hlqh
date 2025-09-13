@@ -37,7 +37,6 @@ const schoolValidationRules = [
 // GET /api/schools/public - Get all active schools (public endpoint for registration)
 router.get('/public', async (req, res) => {
   try {
-    console.log('GET /schools/public called');
     const result = await db.query(`
       SELECT 
         s.id, s.name
@@ -45,7 +44,6 @@ router.get('/public', async (req, res) => {
       WHERE s.is_active = true
       ORDER BY s.name
     `);
-    console.log('Public schools found:', result.rows.length);
 
     res.json({ schools: result.rows });
   } catch (err) {
@@ -57,7 +55,6 @@ router.get('/public', async (req, res) => {
 // GET /api/schools - Get all schools (protected endpoint for management)
 router.get('/', requireAuth, async (req, res) => {
   try {
-    console.log('GET /schools called');
     const result = await db.query(`
       SELECT 
         s.id, 
@@ -79,7 +76,6 @@ router.get('/', requireAuth, async (req, res) => {
       LEFT JOIN users u ON a.id = u.id
       ORDER BY s.created_at DESC
     `);
-    console.log('Schools found:', result.rows.length);
 
     res.json({ schools: result.rows });
   } catch (err) {
@@ -231,7 +227,6 @@ router.delete('/:id', requireAuth, requireAdmin, async (req, res) => {
 
     if (force === 'true') {
       // Force delete - remove all dependent records first
-      console.log('Force deleting school and all dependencies:', id);
       
       // Delete in reverse order of dependencies
       await client.query('DELETE FROM daily_reports WHERE school_id = $1', [id]);

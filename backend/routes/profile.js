@@ -68,9 +68,6 @@ router.post('/change-password',
         [hashedNewPassword, userId]
       );
 
-      // Log the password change for security audit
-      console.log(`Password changed for user ${userId} (${user.email}) at ${new Date().toISOString()}`);
-
       // Return success without sensitive data
       res.json({ 
         message: 'Password changed successfully',

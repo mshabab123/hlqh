@@ -12,13 +12,11 @@ function authenticateToken(req, res, next) {
   const token = authHeader && authHeader.split(' ')[1];
   
   if (!token) {
-    console.log('Auth: No token provided');
     return res.status(401).json({ error: 'Token missing' });
   }
 
   jwt.verify(token, SECRET_KEY, async (err, user) => {
     if (err) {
-      console.log('Auth: Token verification failed:', err.message);
       return res.status(403).json({ error: 'Invalid token', details: err.message });
     }
     

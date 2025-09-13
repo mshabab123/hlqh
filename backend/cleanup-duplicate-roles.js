@@ -4,7 +4,6 @@ async function cleanupDuplicateRoles() {
   const client = await db.connect();
   
   try {
-    console.log('Finding users with multiple roles...\n');
     
     // Find users who exist in multiple role tables
     const duplicateCheck = await client.query(`
@@ -31,14 +30,11 @@ async function cleanupDuplicateRoles() {
     `);
     
     if (duplicateCheck.rows.length === 0) {
-      console.log('No users with duplicate roles found.');
       return;
     }
     
-    console.log(`Found ${duplicateCheck.rows.length} users with multiple roles:\n`);
     
     for (const user of duplicateCheck.rows) {
-      console.log(`User: ${user.id} - ${user.first_name} ${user.last_name}`);
       
       const roles = [];
       if (user.in_students > 0) roles.push('student');
@@ -48,7 +44,6 @@ async function cleanupDuplicateRoles() {
       if (user.in_admins > 0) roles.push('admin');
       if (user.in_supervisors > 0) roles.push('supervisor');
       
-      console.log(`  Current roles: ${roles.join(', ')}`);
       
       // Determine the intended role based on priority
       let intendedRole = null;
@@ -68,7 +63,6 @@ async function cleanupDuplicateRoles() {
         intendedRole = 'student';
       }
       
-      console.log(`  Intended role: ${intendedRole}`);
       
       // Clean up duplicate entries (keep only the intended role)
       await client.query('BEGIN');
@@ -77,31 +71,24 @@ async function cleanupDuplicateRoles() {
         // Remove from tables where they shouldn't be
         if (intendedRole !== 'student' && user.in_students > 0) {
           await client.query('DELETE FROM students WHERE id = $1', [user.id]);
-          console.log(`  ✓ Removed from students table`);
         }
         if (intendedRole !== 'parent' && intendedRole !== 'parent_student' && user.in_parents > 0) {
           await client.query('DELETE FROM parents WHERE id = $1', [user.id]);
-          console.log(`  ✓ Removed from parents table`);
         }
         if (intendedRole !== 'teacher' && user.in_teachers > 0) {
           await client.query('DELETE FROM teachers WHERE id = $1', [user.id]);
-          console.log(`  ✓ Removed from teachers table`);
         }
         if (intendedRole !== 'administrator' && user.in_administrators > 0) {
           await client.query('DELETE FROM administrators WHERE id = $1', [user.id]);
-          console.log(`  ✓ Removed from administrators table`);
         }
         if (intendedRole !== 'admin' && user.in_admins > 0) {
           await client.query('DELETE FROM admins WHERE id = $1', [user.id]);
-          console.log(`  ✓ Removed from admins table`);
         }
         if (intendedRole !== 'supervisor' && user.in_supervisors > 0) {
           await client.query('DELETE FROM supervisors WHERE id = $1', [user.id]);
-          console.log(`  ✓ Removed from supervisors table`);
         }
         
         await client.query('COMMIT');
-        console.log(`  ✅ Cleanup completed for user ${user.id}\n`);
         
       } catch (error) {
         await client.query('ROLLBACK');
@@ -109,7 +96,6 @@ async function cleanupDuplicateRoles() {
       }
     }
     
-    console.log('\nCleanup process completed!');
     
   } catch (error) {
     console.error('Error during cleanup:', error);
@@ -120,9 +106,6 @@ async function cleanupDuplicateRoles() {
 }
 
 // Run with confirmation
-console.log('This script will clean up users who exist in multiple role tables.');
-console.log('It will keep the highest priority role and remove duplicates.\n');
-console.log('Priority order: admin > administrator > supervisor > teacher > parent > student\n');
 
 const readline = require('readline');
 const rl = readline.createInterface({
@@ -135,7 +118,6 @@ rl.question('Do you want to continue? (yes/no): ', (answer) => {
     rl.close();
     cleanupDuplicateRoles();
   } else {
-    console.log('Cleanup cancelled.');
     rl.close();
     process.exit(0);
   }

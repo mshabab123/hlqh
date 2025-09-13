@@ -47,7 +47,6 @@ const initializePointsTable = async () => {
       ON daily_points(class_id, points_date);
     `);
 
-    console.log('Points system initialized successfully');
   } catch (error) {
     console.error('Error initializing points system:', error);
   }

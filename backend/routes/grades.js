@@ -25,7 +25,6 @@ const initializeSemesterAttendanceTable = async () => {
         UNIQUE(student_id, semester_id, class_id, attendance_date)
       )
     `);
-    console.log('Semester attendance table initialized successfully');
     
     // Test if table exists and has the right structure
     const testResult = await pool.query(`
@@ -34,7 +33,6 @@ const initializeSemesterAttendanceTable = async () => {
       WHERE table_name = 'semester_attendance' 
       ORDER BY ordinal_position
     `);
-    console.log('Semester attendance table columns:', testResult.rows.map(r => `${r.column_name} (${r.data_type})`).join(', '));
   } catch (error) {
     console.error('Error initializing semester attendance table:', error);
   }
@@ -48,12 +46,6 @@ const updateSemesterAttendance = async (studentId, semesterId, classId, markedBy
   try {
     const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
     
-    console.log(`📊 updateSemesterAttendance called with:`);
-    console.log(`   - studentId: ${studentId}`);
-    console.log(`   - semesterId: ${semesterId}`);
-    console.log(`   - classId: ${classId}`);
-    console.log(`   - today: ${today}`);
-    console.log(`   - markedBy: ${markedBy}`);
     
     // Insert or update attendance record in semester_attendance table
     const result = await pool.query(`
@@ -70,7 +62,6 @@ const updateSemesterAttendance = async (studentId, semesterId, classId, markedBy
       RETURNING *
     `, [studentId, semesterId, classId, today]);
     
-    console.log(`✅ Successfully updated semester_attendance table:`, result.rows[0]);
     
     // Also check what records exist for this student
     const checkResult = await pool.query(`
@@ -79,7 +70,6 @@ const updateSemesterAttendance = async (studentId, semesterId, classId, markedBy
       ORDER BY attendance_date DESC 
       LIMIT 3
     `, [studentId, semesterId]);
-    console.log(`📋 Recent attendance records for student ${studentId}:`, checkResult.rows);
     
   } catch (error) {
     console.error('❌ Error in updateSemesterAttendance:', error);
@@ -125,7 +115,6 @@ const markAttendanceForGradeEntry = async (studentId, semesterId, markedBy) => {
     
     // Check if today is within the semester
     if (today < semesterStart || today > semesterEnd) {
-      console.log('Grade entry date is outside semester range, skipping attendance marking');
       return;
     }
     
@@ -183,7 +172,6 @@ const markAttendanceForGradeEntry = async (studentId, semesterId, markedBy) => {
         updated_at = CURRENT_TIMESTAMP
     `, [sessionId, studentId, markedBy]);
     
-    console.log(`Attendance auto-marked as present for student ${studentId} on ${today}`);
     
   } catch (error) {
     console.error('Error in markAttendanceForGradeEntry:', error);
@@ -419,21 +407,13 @@ router.post('/', auth, async (req, res) => {
 
     // Automatically mark attendance as present when grade is entered
     // This implements the automatic absence calculation system
-    console.log(`\n🎯🎯🎯 GRADE ENTRY ATTENDANCE MARKING 🎯🎯🎯`);
-    console.log(`   Student ID: ${student_id}`);
-    console.log(`   Semester ID: ${semester_id}`);  
-    console.log(`   Class ID: ${class_id}`);
-    console.log(`   Date: ${new Date().toISOString().split('T')[0]}`);
-    console.log(`   User: ${req.user.id}`);
+  
     
     try {
-      console.log('📝 Calling markAttendanceForGradeEntry...');
       await markAttendanceForGradeEntry(student_id, semester_id, req.user.id);
       
-      console.log('📊 Calling updateSemesterAttendance...');
       await updateSemesterAttendance(student_id, semester_id, class_id, req.user.id);
       
-      console.log('✅ Both attendance functions completed successfully');
     } catch (attendanceError) {
       console.error('❌ ERROR: Failed to auto-mark attendance:', attendanceError);
       // Don't fail the grade entry if attendance marking fails
