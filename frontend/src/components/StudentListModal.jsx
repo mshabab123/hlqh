@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { AiOutlineEye } from "react-icons/ai";
+import { AiOutlineEye, AiOutlineSearch } from "react-icons/ai";
 import StudentProfileModal from "./StudentProfileModal";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
@@ -10,6 +10,7 @@ const StudentListModal = ({ classItem, onClose }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedStudent, setSelectedStudent] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
     if (classItem) {
@@ -33,6 +34,12 @@ const StudentListModal = ({ classItem, onClose }) => {
   };
 
   if (!classItem) return null;
+
+  // Filter students based on search term
+  const filteredStudents = students.filter(student => {
+    const fullName = `${student.first_name || ''} ${student.second_name || ''} ${student.third_name || ''} ${student.last_name || ''}`;
+    return fullName.toLowerCase().includes(searchTerm.toLowerCase());
+  });
 
   // Show individual student profile if selected
   if (selectedStudent) {
@@ -72,11 +79,25 @@ const StudentListModal = ({ classItem, onClose }) => {
         ) : (
           <div>
             <div className="mb-4">
-              <h3 className="text-lg font-semibold">الطلاب المسجلين ({students.length})</h3>
+              <h3 className="text-lg font-semibold">الطلاب المسجلين ({filteredStudents.length})</h3>
+            </div>
+            
+            {/* Search Input */}
+            <div className="mb-4">
+              <div className="relative">
+                <AiOutlineSearch className="absolute right-3 top-3 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="ابحث عن طالب بالاسم..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pr-10 pl-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
             </div>
             
             <div className="space-y-3 max-h-[60vh] overflow-y-auto">
-              {students.map(student => (
+              {filteredStudents.map(student => (
                 <div key={student.id} className="flex justify-between items-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100">
                   <div className="flex-1">
                     <p className="font-medium text-lg">
@@ -96,6 +117,10 @@ const StudentListModal = ({ classItem, onClose }) => {
                   </div>
                 </div>
               ))}
+              
+              {filteredStudents.length === 0 && students.length > 0 && (
+                <p className="text-gray-500 text-center py-8">لا توجد نتائج بحث مطابقة</p>
+              )}
               
               {students.length === 0 && (
                 <p className="text-gray-500 text-center py-8">لا يوجد طلاب في هذه الحلقة</p>

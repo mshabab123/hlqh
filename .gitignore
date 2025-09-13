@@ -140,3 +140,5 @@ ecosystem.config.js
 *.sqlite
 *.sqlite3  
 *.sql
+*.custom
+*.dump

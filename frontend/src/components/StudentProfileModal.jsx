@@ -84,6 +84,7 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
       });
       
       setStudentData(response.data);
+      console.log('Student Profile Data:', response.data);
       
       // Fetch points and attendance data in parallel
       await Promise.all([
@@ -495,6 +496,83 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                     {showGoalForm ? 'إخفاء' : 'تعديل الهدف'}
                   </button>
                 </div>
+
+                {/* Last Recorded Memorization Grade */}
+                <div className="bg-gradient-to-r from-green-50 to-blue-50 p-4 rounded-lg border border-green-200 mb-4">
+                  <h4 className="text-lg font-semibold text-green-800 mb-3">📖 آخر درجة حفظ مسجلة</h4>
+                  <div className="bg-white p-4 rounded-lg border">
+                    {(() => {
+                      // Find the most recent memorization grade
+                      const memorization_courses = ['تحفيظ القرآن', 'تحفيظ', 'حفظ القرآن', 'الحفظ', 'قرآن'];
+                      const recentMemorizationGrades = studentData.grades?.filter(grade => 
+                        memorization_courses.some(course => 
+                          grade.course_name?.toLowerCase().includes(course.toLowerCase())
+                        ) && grade.start_reference
+                      ).sort((a, b) => new Date(b.date_graded || b.created_at) - new Date(a.date_graded || a.created_at));
+                      
+                      const latestGrade = recentMemorizationGrades?.[0];
+                      
+                      if (!latestGrade) {
+                        return (
+                          <div className="text-center text-gray-600">
+                            <div className="text-sm">لا توجد درجات حفظ مسجلة بعد</div>
+                          </div>
+                        );
+                      }
+                      
+                      // Helper function to convert reference ID format to readable format
+                      const formatReference = (ref) => {
+                        if (!ref) return '';
+                        const [surahId, ayah] = ref.split(':');
+                        const surahName = getSurahNameFromId(parseInt(surahId));
+                        return { surahName: surahName || `سورة رقم ${surahId}`, ayah: ayah };
+                      };
+                      
+                      const startRef = formatReference(latestGrade.start_reference);
+                      const endRef = formatReference(latestGrade.end_reference);
+                      
+                      return (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div>
+                            <div className="text-sm font-medium text-gray-600 mb-1">المقطع المحفوظ:</div>
+                            <div className="text-base font-bold text-green-700">
+                              {startRef.surahName && endRef.surahName && startRef.surahName === endRef.surahName
+                                ? `سورة ${startRef.surahName}`
+                                : startRef.surahName && endRef.surahName
+                                ? `من ${startRef.surahName} إلى ${endRef.surahName}`
+                                : startRef.surahName || 'غير محدد'
+                              }
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-sm font-medium text-gray-600 mb-1">الآيات:</div>
+                            <div className="text-base font-bold text-green-700">
+                              {startRef.ayah && endRef.ayah
+                                ? startRef.ayah === endRef.ayah
+                                  ? `الآية ${startRef.ayah}`
+                                  : `من الآية ${startRef.ayah} إلى ${endRef.ayah}`
+                                : startRef.ayah || 'غير محدد'
+                              }
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-sm font-medium text-gray-600 mb-1">الدرجة:</div>
+                            <div className="text-base font-bold text-blue-700">
+                              {latestGrade.grade_value}/{latestGrade.max_grade}
+                              <span className="text-sm ml-2 text-gray-600">
+                                ({((parseFloat(latestGrade.grade_value) / parseFloat(latestGrade.max_grade)) * 100).toFixed(1)}%)
+                              </span>
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              {new Date(latestGrade.date_graded || latestGrade.created_at).toLocaleDateString('ar-SA')}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <h4 className="text-sm font-medium text-gray-700 mb-2">الهدف المحدد:</h4>
