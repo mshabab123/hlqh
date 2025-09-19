@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { AiOutlineStar, AiOutlineUserAdd, AiOutlineSave, AiOutlineClose, AiOutlineEdit, AiOutlineDelete } from "react-icons/ai";
+import { AiOutlineStar, AiOutlineUserAdd, AiOutlineSave, AiOutlineClose, AiOutlineEdit, AiOutlineDelete, AiOutlineTable, AiOutlineCalendar } from "react-icons/ai";
 import { QURAN_SURAHS, TOTAL_QURAN_PAGES } from "../utils/quranData";
 import { 
   getMaxVerse, 
@@ -29,6 +29,12 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
   // Attendance modal state
   const [showAttendanceModal, setShowAttendanceModal] = useState(false);
   const [attendanceStatus, setAttendanceStatus] = useState("present");
+
+  // New table modals state
+  const [showAbsentTableModal, setShowAbsentTableModal] = useState(false);
+  const [showPointsTableModal, setShowPointsTableModal] = useState(false);
+  const [absentRecords, setAbsentRecords] = useState([]);
+  const [pointsRecords, setPointsRecords] = useState([]);
   
   // Grade modal state
   const [showGradeModal, setShowGradeModal] = useState(false);
@@ -360,6 +366,63 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
     }
   };
 
+  const fetchAbsentRecords = async () => {
+    try {
+      // Get current semester
+      const semesterResponse = await axios.get(`${API_BASE}/api/semesters/current`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+
+      const currentSemester = semesterResponse.data.semester;
+      if (!currentSemester) return;
+
+      // Fetch absent records for this student
+      const response = await axios.get(`${API_BASE}/api/attendance/semester/${currentSemester.id}/class/${classItem.id}`, {
+        params: {
+          student_id: student.id,
+          status: 'absent'
+        },
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+
+      // Filter only absent records
+      const absentOnly = response.data.filter(record => !record.is_present);
+      setAbsentRecords(absentOnly);
+      setShowAbsentTableModal(true);
+    } catch (error) {
+      console.error('Error fetching absent records:', error);
+      setError('فشل في جلب سجلات الغياب');
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
+  const fetchPointsRecords = async () => {
+    try {
+      // Get current semester
+      const semesterResponse = await axios.get(`${API_BASE}/api/semesters/current`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+
+      const currentSemester = semesterResponse.data.semester;
+      if (!currentSemester) return;
+
+      // Fetch detailed points records
+      const response = await axios.get(`${API_BASE}/api/points/student/${student.id}`, {
+        params: {
+          semester_id: currentSemester.id
+        },
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+
+      setPointsRecords(response.data.points || []);
+      setShowPointsTableModal(true);
+    } catch (error) {
+      console.error('Error fetching points records:', error);
+      setError('فشل في جلب سجلات النقاط');
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
   const openPointsModal = () => {
     setPointsForm({ points: 0, notes: "" });
     setShowPointsModal(true);
@@ -493,7 +556,7 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
         {/* Quick Actions */}
         <div className="mb-6 bg-gray-50 p-4 rounded-lg">
           <h3 className="text-lg font-semibold mb-3">إجراءات سريعة</h3>
-          <div className="flex gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <button
               onClick={openPointsModal}
               className="flex items-center gap-2 px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
@@ -507,6 +570,20 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
             >
               <AiOutlineUserAdd />
               تسجيل حضور
+            </button>
+            <button
+              onClick={fetchAbsentRecords}
+              className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+            >
+              <AiOutlineCalendar />
+              جدول الغياب
+            </button>
+            <button
+              onClick={fetchPointsRecords}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600"
+            >
+              <AiOutlineTable />
+              جدول النقاط
             </button>
           </div>
         </div>
@@ -1487,6 +1564,159 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Absent Records Table Modal */}
+      {showAbsentTableModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-900">
+                سجل الغياب - {student.first_name} {student.last_name}
+              </h3>
+              <button
+                onClick={() => setShowAbsentTableModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <AiOutlineClose className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="bg-white rounded-lg border overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="p-3 text-center text-sm font-medium border">التاريخ</th>
+                    <th className="p-3 text-center text-sm font-medium border">نوع الغياب</th>
+                    <th className="p-3 text-center text-sm font-medium border">ملاحظات</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {absentRecords.length > 0 ? (
+                    absentRecords.map((record, index) => (
+                      <tr key={index} className="hover:bg-gray-50">
+                        <td className="p-3 text-center text-sm border">
+                          {new Date(record.attendance_date).toLocaleDateString('ar-SA', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                          })}
+                        </td>
+                        <td className="p-3 text-center text-sm border">
+                          <span className="px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs">
+                            غياب
+                          </span>
+                        </td>
+                        <td className="p-3 text-center text-sm border">
+                          {record.notes || '-'}
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan="3" className="p-6 text-center text-gray-500">
+                        لا توجد سجلات غياب لهذا الطالب
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex justify-end mt-4">
+              <button
+                onClick={() => setShowAbsentTableModal(false)}
+                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
+              >
+                إغلاق
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Points Records Table Modal */}
+      {showPointsTableModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-900">
+                سجل النقاط - {student.first_name} {student.last_name}
+              </h3>
+              <button
+                onClick={() => setShowPointsTableModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <AiOutlineClose className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="bg-white rounded-lg border overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="p-3 text-center text-sm font-medium border">التاريخ</th>
+                    <th className="p-3 text-center text-sm font-medium border">النقاط</th>
+                    <th className="p-3 text-center text-sm font-medium border">النقاط من 5</th>
+                    <th className="p-3 text-center text-sm font-medium border">ملاحظات</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pointsRecords.length > 0 ? (
+                    pointsRecords.map((record, index) => (
+                      <tr key={index} className="hover:bg-gray-50">
+                        <td className="p-3 text-center text-sm border">
+                          {new Date(record.points_date || record.created_at).toLocaleDateString('ar-SA', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                          })}
+                        </td>
+                        <td className="p-3 text-center text-sm border font-semibold">
+                          {record.points_given}
+                        </td>
+                        <td className="p-3 text-center text-sm border">
+                          <div className="flex items-center justify-center">
+                            <div className="flex">
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <span
+                                  key={star}
+                                  className={`text-lg ${
+                                    star <= record.points_given ? 'text-yellow-400' : 'text-gray-300'
+                                  }`}
+                                >
+                                  ★
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-3 text-center text-sm border">
+                          {record.notes || '-'}
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan="4" className="p-6 text-center text-gray-500">
+                        لا توجد سجلات نقاط لهذا الطالب
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex justify-end mt-4">
+              <button
+                onClick={() => setShowPointsTableModal(false)}
+                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
+              >
+                إغلاق
+              </button>
+            </div>
           </div>
         </div>
       )}
