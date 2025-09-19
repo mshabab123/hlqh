@@ -15,13 +15,13 @@ const calculatePagesForAyah = (surahId, ayahNumber) => {
   return Math.ceil(ayahProgress * surah.totalPages);
 };
 
-// Helper functions for Qur'an progress calculation (from Al-Nas to Al-Baqarah)
+// Helper functions for Qur'an progress calculation (using memorization order: الفاتحة 1→الناس 2→الفلق 3...)
 export const calculateQuranProgress = (memorizedSurahId, memorizedAyahNumber) => {
   if (!memorizedSurahId || !memorizedAyahNumber) {
-    return { 
-      totalAyahs: 0, 
-      memorizedAyahs: 0, 
-      percentage: 0, 
+    return {
+      totalAyahs: 0,
+      memorizedAyahs: 0,
+      percentage: 0,
       completedSurahs: 0,
       totalPages: 0,
       memorizedPages: 0,
@@ -30,10 +30,10 @@ export const calculateQuranProgress = (memorizedSurahId, memorizedAyahNumber) =>
   }
 
   const currentSurah = QURAN_SURAHS.find(s => s.id == memorizedSurahId);
-  if (!currentSurah) return { 
-    totalAyahs: 0, 
-    memorizedAyahs: 0, 
-    percentage: 0, 
+  if (!currentSurah) return {
+    totalAyahs: 0,
+    memorizedAyahs: 0,
+    percentage: 0,
     completedSurahs: 0,
     totalPages: 0,
     memorizedPages: 0,
@@ -43,34 +43,38 @@ export const calculateQuranProgress = (memorizedSurahId, memorizedAyahNumber) =>
   // Calculate total ayahs and pages in Qur'an
   const totalAyahs = QURAN_SURAHS.reduce((sum, surah) => sum + surah.ayahCount, 0);
   const totalPages = TOTAL_QURAN_PAGES;
-  
-  // Calculate memorized ayahs and pages (starting from Al-Nas = 114, going backward)
+
+  // Get memorization position (الفاتحة=1, الناس=2, الفلق=3, etc.)
+  const currentPosition = getMemorizationPosition(memorizedSurahId);
+
+  // Calculate memorized ayahs and pages (from position 1 up to current position)
   let memorizedAyahs = 0;
   let memorizedPages = 0;
-  
-  // Add all ayahs and pages from completed surahs (from 114 down to current surah + 1)
-  for (let surahId = 114; surahId > memorizedSurahId; surahId--) {
+
+  // Add all ayahs and pages from completed surahs (from position 1 to current position - 1)
+  for (let pos = 1; pos < currentPosition; pos++) {
+    const surahId = getSurahIdFromPosition(pos);
     const surah = QURAN_SURAHS.find(s => s.id === surahId);
     if (surah) {
       memorizedAyahs += surah.ayahCount;
       memorizedPages += surah.totalPages;
     }
   }
-  
+
   // Add ayahs and pages from current surah
   const currentAyahs = parseInt(memorizedAyahNumber) || 0;
   memorizedAyahs += currentAyahs;
   memorizedPages += calculatePagesForAyah(memorizedSurahId, currentAyahs);
-  
+
   const percentage = Math.round((memorizedAyahs / totalAyahs) * 100 * 100) / 100; // Round to 2 decimal places
   const pagesPercentage = Math.round((memorizedPages / totalPages) * 100 * 100) / 100;
-  
-  // Count completed surahs (from 114 down to current)
-  let completedSurahs = 114 - memorizedSurahId;
+
+  // Count completed surahs (memorization positions completed)
+  let completedSurahs = currentPosition - 1; // Positions before current
   if (memorizedAyahNumber == currentSurah.ayahCount) {
     completedSurahs += 1; // Current surah is also complete
   }
-  
+
   return {
     totalAyahs,
     memorizedAyahs,
@@ -101,28 +105,45 @@ export const getProgressBgColor = (percentage) => {
   return 'bg-red-500';
 };
 
-// Calculate goal progress from current memorized position to target
+// Helper function to get memorization position (1-114) from surah ID
+const getMemorizationPosition = (surahId) => {
+  const index = QURAN_SURAHS.findIndex(s => s.id == surahId);
+  return index !== -1 ? index + 1 : 0;
+};
+
+// Helper function to get surah ID from memorization position
+const getSurahIdFromPosition = (position) => {
+  if (position < 1 || position > QURAN_SURAHS.length) return 0;
+  return QURAN_SURAHS[position - 1].id;
+};
+
+// Calculate goal progress from current memorized position to target (using memorization order)
 export const calculateStudentGoalProgress = (student) => {
   if (!student.target_surah_id || !student.target_ayah_number) {
     return { percentage: 0, memorizedVerses: 0, totalGoalVerses: 0 };
   }
 
-  // Get current memorized position and target position
+  // Get current memorized position and target position in memorization order
   const currentSurahId = parseInt(student.memorized_surah_id) || 0;
   const currentAyah = parseInt(student.memorized_ayah_number) || 0;
   const targetSurahId = parseInt(student.target_surah_id) || 0;
   const targetAyah = parseInt(student.target_ayah_number) || 0;
 
+  // Convert to memorization positions (الفاتحة=1, الناس=2, الفلق=3, etc.)
+  const currentPosition = getMemorizationPosition(currentSurahId);
+  const targetPosition = getMemorizationPosition(targetSurahId);
+
   let totalGoalVerses = 0;
   let memorizedVerses = 0;
 
   if (!currentSurahId || currentSurahId === 0) {
-    // No current memorization - calculate from beginning (Surah 114) to target
-    for (let surahId = 114; surahId >= targetSurahId; surahId--) {
+    // No current memorization - calculate from position 1 (الفاتحة) to target position
+    for (let pos = 1; pos <= targetPosition; pos++) {
+      const surahId = getSurahIdFromPosition(pos);
       const surah = QURAN_SURAHS.find(s => s.id === surahId);
       if (!surah) continue;
-      
-      if (surahId === targetSurahId) {
+
+      if (pos === targetPosition) {
         // Target surah - only count up to target ayah
         totalGoalVerses += Math.min(targetAyah, surah.ayahCount);
       } else {
@@ -133,34 +154,32 @@ export const calculateStudentGoalProgress = (student) => {
     memorizedVerses = 0; // Nothing memorized yet
   } else {
     // Calculate from current position to target position
-    const currentSurahIdInt = parseInt(currentSurahId);
-    const currentAyahInt = parseInt(currentAyah);
-
-    if (currentSurahIdInt < targetSurahId) {
+    if (currentPosition > targetPosition) {
       // Current is beyond target - goal already achieved
       totalGoalVerses = 1;
       memorizedVerses = 1;
-    } else if (currentSurahIdInt === targetSurahId) {
+    } else if (currentPosition === targetPosition) {
       // Same surah - calculate verses from current to target
-      if (currentAyahInt >= targetAyah) {
+      if (currentAyah >= targetAyah) {
         // Already achieved or beyond target
         totalGoalVerses = 1;
         memorizedVerses = 1;
       } else {
         // Need to memorize from current ayah to target ayah
-        totalGoalVerses = targetAyah - currentAyahInt;
+        totalGoalVerses = targetAyah - currentAyah;
         memorizedVerses = 0; // Not achieved yet
       }
     } else {
-      // Current surah is after target surah - need to go from current to target
-      for (let surahId = currentSurahIdInt; surahId >= targetSurahId; surahId--) {
+      // Need to go from current position to target position
+      for (let pos = currentPosition; pos <= targetPosition; pos++) {
+        const surahId = getSurahIdFromPosition(pos);
         const surah = QURAN_SURAHS.find(s => s.id === surahId);
         if (!surah) continue;
-        
-        if (surahId === currentSurahIdInt) {
+
+        if (pos === currentPosition) {
           // Current surah - count from current ayah to end
-          totalGoalVerses += (surah.ayahCount - currentAyahInt);
-        } else if (surahId === targetSurahId) {
+          totalGoalVerses += (surah.ayahCount - currentAyah);
+        } else if (pos === targetPosition) {
           // Target surah - count from beginning to target ayah
           totalGoalVerses += targetAyah;
         } else {

@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../config/database');
 const { body, validationResult } = require('express-validator');
-const { calculateMemorizedPages, TOTAL_QURAN_PAGES, QURAN_SURAHS, getSurahIdFromName, getSurahNameFromId } = require('../utils/quranData');
+const { calculateMemorizedPages, TOTAL_QURAN_PAGES, QURAN_SURAHS, getSurahIdFromName, getSurahNameFromId } = require('../../frontend/src/utils/quranData.js');
 
 // Import authentication middleware
 const { authenticateToken: requireAuth } = require('../middleware/auth');

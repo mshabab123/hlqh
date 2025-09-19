@@ -8,6 +8,7 @@ import {
   calculateTotalScore
 } from "../utils/classUtils";
 import { getSurahIdFromName, getSurahNameFromId } from "../utils/quranData";
+import QuranProgressModal from "./QuranProgressModal";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
@@ -35,6 +36,9 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
   const [showPointsTableModal, setShowPointsTableModal] = useState(false);
   const [absentRecords, setAbsentRecords] = useState([]);
   const [pointsRecords, setPointsRecords] = useState([]);
+
+  // Quran Progress Modal state
+  const [showQuranProgressModal, setShowQuranProgressModal] = useState(false);
   
   // Grade modal state
   const [showGradeModal, setShowGradeModal] = useState(false);
@@ -370,6 +374,49 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
     }
   };
 
+  // QuranProgressModal handlers
+  const handleQuranProgressSubmit = async (e, updatedStudent) => {
+    e?.preventDefault();
+
+    try {
+      // Save target surah changes to the database
+      await axios.put(
+        `${API_BASE}/api/classes/${classItem.id}/student/${student.id}/goal`,
+        {
+          target_surah_id: updatedStudent.target_surah_id,
+          target_ayah_number: parseInt(updatedStudent.target_ayah_number)
+        },
+        {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
+        }
+      );
+
+      // Update the student data with the new progress
+      setStudentData(prevData => ({
+        ...prevData,
+        ...updatedStudent
+      }));
+
+      setShowQuranProgressModal(false);
+      fetchStudentProfile(); // Refresh the data
+    } catch (error) {
+      console.error("Error saving target surah:", error);
+      setError(error.response?.data?.error || "فشل في حفظ الهدف");
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
+  const handleQuranProgressCancel = () => {
+    setShowQuranProgressModal(false);
+  };
+
+  const handleStudentChange = (updatedStudent) => {
+    setStudentData(prevData => ({
+      ...prevData,
+      ...updatedStudent
+    }));
+  };
+
   const fetchAbsentRecords = async () => {
     try {
       // Get current semester
@@ -650,10 +697,10 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                 <div className="flex justify-between items-center mb-3">
                   <h3 className="text-lg font-semibold">الهدف والتقدم</h3>
                   <button
-                    onClick={() => setShowGoalForm(!showGoalForm)}
+                    onClick={() => setShowQuranProgressModal(true)}
                     className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
                   >
-                    {showGoalForm ? 'إخفاء' : 'تعديل الهدف'}
+                    تعديل الهدف
                   </button>
                 </div>
 
@@ -1730,6 +1777,16 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Quran Progress Modal */}
+      {showQuranProgressModal && studentData && (
+        <QuranProgressModal
+          student={studentData}
+          onSubmit={handleQuranProgressSubmit}
+          onCancel={handleQuranProgressCancel}
+          onStudentChange={handleStudentChange}
+        />
       )}
     </div>
   );

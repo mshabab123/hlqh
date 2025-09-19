@@ -132,9 +132,46 @@ const getSurahIdFromName = (surahName) => {
 // Helper function to get Surah name from ID
 const getSurahNameFromId = (surahId) => {
   if (!surahId) return null;
-  
+
   const surah = QURAN_SURAHS.find(s => s.id === parseInt(surahId));
   return surah ? surah.name : null;
+};
+
+// Helper function to calculate pages for a given ayah position within a surah
+const calculatePagesForAyah = (surahId, ayahNumber) => {
+  const surah = QURAN_SURAHS.find(s => s.id == surahId);
+  if (!surah) return 0;
+
+  // If memorizing the complete surah
+  if (ayahNumber >= surah.ayahCount) {
+    return surah.totalPages;
+  }
+
+  // Calculate approximate pages based on ayah progress within the surah
+  const ayahProgress = ayahNumber / surah.ayahCount;
+  return Math.ceil(ayahProgress * surah.totalPages);
+};
+
+// Helper function to calculate total memorized pages
+const calculateMemorizedPages = (memorizedSurahId, memorizedAyahNumber) => {
+  if (!memorizedSurahId || !memorizedAyahNumber) {
+    return 0;
+  }
+
+  let memorizedPages = 0;
+
+  // Add all pages from completed surahs (from 114 down to current surah + 1)
+  for (let surahId = 114; surahId > memorizedSurahId; surahId--) {
+    const surah = QURAN_SURAHS.find(s => s.id === surahId);
+    if (surah) {
+      memorizedPages += surah.totalPages;
+    }
+  }
+
+  // Add pages from current surah
+  memorizedPages += calculatePagesForAyah(memorizedSurahId, memorizedAyahNumber);
+
+  return memorizedPages;
 };
 
 
@@ -143,5 +180,7 @@ export {
   QURAN_SURAHS,
   TOTAL_QURAN_PAGES,
   getSurahIdFromName,
-  getSurahNameFromId
+  getSurahNameFromId,
+  calculatePagesForAyah,
+  calculateMemorizedPages
 };
