@@ -339,7 +339,8 @@ router.post('/', auth, async (req, res) => {
       max_grade,
       grade_type,
       start_reference,
-      end_reference
+      end_reference,
+      grade_date
     } = req.body;
 
     // If user is a teacher, verify they are assigned to the class
@@ -384,25 +385,26 @@ router.post('/', auth, async (req, res) => {
     if (existingGrade.rows.length > 0) {
       // Update existing grade
       result = await pool.query(`
-        UPDATE grades SET 
-          grade_value = $1, 
+        UPDATE grades SET
+          grade_value = $1,
           max_grade = $2,
           class_id = $3,
-          start_reference = $4, 
-          end_reference = $5, 
-          notes = $6, 
+          start_reference = $4,
+          end_reference = $5,
+          notes = $6,
+          date_graded = $7,
           updated_at = NOW()
-        WHERE student_id = $7 AND course_id = $8 AND semester_id = $9 
+        WHERE student_id = $8 AND course_id = $9 AND semester_id = $10
         RETURNING *
-      `, [gradeValue, max_grade || 100, class_id, startRef, endRef, notes, student_id, course_id, semester_id]);
+      `, [gradeValue, max_grade || 100, class_id, startRef, endRef, notes, grade_date || new Date().toISOString().split('T')[0], student_id, course_id, semester_id]);
     } else {
       // Create new grade
       result = await pool.query(`
         INSERT INTO grades (
           student_id, course_id, semester_id, class_id, grade_value, max_grade,
-          grade_type, start_reference, end_reference, notes, created_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW()) RETURNING *
-      `, [student_id, course_id, semester_id, class_id, gradeValue, max_grade || 100, grade_type || 'test', startRef, endRef, notes]);
+          grade_type, start_reference, end_reference, notes, date_graded, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW()) RETURNING *
+      `, [student_id, course_id, semester_id, class_id, gradeValue, max_grade || 100, grade_type || 'test', startRef, endRef, notes, grade_date || new Date().toISOString().split('T')[0]]);
     }
 
     // Automatically mark attendance as present when grade is entered
@@ -447,7 +449,8 @@ router.put('/:id', auth, async (req, res) => {
       max_grade,
       class_id,
       start_reference,
-      end_reference
+      end_reference,
+      grade_date
     } = req.body;
 
     // Use the appropriate field values (support both old and new formats)
@@ -456,16 +459,17 @@ router.put('/:id', auth, async (req, res) => {
     const endRef = end_reference || (to_surah && to_ayah ? `${to_surah}:${to_ayah}` : null);
 
     const result = await pool.query(`
-      UPDATE grades SET 
-        grade_value = $1, 
+      UPDATE grades SET
+        grade_value = $1,
         max_grade = $2,
         class_id = $3,
-        start_reference = $4, 
-        end_reference = $5, 
-        notes = $6, 
+        start_reference = $4,
+        end_reference = $5,
+        notes = $6,
+        date_graded = $7,
         updated_at = NOW()
-      WHERE id = $7 RETURNING *
-    `, [gradeValue, max_grade || 100, class_id, startRef, endRef, notes, id]);
+      WHERE id = $8 RETURNING *
+    `, [gradeValue, max_grade || 100, class_id, startRef, endRef, notes, grade_date || new Date().toISOString().split('T')[0], id]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ message: 'الدرجة غير موجودة' });

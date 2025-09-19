@@ -552,7 +552,7 @@ router.get('/:id/grading', requireAuth, async (req, res) => {
 router.post('/:id/grades', requireAuth, async (req, res) => {
   try {
     const { id: classId } = req.params;
-    const { student_id, course_id, grade_type, grade_value, max_grade, notes, start_reference, end_reference } = req.body;
+    const { student_id, course_id, grade_type, grade_value, max_grade, notes, start_reference, end_reference, grade_date } = req.body;
     
     if (!student_id || !course_id || grade_value === undefined) {
       return res.status(400).json({ error: 'البيانات المطلوبة: معرف الطالب، معرف المادة، والدرجة' });
@@ -571,9 +571,9 @@ router.post('/:id/grades', requireAuth, async (req, res) => {
       INSERT INTO grades (
         student_id, course_id, semester_id, class_id, grade_value, max_grade,
         grade_type, start_reference, end_reference, notes, date_graded
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *
-    `, [student_id, course_id, semesterId, classId, grade_value, max_grade || 100, grade_type || 'assignment', start_reference, end_reference, notes]);
+    `, [student_id, course_id, semesterId, classId, grade_value, max_grade || 100, grade_type || 'assignment', start_reference, end_reference, notes, grade_date || new Date().toISOString().split('T')[0]]);
     
     // If this is a memorization grade with Quran references, update student's overall progress
     if (start_reference && end_reference && grade_type === 'memorization') {

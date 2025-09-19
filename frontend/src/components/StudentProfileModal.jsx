@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { AiOutlineStar, AiOutlineUserAdd, AiOutlineSave, AiOutlineClose } from "react-icons/ai";
+import { AiOutlineStar, AiOutlineUserAdd, AiOutlineSave, AiOutlineClose, AiOutlineEdit, AiOutlineDelete } from "react-icons/ai";
 import { QURAN_SURAHS, TOTAL_QURAN_PAGES } from "../utils/quranData";
 import { 
   getMaxVerse, 
@@ -32,6 +32,7 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
   
   // Grade modal state
   const [showGradeModal, setShowGradeModal] = useState(false);
+  const [editingGrade, setEditingGrade] = useState(null); // Track which grade is being edited
   const [gradeInput, setGradeInput] = useState({
     grade_value: '',
     max_grade: 100,
@@ -39,7 +40,8 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
     start_surah: '',
     start_verse: '',
     end_surah: '',
-    end_verse: ''
+    end_verse: '',
+    grade_date: new Date().toISOString().split('T')[0] // Default to today's date
   });
   const [goalProgress, setGoalProgress] = useState({ percentage: 0, memorizedVerses: 0, totalGoalVerses: 0 });
   const [showGoalForm, setShowGoalForm] = useState(false);
@@ -174,7 +176,8 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
       start_surah: '',
       start_verse: '',
       end_surah: '',
-      end_verse: ''
+      end_verse: '',
+      grade_date: new Date().toISOString().split('T')[0] // Reset to today's date
     });
     setError('');
   };
@@ -238,46 +241,122 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
     }
 
     // Build reference strings for Quran verses - convert Surah names to IDs
-    const start_ref = gradeInput.start_surah && gradeInput.start_verse ? 
+    const start_ref = gradeInput.start_surah && gradeInput.start_verse ?
       `${getSurahIdFromName(gradeInput.start_surah)}:${gradeInput.start_verse}` : '';
-    const end_ref = gradeInput.end_surah && gradeInput.end_verse ? 
+    const end_ref = gradeInput.end_surah && gradeInput.end_verse ?
       `${getSurahIdFromName(gradeInput.end_surah)}:${gradeInput.end_verse}` : '';
-    
-    console.log('Saving grade references:', { 
-      start_surah_name: gradeInput.start_surah, 
+
+    console.log('Saving grade references:', {
+      start_surah_name: gradeInput.start_surah,
       start_surah_id: getSurahIdFromName(gradeInput.start_surah),
-      start_ref, 
-      end_ref 
+      start_ref,
+      end_ref
     });
 
     try {
       setSaving(true);
-      await axios.post(`${API_BASE}/api/classes/${classItem.id}/grades`, {
-        student_id: student.id,
-        course_id: selectedCourse.id,
-        grade_value: parseFloat(gradeInput.grade_value),
-        max_grade: parseFloat(gradeInput.max_grade),
-        notes: gradeInput.notes,
-        grade_type: 'memorization',
-        start_reference: start_ref,
-        end_reference: end_ref
-      }, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      
+
+      if (editingGrade) {
+        // Update existing grade
+        await axios.put(`${API_BASE}/api/grades/${editingGrade.id}`, {
+          grade_value: parseFloat(gradeInput.grade_value),
+          max_grade: parseFloat(gradeInput.max_grade),
+          notes: gradeInput.notes,
+          start_reference: start_ref,
+          end_reference: end_ref,
+          grade_date: gradeInput.grade_date,
+          class_id: classItem.id
+        }, {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+      } else {
+        // Create new grade
+        await axios.post(`${API_BASE}/api/classes/${classItem.id}/grades`, {
+          student_id: student.id,
+          course_id: selectedCourse.id,
+          grade_value: parseFloat(gradeInput.grade_value),
+          max_grade: parseFloat(gradeInput.max_grade),
+          notes: gradeInput.notes,
+          grade_type: 'memorization',
+          start_reference: start_ref,
+          end_reference: end_ref,
+          grade_date: gradeInput.grade_date
+        }, {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+      }
+
       setSelectedCourse(null);
+      setEditingGrade(null);
       setGradeInput({
         grade_value: '', max_grade: 100, notes: '',
-        start_surah: '', start_verse: '', end_surah: '', end_verse: ''
+        start_surah: '', start_verse: '', end_surah: '', end_verse: '',
+        grade_date: new Date().toISOString().split('T')[0]
       });
       fetchStudentProfile();
-      
+
     } catch (err) {
       setError(err.response?.data?.error || "فشل في حفظ الدرجة");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleEditGrade = (grade) => {
+    setEditingGrade(grade);
+    setSelectedCourse(studentData.courses.find(c => c.id === grade.course_id));
+
+    // Parse references back to surah names and verses
+    let startSurah = '', startVerse = '', endSurah = '', endVerse = '';
+
+    if (grade.start_reference) {
+      const [surahId, verse] = grade.start_reference.split(':');
+      startSurah = getSurahNameFromId(parseInt(surahId)) || '';
+      startVerse = verse || '';
+    }
+
+    if (grade.end_reference) {
+      const [surahId, verse] = grade.end_reference.split(':');
+      endSurah = getSurahNameFromId(parseInt(surahId)) || '';
+      endVerse = verse || '';
+    }
+
+    setGradeInput({
+      grade_value: grade.grade_value?.toString() || '',
+      max_grade: grade.max_grade?.toString() || '100',
+      notes: grade.notes || '',
+      start_surah: startSurah,
+      start_verse: startVerse,
+      end_surah: endSurah,
+      end_verse: endVerse,
+      grade_date: grade.date_graded ? grade.date_graded.split('T')[0] : new Date().toISOString().split('T')[0]
+    });
+
+    setShowGradeModal(true);
+  };
+
+  const handleDeleteGrade = async (gradeId) => {
+    if (!window.confirm('هل أنت متأكد من حذف هذه الدرجة؟')) {
+      return;
+    }
+
+    try {
+      await axios.delete(`${API_BASE}/api/grades/${gradeId}`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+
+      fetchStudentProfile();
+      setSuccess('تم حذف الدرجة بنجاح');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      setError(err.response?.data?.error || "فشل في حذف الدرجة");
+      setTimeout(() => setError(''), 3000);
     }
   };
 
@@ -951,15 +1030,17 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
           <div className="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-gray-900">
-                إضافة درجة جديدة - {student.first_name} {student.last_name}
+                {editingGrade ? 'تعديل الدرجة' : 'إضافة درجة جديدة'} - {student.first_name} {student.last_name}
               </h3>
               <button
                 onClick={() => {
                   setShowGradeModal(false);
                   setSelectedCourse(null);
+                  setEditingGrade(null);
                   setGradeInput({
                     grade_value: '', max_grade: 100, notes: '',
-                    start_surah: '', start_verse: '', end_surah: '', end_verse: ''
+                    start_surah: '', start_verse: '', end_surah: '', end_verse: '',
+                    grade_date: new Date().toISOString().split('T')[0]
                   });
                 }}
                 className="text-gray-400 hover:text-gray-600"
@@ -1002,6 +1083,15 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                         className="w-20 p-2 border rounded"
                         value={gradeInput.max_grade}
                         onChange={(e) => setGradeInput({...gradeInput, max_grade: e.target.value})}
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label className="text-sm font-medium">التاريخ:</label>
+                      <input
+                        type="date"
+                        className="p-2 border rounded"
+                        value={gradeInput.grade_date}
+                        onChange={(e) => setGradeInput({...gradeInput, grade_date: e.target.value})}
                       />
                     </div>
                   </div>
@@ -1139,9 +1229,11 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                       onClick={() => {
                         setShowGradeModal(false);
                         setSelectedCourse(null);
+                        setEditingGrade(null);
                         setGradeInput({
                           grade_value: '', max_grade: 100, notes: '',
-                          start_surah: '', start_verse: '', end_surah: '', end_verse: ''
+                          start_surah: '', start_verse: '', end_surah: '', end_verse: '',
+                          grade_date: new Date().toISOString().split('T')[0]
                         });
                       }}
                       className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
@@ -1157,7 +1249,7 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                       disabled={saving || !gradeInput.grade_value}
                     >
                       <AiOutlineSave className="w-4 h-4 inline mr-2" />
-                      {saving ? 'حفظ...' : 'حفظ الدرجة'}
+                      {saving ? 'حفظ...' : (editingGrade ? 'تحديث الدرجة' : 'حفظ الدرجة')}
                     </button>
                   </div>
 
@@ -1174,6 +1266,7 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                             )}
                             <th className="p-2 text-center text-sm border">التاريخ</th>
                             <th className="p-2 text-right text-sm border">ملاحظات</th>
+                            <th className="p-2 text-center text-sm border">الإجراءات</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1209,13 +1302,29 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                                 {new Date(grade.date_graded || grade.created_at).toLocaleDateString('ar-SA', {
                                   year: 'numeric',
                                   month: 'short',
-                                  day: 'numeric',
-                                  hour: '2-digit',
-                                  minute: '2-digit'
+                                  day: 'numeric'
                                 })}
                               </td>
                               <td className="p-2 text-xs border">
                                 {grade.notes || '-'}
+                              </td>
+                              <td className="p-2 text-center border">
+                                <div className="flex gap-1 justify-center">
+                                  <button
+                                    onClick={() => handleEditGrade(grade)}
+                                    className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded"
+                                    title="تعديل الدرجة"
+                                  >
+                                    <AiOutlineEdit className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteGrade(grade.id)}
+                                    className="p-1 text-red-600 hover:text-red-800 hover:bg-red-100 rounded"
+                                    title="حذف الدرجة"
+                                  >
+                                    <AiOutlineDelete className="w-4 h-4" />
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           ))}
