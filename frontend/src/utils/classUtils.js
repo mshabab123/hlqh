@@ -111,7 +111,7 @@ export const calculateTotalScore = (studentData) => {
     }
   });
   
-  return totalWeight > 0 ? (totalWeighted / totalWeight).toFixed(1) : 0;
+  return totalWeight > 0 ? Math.round(totalWeighted / totalWeight) : 0;
 };
 
 // User role utilities

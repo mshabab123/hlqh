@@ -41,13 +41,14 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
   const [editingGrade, setEditingGrade] = useState(null); // Track which grade is being edited
   const [gradeInput, setGradeInput] = useState({
     grade_value: '',
-    max_grade: 100,
+    max_grade: '100',
     notes: '',
     start_surah: '',
     start_verse: '',
     end_surah: '',
     end_verse: '',
-    grade_date: new Date().toISOString().split('T')[0] // Default to today's date
+    grade_date: new Date().toISOString().split('T')[0], // Default to today's date
+    grade_time: new Date().toTimeString().slice(0, 5) // Default to current time (HH:MM)
   });
   const [goalProgress, setGoalProgress] = useState({ percentage: 0, memorizedVerses: 0, totalGoalVerses: 0 });
   const [showGoalForm, setShowGoalForm] = useState(false);
@@ -177,13 +178,14 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
     setSelectedCourse(course);
     setGradeInput({
       grade_value: '',
-      max_grade: 100,
+      max_grade: '100',
       notes: '',
       start_surah: '',
       start_verse: '',
       end_surah: '',
       end_verse: '',
-      grade_date: new Date().toISOString().split('T')[0] // Reset to today's date
+      grade_date: new Date().toISOString().split('T')[0], // Reset to today's date
+      grade_time: new Date().toTimeString().slice(0, 5) // Reset to current time
     });
     setError('');
   };
@@ -299,9 +301,10 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
       setSelectedCourse(null);
       setEditingGrade(null);
       setGradeInput({
-        grade_value: '', max_grade: 100, notes: '',
+        grade_value: '', max_grade: '100', notes: '',
         start_surah: '', start_verse: '', end_surah: '', end_verse: '',
-        grade_date: new Date().toISOString().split('T')[0]
+        grade_date: new Date().toISOString().split('T')[0],
+        grade_time: new Date().toTimeString().slice(0, 5)
       });
       fetchStudentProfile();
 
@@ -339,7 +342,8 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
       start_verse: startVerse,
       end_surah: endSurah,
       end_verse: endVerse,
-      grade_date: grade.date_graded ? grade.date_graded.split('T')[0] : new Date().toISOString().split('T')[0]
+      grade_date: grade.date_graded ? grade.date_graded.split('T')[0] : new Date().toISOString().split('T')[0],
+      grade_time: grade.date_graded ? new Date(grade.date_graded).toTimeString().slice(0, 5) : new Date().toTimeString().slice(0, 5)
     });
 
     setShowGradeModal(true);
@@ -714,13 +718,15 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                           <div>
                             <div className="text-sm font-medium text-gray-600 mb-1">الدرجة:</div>
                             <div className="text-base font-bold text-blue-700">
-                              {latestGrade.grade_value}/{latestGrade.max_grade}
-                              <span className="text-sm ml-2 text-gray-600">
-                                ({((parseFloat(latestGrade.grade_value) / parseFloat(latestGrade.max_grade)) * 100).toFixed(1)}%)
-                              </span>
+                              {Math.round(parseFloat(latestGrade.grade_value))}
                             </div>
                             <div className="text-xs text-gray-500 mt-1">
-                              {new Date(latestGrade.date_graded || latestGrade.created_at).toLocaleDateString('ar-SA')}
+                              {new Date(latestGrade.date_graded || latestGrade.created_at).toLocaleDateString('ar-SA', {
+                                weekday: 'short',
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric'
+                              })}
                             </div>
                           </div>
                         </div>
@@ -1071,11 +1077,11 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                       className="p-3 bg-blue-500 text-white rounded hover:bg-blue-600 text-center font-medium"
                     >
                       {course.name}
-                      {course.percentage && (
+                      {/* {course.percentage && (
                         <span className="block text-xs mt-1 opacity-75">
                           ({course.percentage}%)
                         </span>
-                      )}
+                      )} */}
                     </button>
                   ))}
                 </div>
@@ -1105,19 +1111,27 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
       {showGradeModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60]">
           <div className="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-gray-900">
-                {editingGrade ? 'تعديل الدرجة' : 'إضافة درجة جديدة'} - {student.first_name} {student.last_name}
-              </h3>
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-200 shadow-lg mb-6">
+              <div className="text-center">
+                <h3 className="text-lg font-bold text-gray-900">
+                  {editingGrade ? 'تعديل الدرجة' : 'إضافة درجة جديدة'}
+                </h3>
+                <div className="text-xl font-bold text-blue-600 mt-1">
+                  {student.first_name} {student.second_name} {student.last_name}
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end mb-4">
               <button
                 onClick={() => {
                   setShowGradeModal(false);
                   setSelectedCourse(null);
                   setEditingGrade(null);
                   setGradeInput({
-                    grade_value: '', max_grade: 100, notes: '',
+                    grade_value: '', max_grade: '100', notes: '',
                     start_surah: '', start_verse: '', end_surah: '', end_verse: '',
-                    grade_date: new Date().toISOString().split('T')[0]
+                    grade_date: new Date().toISOString().split('T')[0],
+                    grade_time: new Date().toTimeString().slice(0, 5)
                   });
                 }}
                 className="text-gray-400 hover:text-gray-600"
@@ -1128,38 +1142,35 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
             
             <div className="space-y-4">
               {/* Course Display */}
-              {selectedCourse && (
+              {/* {selectedCourse && (
                 <div className="bg-gray-50 p-3 rounded-lg border">
                   <div className="text-sm font-medium text-gray-700">المادة المحددة:</div>
                   <div className="text-lg font-bold text-blue-700">
                     {selectedCourse.name} {selectedCourse.percentage && `(${selectedCourse.percentage}%)`}
                   </div>
                 </div>
-              )}
+              )} */}
 
               {selectedCourse && (
                 <>
                   {/* Grade Input */}
                   <div className="flex items-center gap-4 flex-wrap">
                     <div className="flex items-center gap-2">
-                      <label className="text-sm font-medium">الدرجة:</label>
+                      <label className="text-sm font-medium">الدرجة (من 100):</label>
                       <input
                         type="number"
                         min="0"
-                        step="0.1"
-                        placeholder="الدرجة"
+                        max="100"
+                        step="1"
+                        placeholder=" الدرجة"
                         className="w-20 p-2 border rounded"
                         value={gradeInput.grade_value}
-                        onChange={(e) => setGradeInput({...gradeInput, grade_value: e.target.value})}
-                      />
-                      <span>/</span>
-                      <input
-                        type="number"
-                        min="1"
-                        step="1"
-                        className="w-20 p-2 border rounded"
-                        value={gradeInput.max_grade}
-                        onChange={(e) => setGradeInput({...gradeInput, max_grade: e.target.value})}
+                        onChange={(e) => {
+                          const value = parseInt(e.target.value);
+                          if (value <= 100 || e.target.value === '') {
+                            setGradeInput({...gradeInput, grade_value: e.target.value});
+                          }
+                        }}
                       />
                     </div>
                     <div className="flex items-center gap-2">
@@ -1308,7 +1319,7 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                         setSelectedCourse(null);
                         setEditingGrade(null);
                         setGradeInput({
-                          grade_value: '', max_grade: 100, notes: '',
+                          grade_value: '', max_grade: '100', notes: '',
                           start_surah: '', start_verse: '', end_surah: '', end_verse: '',
                           grade_date: new Date().toISOString().split('T')[0]
                         });
@@ -1337,7 +1348,7 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                       <table className="w-full">
                         <thead className="bg-gray-100 sticky top-0">
                           <tr>
-                            <th className="p-2 text-center text-sm border">الدرجة</th>
+                            <th className="p-2 text-center text-sm border">الدرجة من 100</th>
                             {!['السلوك', 'سلوك', 'السيرة', 'سيرة', 'العقيدة', 'عقيدة', 'الفقه', 'فقه'].includes(selectedCourse.name.toLowerCase()) && (
                               <th className="p-2 text-center text-sm border">المرجع القرآني</th>
                             )}
@@ -1350,10 +1361,7 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                           {studentData.grades?.filter(grade => grade.course_id === selectedCourse.id).map(grade => (
                             <tr key={grade.id} className="hover:bg-gray-50">
                               <td className="p-2 text-center font-medium border text-sm">
-                                {grade.grade_value}/{grade.max_grade}
-                                <div className="text-xs text-gray-600">
-                                  ({((parseFloat(grade.grade_value) / parseFloat(grade.max_grade)) * 100).toFixed(1)}%)
-                                </div>
+                                {Math.round(parseFloat(grade.grade_value))}
                               </td>
                               {!['السلوك', 'سلوك', 'السيرة', 'سيرة', 'العقيدة', 'عقيدة', 'الفقه', 'فقه'].includes(selectedCourse.name.toLowerCase()) && (
                                 <td className="p-2 text-center text-xs border">
@@ -1377,6 +1385,7 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                               )}
                               <td className="p-2 text-center text-xs border">
                                 {new Date(grade.date_graded || grade.created_at).toLocaleDateString('ar-SA', {
+                                  weekday: 'short',
                                   year: 'numeric',
                                   month: 'short',
                                   day: 'numeric'
@@ -1599,6 +1608,7 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                       <tr key={index} className="hover:bg-gray-50">
                         <td className="p-3 text-center text-sm border">
                           {new Date(record.attendance_date).toLocaleDateString('ar-SA', {
+                            weekday: 'long',
                             year: 'numeric',
                             month: 'long',
                             day: 'numeric'
@@ -1669,6 +1679,7 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                       <tr key={index} className="hover:bg-gray-50">
                         <td className="p-3 text-center text-sm border">
                           {new Date(record.points_date || record.created_at).toLocaleDateString('ar-SA', {
+                            weekday: 'long',
                             year: 'numeric',
                             month: 'long',
                             day: 'numeric'
