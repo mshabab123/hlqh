@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import SchoolLevelSelect from "./SchoolLevelSelect";
 
 const ClassForm = ({ classData, onSubmit, onCancel, isEditing = false, onClassChange, schools, teachers, semesters, getFilteredSchools, getFilteredTeachers }) => {
   // State to track primary teacher
@@ -109,28 +110,13 @@ const ClassForm = ({ classData, onSubmit, onCancel, isEditing = false, onClassCh
             
             <div>
               <label className="block text-sm font-medium mb-1">المستوى الدراسي *</label>
-              <select
+              <SchoolLevelSelect
+                name="school_level"
                 value={classData.school_level}
                 onChange={(e) => onClassChange({...classData, school_level: e.target.value})}
-                className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="اختر المستوى"
                 required
-              >
-                <option value="">اختر المستوى</option>
-                <option value="الأول الابتدائي">الأول الابتدائي</option>
-                <option value="الثاني الابتدائي">الثاني الابتدائي</option>
-                <option value="الثالث الابتدائي">الثالث الابتدائي</option>
-                <option value="الرابع الابتدائي">الرابع الابتدائي</option>
-                <option value="الخامس الابتدائي">الخامس الابتدائي</option>
-                <option value="السادس الابتدائي">السادس الابتدائي</option>
-                <option value="الأول المتوسط">الأول المتوسط</option>
-                <option value="الثاني المتوسط">الثاني المتوسط</option>
-                <option value="الثالث المتوسط">الثالث المتوسط</option>
-                <option value="الأول الثانوي">الأول الثانوي</option>
-                <option value="الثاني الثانوي">الثاني الثانوي</option>
-                <option value="الثالث الثانوي">الثالث الثانوي</option>
-                <option value="جامعة">جامعة</option>
-                <option value="دراسات عليا">دراسات عليا</option>
-              </select>
+              />
             </div>
           </div>
           

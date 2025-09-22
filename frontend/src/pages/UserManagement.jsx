@@ -252,6 +252,16 @@ const UserDetailsModal = ({ user, onClose, schools, classes }) => {
     return cls ? `${cls.name} - المستوى ${cls.level}` : 'غير محدد';
   };
 
+  const getUserClassNames = (classIds) => {
+    if (!classIds || !Array.isArray(classIds) || classIds.length === 0) {
+      return 'غير محدد';
+    }
+    return classIds.map(classId => {
+      const cls = classes.find(c => c.id == classId);
+      return cls ? cls.name : 'غير معروف';
+    }).join(', ');
+  };
+
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
       <div className="bg-white p-6 rounded-xl shadow-xl max-w-2xl w-full m-4 max-h-[90vh] overflow-y-auto">
@@ -299,10 +309,17 @@ const UserDetailsModal = ({ user, onClose, schools, classes }) => {
             </div>
           )}
 
-          {user.class_id && (
+          {((user.class_id) || (user.class_ids && user.class_ids.length > 0)) && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">الحلقة</label>
-              <p className="text-gray-900">{getUserClassName(user.class_id)}</p>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {user.class_ids && user.class_ids.length > 1 ? 'الحلقات' : 'الحلقة'}
+              </label>
+              <p className="text-gray-900">
+                {user.class_ids && user.class_ids.length > 0
+                  ? getUserClassNames(user.class_ids)
+                  : getUserClassName(user.class_id)
+                }
+              </p>
             </div>
           )}
 
@@ -575,6 +592,16 @@ const UserCard = ({ user, onEdit, onView, onToggleActive, onEditProfile, onDelet
     return cls ? `${cls.name}` : 'غير محدد';
   };
 
+  const getUserClassNames = (classIds) => {
+    if (!classIds || !Array.isArray(classIds) || classIds.length === 0) {
+      return 'غير محدد';
+    }
+    return classIds.map(classId => {
+      const cls = classes.find(c => c.id == classId);
+      return cls ? cls.name : 'غير معروف';
+    }).join(', ');
+  };
+
   const RoleIcon = ROLE_CONFIG[user.role]?.icon || AiOutlineUser;
   const roleConfig = ROLE_CONFIG[user.role];
 
@@ -674,14 +701,19 @@ const UserCard = ({ user, onEdit, onView, onToggleActive, onEditProfile, onDelet
                 </div>
               )}
 
-              {/* Class */}
-              {user.class_id && (
+              {/* Classes */}
+              {((user.class_id) || (user.class_ids && user.class_ids.length > 0)) && (
                 <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-purple-50 to-purple-100 rounded-lg">
                   <AiOutlineFilter className="text-purple-500 text-xl flex-shrink-0" />
                   <div>
-                    <div className="text-xs text-purple-600 mb-1">الحلقة</div>
+                    <div className="text-xs text-purple-600 mb-1">
+                      {user.class_ids && user.class_ids.length > 1 ? 'الحلقات' : 'الحلقة'}
+                    </div>
                     <div className="font-semibold text-purple-800">
-                      {getUserClassName(user.class_id)}
+                      {user.class_ids && user.class_ids.length > 0
+                        ? getUserClassNames(user.class_ids)
+                        : getUserClassName(user.class_id)
+                      }
                     </div>
                   </div>
                 </div>

@@ -90,25 +90,24 @@ router.post('/', registerLimiter, teacherValidationRules, async (req, res) => {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Insert into users table (inactive by default)
+    // Insert into users table (inactive by default) with proper role
     await client.query(`
       INSERT INTO users (
-        id, first_name, second_name, third_name, last_name, email, 
-        phone, password, address, is_active
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-    `, [id, first_name, second_name, third_name, last_name, email, phone, hashedPassword, address || null, false]);
+        id, first_name, second_name, third_name, last_name, email,
+        phone, password, address, is_active, role
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+    `, [id, first_name, second_name, third_name, last_name, email, phone, hashedPassword, address || null, false, user_type]);
 
     
     // Insert into appropriate role table based on user_type
     switch (user_type) {
       case 'teacher':
-        // Store school_id in qualifications field with prefix
-        const teacherQualifications = qualifications ? `SCHOOL_ID:${school_id}|${qualifications}` : `SCHOOL_ID:${school_id}`;
+        // Store school_id and qualifications in separate columns
         await client.query(`
           INSERT INTO teachers (
-            id, specialization, qualifications, salary
-          ) VALUES ($1, $2, $3, $4)
-        `, [id, specialization || null, teacherQualifications, salary || null]);
+            id, specialization, qualifications, salary, school_id
+          ) VALUES ($1, $2, $3, $4, $5)
+        `, [id, specialization || null, qualifications || null, salary || null, school_id || null]);
         break;
 
       case 'admin':
@@ -120,25 +119,21 @@ router.post('/', registerLimiter, teacherValidationRules, async (req, res) => {
         break;
 
       case 'administrator':
-        // Store school_id in qualifications field with prefix (if provided)
-        const adminQualifications = school_id 
-          ? (qualifications ? `SCHOOL_ID:${school_id}|${qualifications}` : `SCHOOL_ID:${school_id}`)
-          : qualifications || null;
+        // Store school_id and qualifications in separate columns
         await client.query(`
           INSERT INTO administrators (
-            id, role, qualifications, salary
-          ) VALUES ($1, $2, $3, $4)
-        `, [id, 'administrator', adminQualifications, salary || null]);
+            id, role, qualifications, salary, school_id
+          ) VALUES ($1, $2, $3, $4, $5)
+        `, [id, 'administrator', qualifications || null, salary || null, school_id || null]);
         break;
 
       case 'supervisor':
-        // Store school_id in qualifications field with prefix
-        const supervisorQualifications = qualifications ? `SCHOOL_ID:${school_id}|${qualifications}` : `SCHOOL_ID:${school_id}`;
+        // Store school_id and qualifications in separate columns
         await client.query(`
           INSERT INTO supervisors (
-            id, qualifications, salary
-          ) VALUES ($1, $2, $3)
-        `, [id, supervisorQualifications, salary || null]);
+            id, qualifications, salary, school_id
+          ) VALUES ($1, $2, $3, $4)
+        `, [id, qualifications || null, salary || null, school_id || null]);
         break;
 
       default:
@@ -274,41 +269,28 @@ router.get('/', async (req, res) => {
       // If school_id is provided, filter by teachers in that school
       // Teachers can be in a school either through class assignments or direct school assignment
       whereClause = `${whereClause} AND (
-        c.school_id = $${params.length + 1} OR 
-        (t.qualifications LIKE 'SCHOOL_ID:' || $${params.length + 1} || '%')
+        c.school_id = $${params.length + 1} OR
+        t.school_id = $${params.length + 1}
       )`;
       params.push(school_id);
-      
+
       query = `
         SELECT DISTINCT
-          u.id, 
-          u.first_name, 
-          u.second_name, 
-          u.third_name, 
+          u.id,
+          u.first_name,
+          u.second_name,
+          u.third_name,
           u.last_name,
-          u.email, 
-          u.phone, 
-          u.address, 
-          u.is_active, 
+          u.email,
+          u.phone,
+          u.address,
+          u.is_active,
           u.created_at,
           u.role as role_type,
           u.role as user_type,
           t.specialization,
-          COALESCE(
-            c.school_id,
-            CASE 
-              WHEN t.qualifications LIKE 'SCHOOL_ID:%' THEN 
-                SUBSTRING(t.qualifications FROM 'SCHOOL_ID:([^|]+)')::UUID
-              ELSE NULL
-            END
-          ) as school_id,
-          CASE 
-            WHEN t.qualifications LIKE 'SCHOOL_ID:%|%' THEN 
-              SUBSTRING(t.qualifications FROM 'SCHOOL_ID:[^|]+\|(.+)')
-            WHEN t.qualifications LIKE 'SCHOOL_ID:%' THEN 
-              NULL
-            ELSE t.qualifications
-          END as actual_qualifications,
+          COALESCE(c.school_id, t.school_id) as school_id,
+          t.qualifications,
           COALESCE(
             ARRAY_AGG(DISTINCT tca.class_id) FILTER (WHERE tca.class_id IS NOT NULL),
             ARRAY[]::UUID[]
@@ -319,33 +301,29 @@ router.get('/', async (req, res) => {
         LEFT JOIN classes c ON tca.class_id = c.id
         ${whereClause}
         GROUP BY u.id, u.first_name, u.second_name, u.third_name, u.last_name,
-                 u.email, u.phone, u.address, u.is_active, u.created_at, 
-                 u.role, c.school_id, t.qualifications, t.specialization
+                 u.email, u.phone, u.address, u.is_active, u.created_at,
+                 u.role, c.school_id, t.school_id, t.qualifications, t.specialization
         ORDER BY u.is_active DESC, u.first_name, u.last_name
       `;
     } else {
       // No school filtering - get all users with the specified role
       query = `
-        SELECT 
-          u.id, 
-          u.first_name, 
-          u.second_name, 
-          u.third_name, 
+        SELECT
+          u.id,
+          u.first_name,
+          u.second_name,
+          u.third_name,
           u.last_name,
-          u.email, 
-          u.phone, 
-          u.address, 
-          u.is_active, 
+          u.email,
+          u.phone,
+          u.address,
+          u.is_active,
           u.created_at,
           u.role as role_type,
           u.role as user_type,
           t.qualifications,
           t.specialization,
-          CASE 
-            WHEN t.qualifications LIKE 'SCHOOL_ID:%' THEN 
-              SUBSTRING(t.qualifications FROM 'SCHOOL_ID:([^|]+)')::UUID
-            ELSE NULL
-          END as school_id,
+          t.school_id,
           COALESCE(
             ARRAY_AGG(DISTINCT tca.class_id) FILTER (WHERE tca.class_id IS NOT NULL),
             ARRAY[]::UUID[]
@@ -355,26 +333,16 @@ router.get('/', async (req, res) => {
         LEFT JOIN teacher_class_assignments tca ON u.id = tca.teacher_id AND tca.is_active = TRUE
         ${whereClause}
         GROUP BY u.id, u.first_name, u.second_name, u.third_name, u.last_name,
-                 u.email, u.phone, u.address, u.is_active, u.created_at, 
-                 u.role, t.qualifications, t.specialization
+                 u.email, u.phone, u.address, u.is_active, u.created_at,
+                 u.role, t.qualifications, t.specialization, t.school_id
         ORDER BY u.is_active DESC, u.first_name, u.last_name
       `;
     }
 
     const result = await db.query(query, params);
 
-    // Clean up the response - use actual_qualifications if available
-    const cleanedRows = result.rows.map(row => {
-      const cleanRow = { ...row };
-      if (row.actual_qualifications !== undefined) {
-        cleanRow.qualifications = row.actual_qualifications;
-        delete cleanRow.actual_qualifications;
-      }
-      return cleanRow;
-    });
-
     const responseKey = user_type === 'teacher' ? 'teachers' : `${user_type}s`;
-    res.json({ [responseKey]: cleanedRows });
+    res.json({ [responseKey]: result.rows });
 
   } catch (err) {
     console.error('Get users error:', err);
@@ -429,16 +397,14 @@ router.put('/:id', async (req, res) => {
       WHERE id = $8
     `, [first_name, second_name, third_name, last_name, email, phone, address || null, id]);
 
-    // Update teachers table with school_id and qualifications
-    const updatedQualifications = qualifications && school_id ? `SCHOOL_ID:${school_id}|${qualifications}` : 
-                                 school_id ? `SCHOOL_ID:${school_id}` : qualifications;
-
+    // Update teachers table with school_id and qualifications in separate columns
     await client.query(`
-      UPDATE teachers SET 
+      UPDATE teachers SET
         specialization = COALESCE($1, specialization),
-        qualifications = COALESCE($2, qualifications)
-      WHERE id = $3
-    `, [specialization, updatedQualifications, id]);
+        qualifications = COALESCE($2, qualifications),
+        school_id = COALESCE($3, school_id)
+      WHERE id = $4
+    `, [specialization, qualifications, school_id, id]);
 
     await client.query('COMMIT');
     

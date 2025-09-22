@@ -272,19 +272,8 @@ router.put('/users/:id/status',
         // Update user active status
         await client.query('UPDATE users SET is_active = $1 WHERE id = $2', [is_active, id]);
 
-        // Update employment status if applicable
-        if (employment_status) {
-          const userResult = await client.query('SELECT role FROM users WHERE id = $1', [id]);
-          const role = userResult.rows[0]?.role;
-
-          if (role === 'administrator') {
-            await client.query('UPDATE administrators SET status = $1 WHERE id = $2', [employment_status, id]);
-          } else if (role === 'supervisor') {
-            await client.query('UPDATE supervisors SET status = $1 WHERE id = $2', [employment_status, id]);
-          } else if (role === 'teacher') {
-            await client.query('UPDATE teachers SET status = $1 WHERE id = $2', [employment_status, id]);
-          }
-        }
+        // Employment status is now handled through users.is_active only
+        // Individual table status columns have been removed for consistency
 
         await client.query('COMMIT');
         res.json({ message: 'User status updated successfully' });

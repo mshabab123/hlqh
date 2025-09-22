@@ -30,8 +30,7 @@ router.post('/login', async (req, res) => {
           ELSE 'user'
         END as role,
         p.is_also_student,
-        s.school_level,
-        s.status as student_status
+        s.school_level
       FROM users u
       LEFT JOIN parents p ON u.id = p.id
       LEFT JOIN students s ON u.id = s.id
@@ -100,8 +99,8 @@ router.post('/login', async (req, res) => {
     if (user.role === 'parent' || user.role === 'parent_student') {
       // Get children for parents
       const childrenResult = await db.query(`
-        SELECT 
-          s.id, u.first_name, u.last_name, s.school_level, s.status
+        SELECT
+          s.id, u.first_name, u.last_name, s.school_level
         FROM parent_student_relationships psr
         JOIN students s ON psr.student_id = s.id
         JOIN users u ON s.id = u.id

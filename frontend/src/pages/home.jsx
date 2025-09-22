@@ -295,12 +295,12 @@ export default function Home() {
                 {user.role === "teacher" ? "الحلقات التي تدرس فيها:" : "الحلقات:"}
               </div>
               <div className="flex flex-wrap gap-2 justify-center">
-                {user.classes.map((className, index) => (
-                  <span 
-                    key={index}
+                {user.classes.map((classItem, index) => (
+                  <span
+                    key={classItem.id || index}
                     className="px-2 py-1 bg-purple-100 text-purple-600 rounded-full text-xs"
                   >
-                    {className}
+                    {classItem.name || classItem}
                   </span>
                 ))}
               </div>

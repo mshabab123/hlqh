@@ -76,13 +76,13 @@ router.post('/', auth, registerLimiter, administratorValidationRules, async (req
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Insert into users table (inactive by default until activated by admin)
+    // Insert into users table (inactive by default until activated by admin) with proper role
     await client.query(`
       INSERT INTO users (
-        id, first_name, second_name, third_name, last_name, email, 
-        phone, password, address, is_active
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-    `, [id, first_name, second_name, third_name, last_name, email, phone, hashedPassword, address || null, false]);
+        id, first_name, second_name, third_name, last_name, email,
+        phone, password, address, is_active, role
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+    `, [id, first_name, second_name, third_name, last_name, email, phone, hashedPassword, address || null, false, 'administrator']);
 
     // Insert into administrators table
     await client.query(`
@@ -302,10 +302,7 @@ router.delete('/:id', auth, async (req, res) => {
         return res.status(404).json({ error: 'مدير المجمع غير موجود' });
       }
 
-      // Set administrator status to inactive instead of hard delete
-      await client.query('UPDATE administrators SET status = $1 WHERE id = $2', ['inactive', id]);
-      
-      // Also deactivate the user
+      // Deactivate the user (status now handled through users.is_active only)
       await client.query('UPDATE users SET is_active = false WHERE id = $1', [id]);
 
       await client.query('COMMIT');

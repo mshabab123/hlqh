@@ -82,13 +82,16 @@ router.post('/', registerLimiter, parentValidationRules, async (req, res) => {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Insert into users table (inactive by default)
+    // Determine role based on whether parent is also a student
+    const userRole = registerSelf ? 'parent_student' : 'parent';
+
+    // Insert into users table (inactive by default) with proper role
     await client.query(`
       INSERT INTO users (
-        id, first_name, second_name, third_name, last_name, email, 
-        phone, password, address, is_active
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-    `, [id, first_name, second_name, third_name, last_name, email, phone, hashedPassword, neighborhood, false]);
+        id, first_name, second_name, third_name, last_name, email,
+        phone, password, address, is_active, role
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+    `, [id, first_name, second_name, third_name, last_name, email, phone, hashedPassword, neighborhood, false, userRole]);
 
     // Insert into parents table
     await client.query(`
@@ -204,7 +207,7 @@ router.get('/:id', async (req, res) => {
     const childrenResult = await db.query(`
       SELECT 
         s.id, u.first_name, u.second_name, u.third_name, u.last_name,
-        s.school_level, s.status, psr.relationship_type, psr.is_primary
+        s.school_level, psr.relationship_type, psr.is_primary
       FROM parent_student_relationships psr
       JOIN students s ON psr.student_id = s.id
       JOIN users u ON s.id = u.id

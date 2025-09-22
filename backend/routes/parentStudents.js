@@ -30,7 +30,6 @@ router.get('/my-students', authenticateToken, async (req, res) => {
         u.created_at,
         s.school_level,
         s.enrollment_date,
-        s.status as student_status,
         sch.name as school_name,
         c.name as class_name,
         c.level as class_level
@@ -87,7 +86,6 @@ router.get('/student/:studentId', authenticateToken, async (req, res) => {
         u.created_at,
         s.school_level,
         s.enrollment_date,
-        s.status as student_status,
         s.notes as student_notes,
         sch.name as school_name,
         sch.address as school_address,

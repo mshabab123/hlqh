@@ -450,9 +450,7 @@ export default function StudentManagement() {
               >
                 <option value="all">جميع الحالات</option>
                 <option value="active">نشط</option>
-                <option value="suspended">معلق</option>
-                <option value="graduated">متخرج</option>
-                <option value="withdrawn">منسحب</option>
+                <option value="inactive">غير نشط</option>
               </select>
             </div>
 

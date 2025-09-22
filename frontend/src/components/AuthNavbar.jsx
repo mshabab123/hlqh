@@ -48,7 +48,7 @@ export default function AuthNavbar() {
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [user, setUser] = useState(null);
-  const [notifications, setNotifications] = useState(3); // Mock notifications count
+  const [notifications, setNotifications] = useState(0); // Mock notifications count
   const [navLinks, setNavLinks] = useState([]);
   const [showInactiveModal, setShowInactiveModal] = useState(false);
 

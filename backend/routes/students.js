@@ -73,13 +73,13 @@ router.post('/', registerLimiter, studentValidationRules, async (req, res) => {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Insert into users table (inactive by default)
+    // Insert into users table (inactive by default) with proper role
     await client.query(`
       INSERT INTO users (
-        id, first_name, second_name, third_name, last_name, email, 
-        phone, password, date_of_birth, is_active
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-    `, [id, first_name, second_name, third_name, last_name, email || null, phone || null, hashedPassword, date_of_birth, false]);
+        id, first_name, second_name, third_name, last_name, email,
+        phone, password, date_of_birth, is_active, role
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+    `, [id, first_name, second_name, third_name, last_name, email || null, phone || null, hashedPassword, date_of_birth, false, 'student']);
 
     // Handle parent linking - create relationships even if parent doesn't exist yet (constraints removed)
     let validParentId = null;
@@ -180,7 +180,7 @@ router.get('/', auth, async (req, res) => {
       SELECT 
         u.id, u.first_name, u.second_name, u.third_name, u.last_name,
         u.email, u.phone, u.address, u.date_of_birth, u.is_active,
-        s.school_level, s.status, s.enrollment_date, s.graduation_date, s.notes,
+        s.school_level, s.enrollment_date, s.graduation_date, s.notes,
         s.memorized_surah_id, s.memorized_ayah_number, s.target_surah_id, s.target_ayah_number,
         sc.name as school_name, sc.id as school_id,
         c.name as class_name, c.id as class_id, c.semester_id,
@@ -214,8 +214,8 @@ router.get('/', auth, async (req, res) => {
     }
 
     if (status) {
-      query += ` AND s.status = $${paramIndex}`;
-      params.push(status);
+      query += ` AND u.is_active = $${paramIndex}`;
+      params.push(status === 'active');
       paramIndex++;
     }
 
@@ -254,7 +254,7 @@ router.get('/:id', auth, async (req, res) => {
       SELECT 
         u.id, u.first_name, u.second_name, u.third_name, u.last_name,
         u.email, u.phone, u.date_of_birth, u.created_at,
-        s.school_level, s.status, s.enrollment_date, s.notes,
+        s.school_level, s.enrollment_date, s.notes,
         s.parent_id, s.memorized_surah_id, s.memorized_ayah_number,
         s.target_surah_id, s.target_ayah_number, s.last_memorization_update
       FROM users u
@@ -365,14 +365,14 @@ router.post('/manage', auth, [
       // Create user record with default password
       const hashedPassword = await bcrypt.hash('123456', 10);
       const userQuery = `
-        INSERT INTO users (id, first_name, second_name, third_name, last_name, email, phone, address, date_of_birth, password, is_active)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        INSERT INTO users (id, first_name, second_name, third_name, last_name, email, phone, address, date_of_birth, password, is_active, role)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         RETURNING id
       `;
-      
+
       await client.query(userQuery, [
         id, first_name, second_name, third_name, last_name,
-        email || null, phone || null, address || null, date_of_birth || null, hashedPassword, true
+        email || null, phone || null, address || null, date_of_birth || null, hashedPassword, true, 'student'
       ]);
 
       // Create student record
@@ -560,7 +560,7 @@ router.put('/:id', auth, async (req, res) => {
         userFields.push(`is_active = $${paramCounter++}`);
         userValues.push(isActive);
       }
-      
+
       // Always update the timestamp
       userFields.push(`updated_at = CURRENT_TIMESTAMP`);
       userValues.push(id);

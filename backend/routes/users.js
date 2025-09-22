@@ -17,9 +17,9 @@ router.get('/', async (req, res) => {
   try {
     client = await db.connect();
     
-    // Get all users with their basic info and determine their role
+    // Get all users with their basic info using modern role detection
     const query = `
-      SELECT 
+      SELECT
         u.id,
         u.first_name,
         u.second_name,
@@ -29,29 +29,33 @@ router.get('/', async (req, res) => {
         u.phone,
         u.address,
         u.date_of_birth,
-        u.school_level,
         u.neighborhood,
         u.notes,
-        -- Determine role based on which table the user exists in
-        -- Check more specific roles first
-        CASE 
-          WHEN adm.id IS NOT NULL THEN 'admin'
-          WHEN ad.id IS NOT NULL THEN 'administrator'
-          WHEN sv.id IS NOT NULL THEN 'supervisor'
-          WHEN t.id IS NOT NULL THEN 'teacher'
-          WHEN p.id IS NOT NULL AND st.id IS NOT NULL THEN 'parent_student'
-          WHEN p.id IS NOT NULL THEN 'parent'
-          WHEN st.id IS NOT NULL THEN 'student'
-          ELSE 'user'
-        END as role,
+        -- Use the role column if available, otherwise legacy detection
+        COALESCE(u.role,
+          CASE
+            WHEN adm.id IS NOT NULL THEN 'admin'
+            WHEN ad.id IS NOT NULL THEN 'administrator'
+            WHEN sv.id IS NOT NULL THEN 'supervisor'
+            WHEN t.id IS NOT NULL THEN 'teacher'
+            WHEN p.id IS NOT NULL AND st.id IS NOT NULL THEN 'parent_student'
+            WHEN p.id IS NOT NULL THEN 'parent'
+            WHEN st.id IS NOT NULL THEN 'student'
+            ELSE 'user'
+          END
+        ) as role,
         u.is_active,
         u.created_at,
         u.updated_at,
         -- Get parent_id from students table if user is a student
         st.parent_id,
-        -- Get school_id from role tables (currently not properly stored)
-        NULL as school_id,
-        -- Get class_id if exists
+        -- Extract school_id from various sources (simplified)
+        COALESCE(
+          ad.school_id,
+          sv.school_id,
+          t.school_id
+        ) as school_id,
+        -- Students don't have direct class_id, will get it from enrollments
         NULL as class_id
       FROM users u
       LEFT JOIN parents p ON u.id = p.id
@@ -64,9 +68,58 @@ router.get('/', async (req, res) => {
     `;
     
     const result = await client.query(query);
-    res.json(result.rows);
+
+    // Post-process to extract teacher school assignments and class assignments
+    const users = result.rows;
+    for (const user of users) {
+      if (user.role === 'teacher') {
+        // School_id should already be set from the main query, but double-check for teachers
+        if (!user.school_id) {
+          const teacherData = await client.query(`
+            SELECT school_id FROM teachers WHERE id = $1
+          `, [user.id]);
+
+          if (teacherData.rows.length > 0 && teacherData.rows[0].school_id) {
+            user.school_id = teacherData.rows[0].school_id;
+          }
+        }
+
+        // Get class assignments for teachers
+        const classAssignments = await client.query(`
+          SELECT ARRAY_AGG(class_id) as class_ids
+          FROM teacher_class_assignments
+          WHERE teacher_id = $1 AND is_active = TRUE
+        `, [user.id]);
+
+        user.class_ids = classAssignments.rows[0]?.class_ids || [];
+      } else if (user.role === 'student') {
+        // For students, get class enrollments and school_id from student_enrollments
+        const enrollments = await client.query(`
+          SELECT se.class_id, c.school_id
+          FROM student_enrollments se
+          JOIN classes c ON se.class_id = c.id
+          WHERE se.student_id = $1 AND se.status = 'enrolled'
+        `, [user.id]);
+
+        if (enrollments.rows.length > 0) {
+          user.class_ids = enrollments.rows.map(row => row.class_id);
+          // Set school_id from the first class enrollment if not already set
+          if (!user.school_id && enrollments.rows[0].school_id) {
+            user.school_id = enrollments.rows[0].school_id;
+          }
+        } else {
+          user.class_ids = [];
+        }
+      } else {
+        user.class_ids = [];
+      }
+    }
+
+    res.json(users);
   } catch (err) {
     console.error('Get users error:', err);
+    console.error('Error details:', err.message);
+    console.error('Error stack:', err.stack);
     res.status(500).json({ error: 'خطأ في استرجاع المستخدمين' });
   } finally {
     if (client) client.release();
@@ -127,17 +180,17 @@ router.get('/', async (req, res) => {
     // Hash parent password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Insert into users table (base user data)
+    // Insert into users table (base user data) with proper role
     await client.query(`
       INSERT INTO users (
         id, first_name, second_name, third_name, last_name, address,
-        email, phone, password
+        email, phone, password, role
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
       )
     `, [
       id, first_name, second_name, third_name, last_name, neighborhood,
-      email, phone, hashedPassword
+      email, phone, hashedPassword, parentRole.toLowerCase()
     ]);
 
     // Insert into parents table
@@ -160,13 +213,13 @@ router.get('/', async (req, res) => {
     for (const child of children) {
       const childHashedPassword = await bcrypt.hash(child.password, 10);
       
-      // Insert child into users table
+      // Insert child into users table with proper role
       await client.query(`
         INSERT INTO users (
-          id, first_name, second_name, third_name, last_name, address, 
-          password, date_of_birth, phone
+          id, first_name, second_name, third_name, last_name, address,
+          password, date_of_birth, phone, role
         ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
         )
       `, [
         child.id,
@@ -177,7 +230,8 @@ router.get('/', async (req, res) => {
         neighborhood,
         childHashedPassword,
         child.date_of_birth,
-        child.phone || null
+        child.phone || null,
+        'student'
       ]);
 
       // Insert child into students table
@@ -260,8 +314,8 @@ router.put('/:id', async (req, res) => {
           // Always try to create/update teacher record
           try {
             await client.query(`
-              INSERT INTO teachers (id, school_id, hire_date, status, qualifications) 
-              VALUES ($1, $2, NOW(), 'active', COALESCE($3, ''))
+              INSERT INTO teachers (id, school_id, hire_date, qualifications)
+              VALUES ($1, $2, NOW(), COALESCE($3, ''))
             `, [id, school_id, '']);
           } catch (insertErr) {
             // If insert fails, try update
@@ -272,8 +326,8 @@ router.put('/:id', async (req, res) => {
             } else {
               // Just ensure the teacher record exists
               await client.query(`
-                INSERT INTO teachers (id, hire_date, status, qualifications) 
-                VALUES ($1, NOW(), 'active', '') 
+                INSERT INTO teachers (id, hire_date, qualifications) 
+                VALUES ($1, NOW(), '') 
                 ON CONFLICT (id) DO NOTHING
               `, [id]);
             }
@@ -284,8 +338,8 @@ router.put('/:id', async (req, res) => {
           // Always try to create/update administrator record
           try {
             await client.query(`
-              INSERT INTO administrators (id, school_id, hire_date, status, permissions) 
-              VALUES ($1, $2, NOW(), 'active', COALESCE($3, ''))
+              INSERT INTO administrators (id, school_id, hire_date, permissions) 
+              VALUES ($1, $2, NOW(), COALESCE($3, ''))
             `, [id, school_id, '']);
           } catch (insertErr) {
             if (school_id) {
@@ -294,8 +348,8 @@ router.put('/:id', async (req, res) => {
               `, [school_id, id]);
             } else {
               await client.query(`
-                INSERT INTO administrators (id, hire_date, status, permissions) 
-                VALUES ($1, NOW(), 'active', '') 
+                INSERT INTO administrators (id, hire_date, permissions) 
+                VALUES ($1, NOW(), '') 
                 ON CONFLICT (id) DO NOTHING
               `, [id]);
             }
@@ -332,8 +386,8 @@ router.put('/:id', async (req, res) => {
           // Always try to create/update supervisor record
           try {
             await client.query(`
-              INSERT INTO supervisors (id, school_id, hire_date, status, permissions, supervised_areas) 
-              VALUES ($1, $2, NOW(), 'active', COALESCE($3, ''), COALESCE($4, ''))
+              INSERT INTO supervisors (id, school_id, hire_date, permissions, supervised_areas) 
+              VALUES ($1, $2, NOW(), COALESCE($3, ''), COALESCE($4, ''))
             `, [id, school_id, '', '']);
           } catch (insertErr) {
             if (school_id) {
@@ -342,8 +396,8 @@ router.put('/:id', async (req, res) => {
               `, [school_id, id]);
             } else {
               await client.query(`
-                INSERT INTO supervisors (id, hire_date, status, permissions, supervised_areas) 
-                VALUES ($1, NOW(), 'active', '', '') 
+                INSERT INTO supervisors (id, hire_date, permissions, supervised_areas) 
+                VALUES ($1, NOW(), '', '') 
                 ON CONFLICT (id) DO NOTHING
               `, [id]);
             }
@@ -353,8 +407,8 @@ router.put('/:id', async (req, res) => {
         case 'admin':
           try {
             await client.query(`
-              INSERT INTO admins (id, hire_date, status, permissions, role) 
-              VALUES ($1, NOW(), 'active', 'full_access', 'admin')
+              INSERT INTO admins (id, hire_date, permissions, role) 
+              VALUES ($1, NOW(), 'full_access', 'admin')
               ON CONFLICT (id) DO NOTHING
             `, [id]);
           } catch (insertErr) {
@@ -448,10 +502,9 @@ router.put('/:id/profile', async (req, res) => {
       third_name, 
       last_name, 
       email, 
-      phone, 
+      phone,
       address,
       date_of_birth,
-      school_level,
       neighborhood,
       notes
     } = req.body;
@@ -479,18 +532,17 @@ router.put('/:id/profile', async (req, res) => {
       SET first_name = $1, 
           second_name = $2,
           third_name = $3,
-          last_name = $4, 
-          email = $5, 
-          phone = $6, 
+          last_name = $4,
+          email = $5,
+          phone = $6,
           address = $7,
           date_of_birth = $8,
-          school_level = $9,
-          neighborhood = $10,
-          notes = $11,
+          neighborhood = $9,
+          notes = $10,
           updated_at = NOW()
-      WHERE id = $12
-      RETURNING id, first_name, second_name, third_name, last_name, email, phone, address, date_of_birth, school_level, neighborhood, notes, role, is_active, created_at
-    `, [first_name, second_name, third_name, last_name, email, phone, address, processedDateOfBirth, school_level, neighborhood, notes, id]);
+      WHERE id = $11
+      RETURNING id, first_name, second_name, third_name, last_name, email, phone, address, date_of_birth, neighborhood, notes, role, is_active, created_at
+    `, [first_name, second_name, third_name, last_name, email, phone, address, processedDateOfBirth, neighborhood, notes, id]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'المستخدم غير موجود' });

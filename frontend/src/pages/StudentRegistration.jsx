@@ -7,6 +7,7 @@ import {
   AiOutlineEyeInvisible,
 } from "react-icons/ai";
 import SuccessModal from "../components/SuccessModal";
+import SchoolLevelSelect from "../components/SchoolLevelSelect";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
@@ -55,7 +56,7 @@ export default function StudentRegistration() {
     }
 
     if (!form.school_level) {
-      errors.school_level = "يرجى اختيار المرحلة الدراسية";
+      errors.school_level = "يرجى تعبئة هذا الحقل";
     }
 
     if (!form.date_of_birth) {
@@ -252,25 +253,25 @@ export default function StudentRegistration() {
               } rounded-lg focus:border-accent focus:outline-none transition-colors bg-white`}
             >
               <option value="">اختر المرحلة الدراسية</option>
-              <option value="kg1">روضة أولى</option>
-              <option value="kg2">روضة ثانية</option>
-              <option value="grade1">أولى</option>
-              <option value="grade2">ثانية</option>
-              <option value="grade3">ثالثة</option>
-              <option value="grade4">رابعة</option>
-              <option value="grade5">خامسة</option>
-              <option value="grade6">سادسة</option>
-              <option value="grade7">أولى متوسط</option>
-              <option value="grade8">ثاني متوسط</option>
-              <option value="grade9">ثالث متوسط</option>
-              <option value="grade10">أولى ثانوي</option>
-              <option value="grade11">ثاني ثانوي</option>
-              <option value="grade12">ثالث ثانوي</option>
-              <option value="university">جامعة</option>
-              <option value="graduate">اكمل الجامعة</option>
-              <option value="master">ماجستير</option>
-              <option value="phd">دكتوراه</option>
-              <option value="employee">موظف</option>
+              <option value="لم يدخل المدرسة">لم يدخل المدرسة</option>
+              <option value="روضة">روضة</option>
+              <option value="الأول الابتدائي">الأول الابتدائي</option>
+              <option value="الثاني الابتدائي">الثاني الابتدائي</option>
+              <option value="الثالث الابتدائي">الثالث الابتدائي</option>
+              <option value="الرابع الابتدائي">الرابع الابتدائي</option>
+              <option value="الخامس الابتدائي">الخامس الابتدائي</option>
+              <option value="السادس الابتدائي">السادس الابتدائي</option>
+              <option value="الأول متوسط">الأول متوسط</option>
+              <option value="الثاني متوسط">الثاني متوسط</option>
+              <option value="الثالث متوسط">الثالث متوسط</option>
+              <option value="الأول ثانوي">الأول ثانوي</option>
+              <option value="الثاني ثانوي">الثاني ثانوي</option>
+              <option value="الثالث ثانوي">الثالث ثانوي</option>
+              <option value="جامعة">جامعة</option>
+              <option value="خريج">خريج</option>
+              <option value="دراسات عليا">دراسات عليا</option>
+              <option value="موظف">موظف</option>
+              <option value="غير محدد">غير محدد</option>
             </select>
             {inputErrors.school_level && (
               <div className="flex items-center mt-1 text-[var(--color-error-600)] text-sm">

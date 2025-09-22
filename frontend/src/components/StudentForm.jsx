@@ -1,4 +1,5 @@
 import { generateAyahOptions } from "../utils/studentUtils";
+import SchoolLevelSelect from "./SchoolLevelSelect";
 
 const StudentForm = ({ student, onSubmit, onCancel, isEditing = false, onStudentChange, schools, classes }) => {
   return (
@@ -121,44 +122,13 @@ const StudentForm = ({ student, onSubmit, onCancel, isEditing = false, onStudent
           
           <div>
             <label className="block text-sm font-medium mb-1">الصف الدراسي *</label>
-            <select
+            <SchoolLevelSelect
+              name="school_level"
               value={student.school_level || ""}
               onChange={(e) => onStudentChange({...student, school_level: e.target.value})}
-              className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="اختر الصف"
               required
-            >
-              <option value="">اختر الصف</option>
-              <optgroup label="المرحلة الابتدائية">
-                <option value="الأول الابتدائي">الأول الابتدائي</option>
-                <option value="الثاني الابتدائي">الثاني الابتدائي</option>
-                <option value="الثالث الابتدائي">الثالث الابتدائي</option>
-                <option value="الرابع الابتدائي">الرابع الابتدائي</option>
-                <option value="الخامس الابتدائي">الخامس الابتدائي</option>
-                <option value="السادس الابتدائي">السادس الابتدائي</option>
-              </optgroup>
-              <optgroup label="المرحلة المتوسطة">
-                <option value="الأول متوسط">الأول متوسط</option>
-                <option value="الثاني متوسط">الثاني متوسط</option>
-                <option value="الثالث متوسط">الثالث متوسط</option>
-              </optgroup>
-              <optgroup label="المرحلة الثانوية">
-                <option value="الأول ثانوي">الأول ثانوي</option>
-                <option value="الثاني ثانوي">الثاني ثانوي</option>
-                <option value="الثالث ثانوي">الثالث ثانوي</option>
-              </optgroup>
-              <optgroup label="المرحلة الجامعية">
-                <option value="السنة الأولى جامعي">السنة الأولى جامعي</option>
-                <option value="السنة الثانية جامعي">السنة الثانية جامعي</option>
-                <option value="السنة الثالثة جامعي">السنة الثالثة جامعي</option>
-                <option value="السنة الرابعة جامعي">السنة الرابعة جامعي</option>
-                <option value="دراسات عليا">دراسات عليا</option>
-              </optgroup>
-              <optgroup label="أخرى">
-                <option value="لم يدخل المدرسة">لم يدخل المدرسة</option>
-                <option value="خريج">خريج</option>
-                <option value="غير محدد">غير محدد</option>
-              </optgroup>
-            </select>
+            />
           </div>
         </div>
 

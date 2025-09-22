@@ -469,9 +469,8 @@ router.get('/:id/available-students', requireAuth, async (req, res) => {
       FROM students s
       JOIN users u ON s.id = u.id
       LEFT JOIN student_enrollments se ON s.id = se.student_id AND se.class_id = $1 AND se.status = 'enrolled'
-      WHERE se.student_id IS NULL 
+      WHERE se.student_id IS NULL
         AND u.is_active = true
-        AND s.status = 'active'
       ORDER BY u.first_name, u.last_name
       LIMIT 100
     `, [classId]);

@@ -205,6 +205,134 @@ export const calculateStudentGoalProgress = (student) => {
   };
 };
 
+// Calculate three-section progress bar: baseline (green), new progress (blue), remaining (red)
+export const calculateGoalProgressBar = (student) => {
+  if (!student.target_surah_id || !student.target_ayah_number) {
+    return {
+      totalGoalVerses: 0,
+      baselineVerses: 0,
+      newProgressVerses: 0,
+      remainingVerses: 0,
+      baselinePercentage: 0,
+      newProgressPercentage: 0,
+      remainingPercentage: 0
+    };
+  }
+
+  const targetSurahId = parseInt(student.target_surah_id) || 0;
+  const targetAyah = parseInt(student.target_ayah_number) || 0;
+  const currentSurahId = parseInt(student.memorized_surah_id) || 0;
+  const currentAyah = parseInt(student.memorized_ayah_number) || 0;
+
+  // Get the baseline from when the target was set (we'll assume this was when the student was at the memorized position)
+  // If no current memorization, start from Al-Fatiha
+  const baselineSurahId = currentSurahId || 1; // Al-Fatiha ID is 1
+  const baselineAyah = currentSurahId ? currentAyah : 0;
+
+  const baselinePosition = getMemorizationPosition(baselineSurahId);
+  const targetPosition = getMemorizationPosition(targetSurahId);
+
+  // Calculate total verses from baseline to target
+  let totalGoalVerses = 0;
+
+  if (baselinePosition === targetPosition) {
+    // Same surah
+    totalGoalVerses = targetAyah - baselineAyah;
+  } else if (baselinePosition < targetPosition) {
+    // Different surahs
+    for (let pos = baselinePosition; pos <= targetPosition; pos++) {
+      const surahId = getSurahIdFromPosition(pos);
+      const surah = QURAN_SURAHS.find(s => s.id === surahId);
+      if (!surah) continue;
+
+      if (pos === baselinePosition) {
+        // Baseline surah - count from baseline ayah to end
+        totalGoalVerses += (surah.ayahCount - baselineAyah);
+      } else if (pos === targetPosition) {
+        // Target surah - count from beginning to target ayah
+        totalGoalVerses += targetAyah;
+      } else {
+        // Complete surah in between
+        totalGoalVerses += surah.ayahCount;
+      }
+    }
+  } else {
+    // Target is before current position - goal already achieved
+    totalGoalVerses = 1;
+  }
+
+  // For this example, we'll calculate three sections:
+  // 1. Baseline (green): What was already memorized when target was set
+  // 2. New Progress (blue): Additional memorization toward target
+  // 3. Remaining (red): What's left to reach target
+
+  let baselineVerses = 0; // What was memorized when target was set (always the starting point)
+  let newProgressVerses = 0; // Additional progress beyond baseline
+  let remainingVerses = totalGoalVerses; // What's left
+
+  // For this implementation, we assume the current memorized position is the new progress
+  if (currentSurahId && currentSurahId !== 0) {
+    const currentPosition = getMemorizationPosition(currentSurahId);
+
+    if (currentPosition > targetPosition) {
+      // Already exceeded target
+      baselineVerses = 0;
+      newProgressVerses = totalGoalVerses;
+      remainingVerses = 0;
+    } else if (currentPosition === targetPosition && currentAyah >= targetAyah) {
+      // Reached target in same surah
+      baselineVerses = 0;
+      newProgressVerses = totalGoalVerses;
+      remainingVerses = 0;
+    } else {
+      // Calculate new progress from baseline to current
+      if (baselinePosition === currentPosition) {
+        // Same surah as baseline
+        newProgressVerses = Math.max(0, currentAyah - baselineAyah);
+      } else if (currentPosition > baselinePosition) {
+        // Progress beyond baseline surah
+        for (let pos = baselinePosition; pos <= currentPosition; pos++) {
+          const surahId = getSurahIdFromPosition(pos);
+          const surah = QURAN_SURAHS.find(s => s.id === surahId);
+          if (!surah) continue;
+
+          if (pos === baselinePosition) {
+            // Baseline surah - count from baseline ayah to end
+            newProgressVerses += (surah.ayahCount - baselineAyah);
+          } else if (pos === currentPosition) {
+            // Current surah - count from beginning to current ayah
+            newProgressVerses += currentAyah;
+          } else {
+            // Complete surah in between
+            newProgressVerses += surah.ayahCount;
+          }
+        }
+      }
+
+      remainingVerses = Math.max(0, totalGoalVerses - newProgressVerses);
+    }
+  } else {
+    // No memorization yet
+    newProgressVerses = 0;
+    remainingVerses = totalGoalVerses;
+  }
+
+  // Calculate percentages
+  const baselinePercentage = totalGoalVerses > 0 ? Math.round((baselineVerses / totalGoalVerses) * 100) : 0;
+  const newProgressPercentage = totalGoalVerses > 0 ? Math.round((newProgressVerses / totalGoalVerses) * 100) : 0;
+  const remainingPercentage = totalGoalVerses > 0 ? Math.round((remainingVerses / totalGoalVerses) * 100) : 0;
+
+  return {
+    totalGoalVerses,
+    baselineVerses,
+    newProgressVerses,
+    remainingVerses,
+    baselinePercentage,
+    newProgressPercentage,
+    remainingPercentage
+  };
+};
+
 // Helper function to generate ayah options based on selected surah
 export const generateAyahOptions = (surahId) => {
   if (!surahId) return [];
