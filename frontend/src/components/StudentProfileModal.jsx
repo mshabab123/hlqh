@@ -2,11 +2,17 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import { AiOutlineStar, AiOutlineUserAdd, AiOutlineSave, AiOutlineClose, AiOutlineEdit, AiOutlineDelete, AiOutlineTable, AiOutlineCalendar } from "react-icons/ai";
 import { QURAN_SURAHS, TOTAL_QURAN_PAGES } from "../utils/quranData";
-import { 
-  getMaxVerse, 
-  calculateStudentGoalProgress,
+import {
+  getMaxVerse,
   calculateTotalScore
 } from "../utils/classUtils";
+import {
+  calculateStudentGoalProgress,
+  calculateGoalProgressBar,
+  formatMemorizationDisplay,
+  calculatePageNumber,
+  calculateQuranPagePercentage
+} from "../utils/studentUtils";
 import { getSurahIdFromName, getSurahNameFromId } from "../utils/quranData";
 import QuranProgressModal from "./QuranProgressModal";
 
@@ -826,88 +832,34 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                     <h4 className="text-sm font-medium text-gray-700 mb-2">إحصائيات الهدف الحالي:</h4>
                     <div className="space-y-3">
                       {(() => {
-                        const progress = calculateStudentGoalProgress(studentData);
+                        // Use enhanced student progress calculation with page support
+                        const student = {
+                          memorized_surah_id: studentData?.memorized_surah_id,
+                          memorized_ayah_number: studentData?.memorized_ayah_number,
+                          target_surah_id: studentData.goal?.target_surah_id,
+                          target_ayah_number: studentData.goal?.target_ayah_number
+                        };
+
+                        const progress = calculateStudentGoalProgress(student);
+                        const progressBar = calculateGoalProgressBar(student);
+
                         const currentSurahId = parseInt(studentData?.memorized_surah_id) || 0;
                         const currentAyah = parseInt(studentData?.memorized_ayah_number) || 0;
                         const targetSurahId = parseInt(studentData.goal.target_surah_id) || 0;
                         const targetAyah = parseInt(studentData.goal.target_ayah_number) || 0;
-                        
+
                         const getCurrentSurahName = (surahId) => {
                           const surah = QURAN_SURAHS.find(s => s.id === surahId);
                           return surah ? surah.name : '';
                         };
-                        
-                        // Calculate pages for goal progress
-                        const calculateGoalPages = () => {
-                          if (!targetSurahId || !targetAyah) return { goalPages: 0, currentPages: 0, remainingPages: 0 };
-                          
-                          let goalPages = 0;
-                          let currentPages = 0;
-                          
-                          // Calculate total pages needed for the goal (from current position to target)
-                          if (!currentSurahId || currentSurahId === 0) {
-                            // No current memorization - calculate from beginning (Surah 114) to target
-                            for (let surahId = 114; surahId >= targetSurahId; surahId--) {
-                              const surah = QURAN_SURAHS.find(s => s.id === surahId);
-                              if (!surah) continue;
-                              
-                              if (surahId === targetSurahId) {
-                                // Target surah - calculate pages for target ayahs
-                                const ayahProgress = Math.min(targetAyah, surah.ayahCount) / surah.ayahCount;
-                                goalPages += Math.ceil(ayahProgress * surah.totalPages);
-                              } else {
-                                // Complete surah
-                                goalPages += surah.totalPages;
-                              }
-                            }
-                            currentPages = 0; // Nothing memorized yet
-                          } else {
-                            // Calculate pages from current position to target position
-                            const currentSurahIdInt = parseInt(currentSurahId);
-                            const currentAyahInt = parseInt(currentAyah);
-                            
-                            if (currentSurahIdInt < targetSurahId || 
-                                (currentSurahIdInt === targetSurahId && currentAyahInt >= targetAyah)) {
-                              // Goal already achieved
-                              goalPages = 1; // Minimum for calculation
-                              currentPages = 1;
-                            } else {
-                              // Calculate pages needed from current to target
-                              for (let surahId = currentSurahIdInt; surahId >= targetSurahId; surahId--) {
-                                const surah = QURAN_SURAHS.find(s => s.id === surahId);
-                                if (!surah) continue;
-                                
-                                if (surahId === currentSurahIdInt && surahId === targetSurahId) {
-                                  // Same surah - calculate pages from current ayah to target ayah
-                                  const ayahsNeeded = targetAyah - currentAyahInt;
-                                  const ayahProgress = ayahsNeeded / surah.ayahCount;
-                                  goalPages += Math.ceil(ayahProgress * surah.totalPages);
-                                } else if (surahId === currentSurahIdInt) {
-                                  // Current surah - pages from current ayah to end
-                                  const remainingAyahs = surah.ayahCount - currentAyahInt;
-                                  const ayahProgress = remainingAyahs / surah.ayahCount;
-                                  goalPages += Math.ceil(ayahProgress * surah.totalPages);
-                                } else if (surahId === targetSurahId) {
-                                  // Target surah - pages from beginning to target ayah
-                                  const ayahProgress = targetAyah / surah.ayahCount;
-                                  goalPages += Math.ceil(ayahProgress * surah.totalPages);
-                                } else {
-                                  // Complete surah in between
-                                  goalPages += surah.totalPages;
-                                }
-                              }
-                              currentPages = 0; // Not achieved yet
-                            }
-                          }
-                          
-                          return { 
-                            goalPages, 
-                            currentPages, 
-                            remainingPages: Math.max(0, goalPages - currentPages) 
-                          };
-                        };
-                        
-                        const goalPagesInfo = calculateGoalPages();
+
+                        // Get formatted display for current and target positions
+                        const currentDisplay = currentSurahId ?
+                          formatMemorizationDisplay(currentSurahId, currentAyah) :
+                          { display: 'لم يبدأ بعد', pageNumber: 0 };
+
+                        const targetDisplay = formatMemorizationDisplay(targetSurahId, targetAyah);
+
                         const isGoalAchieved = progress.percentage >= 100;
                         
                         return (
@@ -948,53 +900,164 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                             <div className="bg-white p-2 sm:p-3 rounded border">
                               <div className="text-[10px] sm:text-xs text-gray-600 mb-1">الصفحات المتبقية</div>
                               <div className="text-xs sm:text-sm font-bold text-indigo-600">
-                                {isGoalAchieved ? '0 صفحة' : `${goalPagesInfo.remainingPages} صفحة`}
+                                {isGoalAchieved ? '0 صفحة' : `${progress.totalGoalPages - progress.memorizedPages} صفحة`}
                               </div>
                             </div>
-                            
+
                             {/* Total Goal Pages */}
                             <div className="bg-white p-2 sm:p-3 rounded border">
                               <div className="text-[10px] sm:text-xs text-gray-600 mb-1">إجمالي صفحات الهدف</div>
                               <div className="text-xs sm:text-sm font-bold text-cyan-600">
-                                {goalPagesInfo.goalPages} صفحة
+                                {progress.totalGoalPages} صفحة
+                              </div>
+                            </div>
+
+                            {/* Current Page Number */}
+                            <div className="bg-white p-2 sm:p-3 rounded border">
+                              <div className="text-[10px] sm:text-xs text-gray-600 mb-1">الصفحة الحالية</div>
+                              <div className="text-xs sm:text-sm font-bold text-purple-600">
+                                صفحة {currentDisplay.pageNumber || 0}
+                              </div>
+                            </div>
+
+                            {/* Target Page Number */}
+                            <div className="bg-white p-2 sm:p-3 rounded border">
+                              <div className="text-[10px] sm:text-xs text-gray-600 mb-1">صفحة الهدف</div>
+                              <div className="text-xs sm:text-sm font-bold text-green-600">
+                                صفحة {targetDisplay.pageNumber}
+                              </div>
+                            </div>
+
+                            {/* Page Progress Percentage */}
+                            <div className="bg-white p-2 sm:p-3 rounded border">
+                              <div className="text-[10px] sm:text-xs text-gray-600 mb-1">تقدم الصفحات</div>
+                              <div className="text-xs sm:text-sm font-bold text-orange-600">
+                                {progress.pagePercentage}%
                               </div>
                             </div>
                           </div>
                         );
                       })()}
                       
-                      {/* Goal Progress Bar */}
-                      <div className="mt-4">
-                        <div className="flex justify-between text-sm mb-2">
-                          <span>تقدم الهدف:</span>
-                          <span className="font-bold">
-                            {(() => {
-                              const progress = calculateStudentGoalProgress(studentData);
-                              return `${progress.memorizedVerses} من ${progress.totalGoalVerses} آية`;
-                            })()}
-                          </span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-4">
-                          <div 
-                            className={`h-4 rounded-full transition-all duration-500 ${
-                              (() => {
-                                const progress = calculateStudentGoalProgress(studentData);
-                                return progress.percentage >= 100 ? 'bg-green-500' : 'bg-blue-500';
-                              })()
-                            }`}
-                            style={{ 
-                              width: `${(() => {
-                                const progress = calculateStudentGoalProgress(studentData);
-                                return Math.min(100, progress.percentage);
-                              })()}%` 
-                            }}
-                          >
-                            <span className="text-white text-xs font-bold flex items-center justify-center h-full">
+                      {/* Goal Progress Bars */}
+                      <div className="mt-4 space-y-4">
+                        {/* Verse Progress Bar */}
+                        <div>
+                          <div className="flex justify-between text-sm mb-2">
+                            <span>تقدم الآيات:</span>
+                            <span className="font-bold">
                               {(() => {
-                                const progress = calculateStudentGoalProgress(studentData);
-                                return Math.min(100, progress.percentage);
-                              })()}%
+                                const student = {
+                                  memorized_surah_id: studentData?.memorized_surah_id,
+                                  memorized_ayah_number: studentData?.memorized_ayah_number,
+                                  target_surah_id: studentData.goal?.target_surah_id,
+                                  target_ayah_number: studentData.goal?.target_ayah_number
+                                };
+                                const progress = calculateStudentGoalProgress(student);
+                                return `${progress.memorizedVerses} من ${progress.totalGoalVerses} آية`;
+                              })()}
                             </span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-4">
+                            <div
+                              className={`h-4 rounded-full transition-all duration-500 ${
+                                (() => {
+                                  const student = {
+                                    memorized_surah_id: studentData?.memorized_surah_id,
+                                    memorized_ayah_number: studentData?.memorized_ayah_number,
+                                    target_surah_id: studentData.goal?.target_surah_id,
+                                    target_ayah_number: studentData.goal?.target_ayah_number
+                                  };
+                                  const progress = calculateStudentGoalProgress(student);
+                                  return progress.percentage >= 100 ? 'bg-green-500' : 'bg-blue-500';
+                                })()
+                              }`}
+                              style={{
+                                width: `${(() => {
+                                  const student = {
+                                    memorized_surah_id: studentData?.memorized_surah_id,
+                                    memorized_ayah_number: studentData?.memorized_ayah_number,
+                                    target_surah_id: studentData.goal?.target_surah_id,
+                                    target_ayah_number: studentData.goal?.target_ayah_number
+                                  };
+                                  const progress = calculateStudentGoalProgress(student);
+                                  return Math.min(100, progress.percentage);
+                                })()}%`
+                              }}
+                            >
+                              <span className="text-white text-xs font-bold flex items-center justify-center h-full">
+                                {(() => {
+                                  const student = {
+                                    memorized_surah_id: studentData?.memorized_surah_id,
+                                    memorized_ayah_number: studentData?.memorized_ayah_number,
+                                    target_surah_id: studentData.goal?.target_surah_id,
+                                    target_ayah_number: studentData.goal?.target_ayah_number
+                                  };
+                                  const progress = calculateStudentGoalProgress(student);
+                                  return Math.min(100, progress.percentage);
+                                })()}%
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Page Progress Bar */}
+                        <div>
+                          <div className="flex justify-between text-sm mb-2">
+                            <span>تقدم الصفحات:</span>
+                            <span className="font-bold">
+                              {(() => {
+                                const student = {
+                                  memorized_surah_id: studentData?.memorized_surah_id,
+                                  memorized_ayah_number: studentData?.memorized_ayah_number,
+                                  target_surah_id: studentData.goal?.target_surah_id,
+                                  target_ayah_number: studentData.goal?.target_ayah_number
+                                };
+                                const progress = calculateStudentGoalProgress(student);
+                                return `${progress.memorizedPages} من ${progress.totalGoalPages} صفحة`;
+                              })()}
+                            </span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-4">
+                            <div
+                              className={`h-4 rounded-full transition-all duration-500 ${
+                                (() => {
+                                  const student = {
+                                    memorized_surah_id: studentData?.memorized_surah_id,
+                                    memorized_ayah_number: studentData?.memorized_ayah_number,
+                                    target_surah_id: studentData.goal?.target_surah_id,
+                                    target_ayah_number: studentData.goal?.target_ayah_number
+                                  };
+                                  const progress = calculateStudentGoalProgress(student);
+                                  return progress.pagePercentage >= 100 ? 'bg-green-500' : 'bg-orange-500';
+                                })()
+                              }`}
+                              style={{
+                                width: `${(() => {
+                                  const student = {
+                                    memorized_surah_id: studentData?.memorized_surah_id,
+                                    memorized_ayah_number: studentData?.memorized_ayah_number,
+                                    target_surah_id: studentData.goal?.target_surah_id,
+                                    target_ayah_number: studentData.goal?.target_ayah_number
+                                  };
+                                  const progress = calculateStudentGoalProgress(student);
+                                  return Math.min(100, progress.pagePercentage);
+                                })()}%`
+                              }}
+                            >
+                              <span className="text-white text-xs font-bold flex items-center justify-center h-full">
+                                {(() => {
+                                  const student = {
+                                    memorized_surah_id: studentData?.memorized_surah_id,
+                                    memorized_ayah_number: studentData?.memorized_ayah_number,
+                                    target_surah_id: studentData.goal?.target_surah_id,
+                                    target_ayah_number: studentData.goal?.target_ayah_number
+                                  };
+                                  const progress = calculateStudentGoalProgress(student);
+                                  return Math.min(100, progress.pagePercentage);
+                                })()}%
+                              </span>
+                            </div>
                           </div>
                         </div>
                       </div>

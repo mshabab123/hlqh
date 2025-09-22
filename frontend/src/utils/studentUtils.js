@@ -10,9 +10,25 @@ const calculatePagesForAyah = (surahId, ayahNumber) => {
     return surah.totalPages;
   }
 
-  // Calculate approximate pages based on ayah progress within the surah
+  // Calculate precise pages based on ayah progress within the surah
   const ayahProgress = ayahNumber / surah.ayahCount;
-  return Math.ceil(ayahProgress * surah.totalPages);
+  return Math.round(ayahProgress * surah.totalPages * 100) / 100; // Round to 2 decimal places
+};
+
+// Calculate the exact page number for a specific surah and ayah
+const calculateExactPageNumber = (surahId, ayahNumber) => {
+  const surah = QURAN_SURAHS.find(s => s.id == surahId);
+  if (!surah) return 0;
+
+  // If ayah is beyond surah length, return end page
+  if (ayahNumber >= surah.ayahCount) {
+    return surah.endPage;
+  }
+
+  // Calculate exact page within the surah range
+  const ayahProgress = ayahNumber / surah.ayahCount;
+  const pageWithinSurah = ayahProgress * (surah.endPage - surah.startPage + 1);
+  return Math.round((surah.startPage + pageWithinSurah - 1) * 100) / 100;
 };
 
 // Helper functions for Qur'an progress calculation (using memorization order: الفاتحة 1→الناس 2→الفلق 3...)
@@ -69,6 +85,9 @@ export const calculateQuranProgress = (memorizedSurahId, memorizedAyahNumber) =>
   const percentage = Math.round((memorizedAyahs / totalAyahs) * 100 * 100) / 100; // Round to 2 decimal places
   const pagesPercentage = Math.round((memorizedPages / totalPages) * 100 * 100) / 100;
 
+  // Calculate exact page number reached
+  const currentPageNumber = calculateExactPageNumber(memorizedSurahId, currentAyahs);
+
   // Count completed surahs (memorization positions completed)
   let completedSurahs = currentPosition - 1; // Positions before current
   if (memorizedAyahNumber == currentSurah.ayahCount) {
@@ -85,7 +104,8 @@ export const calculateQuranProgress = (memorizedSurahId, memorizedAyahNumber) =>
     totalPages,
     memorizedPages,
     pagesPercentage,
-    remainingPages: totalPages - memorizedPages
+    remainingPages: totalPages - memorizedPages,
+    currentPageNumber
   };
 };
 
@@ -117,10 +137,58 @@ const getSurahIdFromPosition = (position) => {
   return QURAN_SURAHS[position - 1].id;
 };
 
+// Helper function to calculate total pages between two positions
+const calculateMemorizedPagesInRange = (startSurahId, startAyah, endSurahId, endAyah) => {
+  if (!startSurahId || !endSurahId) return 0;
+
+  let totalPages = 0;
+
+  // Convert to memorization positions
+  const startPosition = getMemorizationPosition(startSurahId);
+  const endPosition = getMemorizationPosition(endSurahId);
+
+  if (startPosition === endPosition) {
+    // Same surah - calculate partial pages
+    const startPages = calculatePagesForAyah(startSurahId, startAyah);
+    const endPages = calculatePagesForAyah(endSurahId, endAyah);
+    totalPages = Math.max(0, endPages - startPages);
+  } else {
+    // Different surahs - calculate across multiple surahs
+    for (let pos = startPosition; pos <= endPosition; pos++) {
+      const surahId = getSurahIdFromPosition(pos);
+      const surah = QURAN_SURAHS.find(s => s.id === surahId);
+      if (!surah) continue;
+
+      if (pos === startPosition) {
+        // Starting surah - from startAyah to end
+        const startPages = calculatePagesForAyah(surahId, startAyah);
+        totalPages += (surah.totalPages - startPages);
+      } else if (pos === endPosition) {
+        // Ending surah - from beginning to endAyah
+        totalPages += calculatePagesForAyah(surahId, endAyah);
+      } else {
+        // Complete surah in between
+        totalPages += surah.totalPages;
+      }
+    }
+  }
+
+  return Math.round(totalPages * 100) / 100; // Round to 2 decimal places
+};
+
 // Calculate goal progress from current memorized position to target (using memorization order)
 export const calculateStudentGoalProgress = (student) => {
   if (!student.target_surah_id || !student.target_ayah_number) {
-    return { percentage: 0, memorizedVerses: 0, totalGoalVerses: 0 };
+    return {
+      percentage: 0,
+      memorizedVerses: 0,
+      totalGoalVerses: 0,
+      memorizedPages: 0,
+      totalGoalPages: 0,
+      pagePercentage: 0,
+      currentPageNumber: 0,
+      targetPageNumber: 0
+    };
   }
 
   // Get current memorized position and target position in memorization order
@@ -128,6 +196,10 @@ export const calculateStudentGoalProgress = (student) => {
   const currentAyah = parseInt(student.memorized_ayah_number) || 0;
   const targetSurahId = parseInt(student.target_surah_id) || 0;
   const targetAyah = parseInt(student.target_ayah_number) || 0;
+
+  // Calculate exact page numbers
+  const currentPageNumber = currentSurahId ? calculateExactPageNumber(currentSurahId, currentAyah) : 0;
+  const targetPageNumber = calculateExactPageNumber(targetSurahId, targetAyah);
 
   // Convert to memorization positions (الفاتحة=1, الناس=2, الفلق=3, etc.)
   const currentPosition = getMemorizationPosition(currentSurahId);
@@ -191,17 +263,61 @@ export const calculateStudentGoalProgress = (student) => {
     }
   }
 
-  // Calculate percentage and prevent NaN
+  // Calculate page-based goal tracking
+  let memorizedPages = 0;
+  let totalGoalPages = 0;
+
+  if (!currentSurahId || currentSurahId === 0) {
+    // No current memorization - calculate total pages from beginning to target
+    totalGoalPages = calculateMemorizedPagesInRange(1, 7, targetSurahId, targetAyah); // Start from Al-Fatiha
+    memorizedPages = 0;
+  } else {
+    // Calculate pages from current position to target
+    if (currentSurahId === targetSurahId) {
+      if (currentAyah >= targetAyah) {
+        // Already achieved target
+        totalGoalPages = 1;
+        memorizedPages = 1;
+      } else {
+        // Same surah - calculate partial pages
+        const currentPages = calculatePagesForAyah(currentSurahId, currentAyah);
+        const targetPages = calculatePagesForAyah(targetSurahId, targetAyah);
+        totalGoalPages = targetPages - currentPages;
+        memorizedPages = 0;
+      }
+    } else {
+      // Different surahs - calculate total pages in range
+      totalGoalPages = calculateMemorizedPagesInRange(currentSurahId, currentAyah, targetSurahId, targetAyah);
+      memorizedPages = 0; // Not achieved yet
+    }
+  }
+
+  // Calculate percentages and prevent NaN
   if (!totalGoalVerses || totalGoalVerses <= 0) {
-    return { percentage: 0, memorizedVerses: 0, totalGoalVerses: 0 };
+    return {
+      percentage: 0,
+      memorizedVerses: 0,
+      totalGoalVerses: 0,
+      memorizedPages: 0,
+      totalGoalPages: 0,
+      pagePercentage: 0,
+      currentPageNumber,
+      targetPageNumber
+    };
   }
 
   const percentage = Math.min(100, Math.round((memorizedVerses / totalGoalVerses) * 100));
+  const pagePercentage = totalGoalPages > 0 ? Math.min(100, Math.round((memorizedPages / totalGoalPages) * 100)) : 0;
 
   return {
     percentage: percentage || 0,
     memorizedVerses: memorizedVerses || 0,
-    totalGoalVerses: totalGoalVerses || 0
+    totalGoalVerses: totalGoalVerses || 0,
+    memorizedPages: memorizedPages || 0,
+    totalGoalPages: totalGoalPages || 0,
+    pagePercentage: pagePercentage || 0,
+    currentPageNumber,
+    targetPageNumber
   };
 };
 
@@ -215,7 +331,14 @@ export const calculateGoalProgressBar = (student) => {
       remainingVerses: 0,
       baselinePercentage: 0,
       newProgressPercentage: 0,
-      remainingPercentage: 0
+      remainingPercentage: 0,
+      totalGoalPages: 0,
+      baselinePages: 0,
+      newProgressPages: 0,
+      remainingPages: 0,
+      baselinePagesPercentage: 0,
+      newProgressPagesPercentage: 0,
+      remainingPagesPercentage: 0
     };
   }
 
@@ -317,10 +440,67 @@ export const calculateGoalProgressBar = (student) => {
     remainingVerses = totalGoalVerses;
   }
 
+  // Calculate page-based tracking for progress bar
+  let totalGoalPages = 0;
+  let baselinePages = 0;
+  let newProgressPages = 0;
+  let remainingPages = 0;
+
+  if (baselinePosition === targetPosition) {
+    // Same surah for baseline and target
+    const baselinePageCount = calculatePagesForAyah(baselineSurahId, baselineAyah);
+    const targetPageCount = calculatePagesForAyah(targetSurahId, targetAyah);
+    totalGoalPages = Math.max(0, targetPageCount - baselinePageCount);
+  } else if (baselinePosition < targetPosition) {
+    // Calculate total pages from baseline to target
+    totalGoalPages = calculateMemorizedPagesInRange(baselineSurahId, baselineAyah, targetSurahId, targetAyah);
+  } else {
+    totalGoalPages = 1; // Target already achieved
+  }
+
+  // Calculate current progress in pages
+  if (currentSurahId && currentSurahId !== 0) {
+    const currentPosition = getMemorizationPosition(currentSurahId);
+
+    if (currentPosition > targetPosition) {
+      // Already exceeded target
+      baselinePages = 0;
+      newProgressPages = totalGoalPages;
+      remainingPages = 0;
+    } else if (currentPosition === targetPosition && currentAyah >= targetAyah) {
+      // Reached target in same surah
+      baselinePages = 0;
+      newProgressPages = totalGoalPages;
+      remainingPages = 0;
+    } else {
+      // Calculate new progress from baseline to current
+      if (baselinePosition === currentPosition) {
+        // Same surah as baseline
+        const currentPageCount = calculatePagesForAyah(currentSurahId, currentAyah);
+        const baselinePageCount = calculatePagesForAyah(baselineSurahId, baselineAyah);
+        newProgressPages = Math.max(0, currentPageCount - baselinePageCount);
+      } else if (currentPosition > baselinePosition) {
+        // Progress beyond baseline surah
+        newProgressPages = calculateMemorizedPagesInRange(baselineSurahId, baselineAyah, currentSurahId, currentAyah);
+      }
+
+      remainingPages = Math.max(0, totalGoalPages - newProgressPages);
+    }
+  } else {
+    // No memorization yet
+    newProgressPages = 0;
+    remainingPages = totalGoalPages;
+  }
+
   // Calculate percentages
   const baselinePercentage = totalGoalVerses > 0 ? Math.round((baselineVerses / totalGoalVerses) * 100) : 0;
   const newProgressPercentage = totalGoalVerses > 0 ? Math.round((newProgressVerses / totalGoalVerses) * 100) : 0;
   const remainingPercentage = totalGoalVerses > 0 ? Math.round((remainingVerses / totalGoalVerses) * 100) : 0;
+
+  // Calculate page percentages
+  const baselinePagesPercentage = totalGoalPages > 0 ? Math.round((baselinePages / totalGoalPages) * 100) : 0;
+  const newProgressPagesPercentage = totalGoalPages > 0 ? Math.round((newProgressPages / totalGoalPages) * 100) : 0;
+  const remainingPagesPercentage = totalGoalPages > 0 ? Math.round((remainingPages / totalGoalPages) * 100) : 0;
 
   return {
     totalGoalVerses,
@@ -329,7 +509,14 @@ export const calculateGoalProgressBar = (student) => {
     remainingVerses,
     baselinePercentage,
     newProgressPercentage,
-    remainingPercentage
+    remainingPercentage,
+    totalGoalPages,
+    baselinePages,
+    newProgressPages,
+    remainingPages,
+    baselinePagesPercentage,
+    newProgressPagesPercentage,
+    remainingPagesPercentage
   };
 };
 
@@ -338,10 +525,36 @@ export const generateAyahOptions = (surahId) => {
   if (!surahId) return [];
   const surah = QURAN_SURAHS.find(s => s.id == surahId);
   if (!surah) return [];
-  
+
   const options = [];
   for (let i = 1; i <= surah.ayahCount; i++) {
     options.push(i);
   }
   return options;
+};
+
+// Export utility functions for page calculations
+export const calculatePageNumber = calculateExactPageNumber;
+export const calculatePagesInRange = calculateMemorizedPagesInRange;
+
+// Function to convert Surah and Ayah to display format with page info
+export const formatMemorizationDisplay = (surahId, ayahNumber) => {
+  const surah = QURAN_SURAHS.find(s => s.id == surahId);
+  if (!surah) return { display: '', pageNumber: 0, totalPages: 0 };
+
+  const pageNumber = calculateExactPageNumber(surahId, ayahNumber);
+  const pages = calculatePagesForAyah(surahId, ayahNumber);
+
+  return {
+    display: `${surah.name} - آية ${ayahNumber} (صفحة ${pageNumber})`,
+    pageNumber,
+    totalPages: pages,
+    surahName: surah.name
+  };
+};
+
+// Function to calculate percentage of total Quran by page
+export const calculateQuranPagePercentage = (surahId, ayahNumber) => {
+  const totalMemorizedPages = calculateMemorizedPages(surahId, ayahNumber);
+  return Math.round((totalMemorizedPages / TOTAL_QURAN_PAGES) * 100 * 100) / 100;
 };
