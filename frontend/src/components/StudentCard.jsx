@@ -1,8 +1,47 @@
+import { useState } from "react";
 import { AiOutlineUser, AiOutlineEye, AiOutlineEdit, AiOutlineBook, AiOutlineCheck, AiOutlineClose, AiOutlineWarning, AiOutlineDelete } from "react-icons/ai";
-import { calculateQuranProgress, getProgressColor, getProgressBgColor } from "../utils/studentUtils";
+import { BsFillGridFill } from "react-icons/bs";
+import { calculateQuranProgress, getProgressColor, getProgressBgColor, calculateQuranBlocks } from "../utils/studentUtils";
+import QuranBlocksModal from "./QuranBlocksModal";
 
 const StudentCard = ({ student, onView, onEdit, onToggleStatus, onQuranProgress, onDelete }) => {
   const hasSchoolAssignment = student.school_id;
+  const [showBlocksModal, setShowBlocksModal] = useState(false);
+
+  const handleShowBlocks = async () => {
+    // Fetch student grades first
+    let grades = [];
+
+    if (student.id && student.class_id) {
+      try {
+        const token = localStorage.getItem('token');
+        let semesterId = student.semester_id || 1; // Default to semester 1
+
+        const response = await fetch(
+          `/api/grading/student/${student.id}/class/${student.class_id}/semester/${semesterId}/grades`,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          grades = data.grades || [];
+          console.log('Fetched grades for blocks:', grades);
+        } else {
+          console.log('Failed to fetch grades for blocks');
+        }
+      } catch (error) {
+        console.error('Error fetching grades for blocks:', error);
+      }
+    }
+
+    const blocksData = calculateQuranBlocks(student, grades);
+    setShowBlocksModal(blocksData);
+  };
   
   return (
     <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200 hover:shadow-xl transition-shadow">
@@ -75,7 +114,7 @@ const StudentCard = ({ student, onView, onEdit, onToggleStatus, onQuranProgress,
       )}
     </div>
     
-    <div className="grid grid-cols-3 gap-2">
+    <div className="grid grid-cols-4 gap-2">
       <button
         onClick={() => onView(student)}
         className="bg-blue-500 text-white py-2 px-2 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-1 text-sm"
@@ -93,6 +132,12 @@ const StudentCard = ({ student, onView, onEdit, onToggleStatus, onQuranProgress,
         className="bg-green-600 text-white py-2 px-2 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-1 text-sm"
       >
         <AiOutlineBook /> خطة الحفظ
+      </button>
+      <button
+        onClick={handleShowBlocks}
+        className="bg-purple-600 text-white py-2 px-2 rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center gap-1 text-sm"
+      >
+        <BsFillGridFill /> أجزاء القرآن
       </button>
       <button
         onClick={() => onToggleStatus(student)}
@@ -124,6 +169,15 @@ const StudentCard = ({ student, onView, onEdit, onToggleStatus, onQuranProgress,
         <AiOutlineDelete /> حذف الطالب
       </button>
     </div>
+
+    {/* Quran Blocks Modal */}
+    {showBlocksModal && (
+      <QuranBlocksModal
+        student={student}
+        blocksData={showBlocksModal}
+        onClose={() => setShowBlocksModal(false)}
+      />
+    )}
   </div>
   );
 };

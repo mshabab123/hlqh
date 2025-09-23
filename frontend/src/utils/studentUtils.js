@@ -558,3 +558,430 @@ export const calculateQuranPagePercentage = (surahId, ayahNumber) => {
   const totalMemorizedPages = calculateMemorizedPages(surahId, ayahNumber);
   return Math.round((totalMemorizedPages / TOTAL_QURAN_PAGES) * 100 * 100) / 100;
 };
+
+// Helper function to calculate page range for a given surah and ayah range
+const calculatePageRangeForSurahSection = (surahId, startAyah, endAyah) => {
+  const surah = QURAN_SURAHS.find(s => s.id == surahId);
+  if (!surah) return 0;
+
+  // Ensure ayah numbers are within bounds
+  const validStartAyah = Math.max(1, Math.min(startAyah, surah.ayahCount));
+  const validEndAyah = Math.max(validStartAyah, Math.min(endAyah, surah.ayahCount));
+
+  // Calculate pages for start and end positions
+  const startPages = calculatePagesForAyah(surahId, validStartAyah - 1); // -1 because we want from this ayah
+  const endPages = calculatePagesForAyah(surahId, validEndAyah);
+
+  return Math.max(0, endPages - startPages);
+};
+
+// Function to convert grade references to page numbers
+const convertGradeReferencesToPages = (startReference, endReference) => {
+  if (!startReference || !endReference) return { startPage: 0, endPage: 0, totalPages: 0 };
+
+  // Parse start reference (format: "surahId:ayahNumber" or "pageNumber")
+  let startPage = 0, endPage = 0;
+
+  // Handle start reference
+  if (startReference.includes(':')) {
+    const [startSurahId, startAyah] = startReference.split(':').map(Number);
+    startPage = calculateExactPageNumber(startSurahId, startAyah);
+  } else {
+    startPage = parseInt(startReference) || 0;
+  }
+
+  // Handle end reference
+  if (endReference.includes(':')) {
+    const [endSurahId, endAyah] = endReference.split(':').map(Number);
+    endPage = calculateExactPageNumber(endSurahId, endAyah);
+  } else {
+    endPage = parseInt(endReference) || 0;
+  }
+
+  // Ensure proper ordering (Quran is memorized from end to beginning)
+  if (startPage < endPage) {
+    [startPage, endPage] = [endPage, startPage];
+  }
+
+  const totalPages = Math.abs(startPage - endPage);
+
+  return { startPage, endPage, totalPages };
+};
+
+// Simple and clear circular chart calculation
+export const calculateCircularChartData = (student, grades = []) => {
+  // For testing, let's use fixed example values
+  // Student memorized: 604 → 300 (304 pages = 50.3%)
+  // Goal: 300 → 100 (200 pages = 33.1%)
+  // Graded: 10 pages (1.7%)
+  // Rest: 99 pages (16.4%)
+
+  console.log('=== CHART DEBUG ===');
+
+  const memorizedSurahId = parseInt(student.memorized_surah_id) || 0;
+  const memorizedAyah = parseInt(student.memorized_ayah_number) || 0;
+  const targetSurahId = parseInt(student.target_surah_id) || 0;
+  const targetAyah = parseInt(student.target_ayah_number) || 0;
+
+  // Calculate page numbers
+  const memorizedPage = memorizedSurahId ? calculateExactPageNumber(memorizedSurahId, memorizedAyah) : 604;
+  const targetPage = targetSurahId ? calculateExactPageNumber(targetSurahId, targetAyah) : 604;
+
+  console.log('Memorized page:', memorizedPage);
+  console.log('Target page:', targetPage);
+
+  const sections = [];
+
+  // 1. GREEN: Memorized pages
+  let memorizedPages = 0;
+  let greenPercent = 0;
+
+  if (memorizedPage < 604) {
+    memorizedPages = 604 - memorizedPage; // e.g., 604 - 300 = 304
+    greenPercent = (memorizedPages / 604) * 100; // e.g., 304/604 = 50.33%
+
+    sections.push({
+      color: 'green',
+      label: 'محفوظ',
+      pages: memorizedPages,
+      percentage: greenPercent,
+      startPercentage: 0,
+      endPercentage: greenPercent
+    });
+
+    console.log('GREEN:', memorizedPages, 'pages =', greenPercent.toFixed(1) + '%');
+  }
+
+  // 2. GOAL RANGE: Blue + Red
+  let goalPages = 0;
+  let gradedPages = 0; // Simulated for now
+
+  if (targetPage < memorizedPage) {
+    goalPages = memorizedPage - targetPage; // e.g., 300 - 100 = 200
+
+    // Simulate 10 graded pages for testing
+    gradedPages = Math.min(10, goalPages);
+
+    // BLUE: Graded part
+    if (gradedPages > 0) {
+      const bluePercent = (gradedPages / 604) * 100; // e.g., 10/604 = 1.66%
+
+      sections.push({
+        color: 'blue',
+        label: 'مُقيّم',
+        pages: gradedPages,
+        percentage: bluePercent,
+        startPercentage: greenPercent,
+        endPercentage: greenPercent + bluePercent
+      });
+
+      console.log('BLUE:', gradedPages, 'pages =', bluePercent.toFixed(1) + '%');
+    }
+
+    // RED: Ungraded part of goal
+    const ungradedPages = goalPages - gradedPages; // e.g., 200 - 10 = 190
+    if (ungradedPages > 0) {
+      const redPercent = (ungradedPages / 604) * 100; // e.g., 190/604 = 31.46%
+      const redStart = greenPercent + (gradedPages / 604) * 100;
+
+      sections.push({
+        color: 'red',
+        label: 'هدف غير مُقيّم',
+        pages: ungradedPages,
+        percentage: redPercent,
+        startPercentage: redStart,
+        endPercentage: redStart + redPercent
+      });
+
+      console.log('RED:', ungradedPages, 'pages =', redPercent.toFixed(1) + '%');
+    }
+  }
+
+  // Keep only GREEN, BLUE, RED sections - no gray
+  const finalSections = [];
+
+  // Add green first
+  const greenSection = sections.find(s => s.color === 'green');
+  if (greenSection) {
+    finalSections.push(greenSection);
+  }
+
+  // Add blue section right after green
+  const blueSection = sections.find(s => s.color === 'blue');
+  if (blueSection) {
+    // Blue starts right after green
+    blueSection.startPercentage = greenPercent;
+    blueSection.endPercentage = greenPercent + blueSection.percentage;
+    finalSections.push(blueSection);
+  }
+
+  // Add red section after blue
+  const redSection = sections.find(s => s.color === 'red');
+  if (redSection) {
+    // Red starts right after blue (or after green if no blue)
+    const redStart = blueSection ? blueSection.endPercentage : greenPercent;
+    redSection.startPercentage = redStart;
+    redSection.endPercentage = redStart + redSection.percentage;
+    finalSections.push(redSection);
+  }
+
+  // Replace sections array with only colored sections
+  sections.length = 0;
+  sections.push(...finalSections);
+
+  console.log('NO GRAY - Only showing:', sections.map(s => s.color).join(', '));
+
+  // Verify total = 100%
+  const totalPercent = sections.reduce((sum, s) => sum + s.percentage, 0);
+  console.log('TOTAL:', totalPercent.toFixed(1) + '% (should be 100%)');
+  console.log('=== END DEBUG ===');
+
+  return {
+    sections: sections,
+    totalPages: 604,
+    totalProgressPages: memorizedPages,
+    totalProgressPercentage: greenPercent,
+    memorizedPercentage: greenPercent,
+    targetCompletionPercentage: goalPages > 0 ? (gradedPages / goalPages) * 100 : 0,
+    memorizedPages: memorizedPages,
+    targetPages: goalPages,
+    gradedPages: gradedPages,
+    accuracy: {
+      decimal_places: 1,
+      calculation_method: 'simple_clear_sections',
+      formula: 'green + blue + red + gray = 100%'
+    },
+    pageRanges: {
+      memorized: { start: 604, end: memorizedPage },
+      target: targetSurahId ? { start: memorizedPage, end: targetPage } : null,
+      total: { start: 604, end: targetSurahId ? targetPage : memorizedPage }
+    }
+  };
+};
+
+// Helper function to merge overlapping grade ranges
+const mergeOverlappingRanges = (ranges) => {
+  if (ranges.length <= 1) return ranges;
+
+  // Sort by start page (descending, since Quran goes from 604 to 1)
+  const sorted = ranges.sort((a, b) => b.startPage - a.startPage);
+  const merged = [sorted[0]];
+
+  for (let i = 1; i < sorted.length; i++) {
+    const current = sorted[i];
+    const lastMerged = merged[merged.length - 1];
+
+    // Check for overlap (current.startPage <= lastMerged.endPage)
+    if (current.startPage <= lastMerged.endPage) {
+      // Merge the ranges
+      lastMerged.endPage = Math.min(current.endPage, lastMerged.endPage);
+      lastMerged.startPage = Math.max(current.startPage, lastMerged.startPage);
+      lastMerged.pages = Math.max(0, lastMerged.startPage - lastMerged.endPage);
+
+      // Combine grade info
+      if (!lastMerged.gradeInfo.combined) {
+        lastMerged.gradeInfo = {
+          ...lastMerged.gradeInfo,
+          combined: true,
+          grades: [lastMerged.gradeInfo, current.gradeInfo]
+        };
+      } else {
+        lastMerged.gradeInfo.grades.push(current.gradeInfo);
+      }
+    } else {
+      // No overlap, add as separate range
+      merged.push(current);
+    }
+  }
+
+  return merged;
+};
+
+// Quran Ajza (Parts) data
+const QURAN_AJZA = [
+  { "Juz": 1, "Name": "Juz ʿAmma", "Page": 1 },
+  { "Juz": 2, "Name": "Juz Sayaqool", "Page": 22 },
+  { "Juz": 3, "Name": "Juz Tilka ar-Rusul", "Page": 42 },
+  { "Juz": 4, "Name": "Juz Lantanalu", "Page": 62 },
+  { "Juz": 5, "Name": "Juz Wal-Muhsanat", "Page": 82 },
+  { "Juz": 6, "Name": "Juz La Yuhibbullah", "Page": 102 },
+  { "Juz": 7, "Name": "Juz Wa Iza Samiʿu", "Page": 122 },
+  { "Juz": 8, "Name": "Juz Wa Lau Annana", "Page": 142 },
+  { "Juz": 9, "Name": "Juz Qad Aflaha", "Page": 162 },
+  { "Juz": 10, "Name": "Juz Wa A'lamu", "Page": 182 },
+  { "Juz": 11, "Name": "Juz Ya Ayyuha Alladhina Amanu", "Page": 202 },
+  { "Juz": 12, "Name": "Juz Wa Mamin Da'abah", "Page": 222 },
+  { "Juz": 13, "Name": "Juz Wa Ma Ubrioo", "Page": 242 },
+  { "Juz": 14, "Name": "Juz Rubama", "Page": 262 },
+  { "Juz": 15, "Name": "Juz Subhanalladhi", "Page": 282 },
+  { "Juz": 16, "Name": "Juz Qad Aflaha (second one)", "Page": 302 },
+  { "Juz": 17, "Name": "Juz Iqtarabat", "Page": 322 },
+  { "Juz": 18, "Name": "Juz Qadd Aflaha Al-Mu'minoon", "Page": 342 },
+  { "Juz": 19, "Name": "Juz Wa Qalalladhina", "Page": 362 },
+  { "Juz": 20, "Name": "Juz A'man Khalaqa", "Page": 382 },
+  { "Juz": 21, "Name": "Juz Utlu Ma Oohiya", "Page": 402 },
+  { "Juz": 22, "Name": "Juz Wa Mamin Da'abah (second one)", "Page": 422 },
+  { "Juz": 23, "Name": "Juz Wa Mali", "Page": 442 },
+  { "Juz": 24, "Name": "Juz Faman Azlamu", "Page": 462 },
+  { "Juz": 25, "Name": "Juz Ilayhi Yuraddu", "Page": 482 },
+  { "Juz": 26, "Name": "Juz Ha'a Meem", "Page": 502 },
+  { "Juz": 27, "Name": "Juz Qala Fama Khatbukum", "Page": 522 },
+  { "Juz": 28, "Name": "Juz Qadd Sami'Allah", "Page": 542 },
+  { "Juz": 29, "Name": "Juz Tabarakalladhi", "Page": 562 },
+  { "Juz": 30, "Name": "Juz Amma", "Page": 582 }
+];
+
+// Helper function to get Juz number for a given page
+export const getJuzFromPage = (pageNumber) => {
+  for (let i = QURAN_AJZA.length - 1; i >= 0; i--) {
+    if (pageNumber >= QURAN_AJZA[i].Page) {
+      return QURAN_AJZA[i].Juz;
+    }
+  }
+  return 1; // Default to first Juz
+};
+
+// Helper function to get time-based status
+const getTimeBasedStatus = (activityDate) => {
+  if (!activityDate) return 'not_memorized';
+
+  const now = new Date();
+  const activityDateTime = new Date(activityDate);
+  const timeDiff = now - activityDateTime;
+  const daysDiff = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
+
+  console.log(`Activity date: ${activityDate}, Days diff: ${daysDiff}`);
+
+  if (daysDiff <= 7) {
+    console.log('Status: dark_green (< 1 week)');
+    return 'dark_green'; // Less than 1 week
+  } else if (daysDiff <= 30) {
+    console.log('Status: light_green (1 week - 1 month)');
+    return 'light_green'; // 1 week to 1 month
+  } else if (daysDiff <= 60) {
+    console.log('Status: light_red (1-2 months)');
+    return 'light_red'; // 1 to 2 months
+  } else if (daysDiff <= 180) {
+    console.log('Status: red (2-6 months)');
+    return 'red'; // 2 to 6 months
+  } else {
+    console.log('Status: dark_red (> 6 months)');
+    return 'dark_red'; // More than 6 months
+  }
+};
+
+// Function to create Quran blocks based on Ajza (Parts) with status
+export const calculateQuranBlocks = (student, grades = []) => {
+  const memorizedSurahId = parseInt(student.memorized_surah_id) || 0;
+  const memorizedAyah = parseInt(student.memorized_ayah_number) || 0;
+  const memorizedPageNumber = memorizedSurahId ? calculateExactPageNumber(memorizedSurahId, memorizedAyah) : 604;
+
+  // Debug grade data
+  console.log('=== QURAN BLOCKS DEBUG ===');
+  console.log('Student:', student.first_name, student.last_name);
+  console.log('Grades data:', grades);
+  console.log('Memorized page:', memorizedPageNumber);
+
+  const blocks = [];
+  const now = new Date();
+
+  // Start from Juz 30 (index 29) and go backwards to Juz 1 (index 0)
+  for (let i = QURAN_AJZA.length - 1; i >= 0; i--) {
+    const juz = QURAN_AJZA[i];
+    const nextJuz = i > 0 ? QURAN_AJZA[i - 1] : null;
+
+    // Calculate start and end pages for this Juz
+    const startPage = juz.Page;
+    const endPage = i < QURAN_AJZA.length - 1 ? QURAN_AJZA[i + 1].Page - 1 : 604; // Last page is 604
+
+    // Block status is now determined by individual pages, not the whole block
+    let status = 'mixed'; // Since pages have individual colors
+    let statusLabel = 'متنوع'; // Mixed status
+
+    // Create detailed page data for this Juz
+    const pages = [];
+    for (let page = startPage; page <= endPage; page++) {
+      let pageStatus = 'not_memorized';
+      let latestActivityDate = null;
+
+      // Check if page is memorized
+      if (page >= memorizedPageNumber) {
+        // For memorized pages, we need to find the most recent activity date
+        // This could be memorization date, grade date, or review date
+
+        // Check grades for this page
+        if (grades && grades.length > 0) {
+          grades.forEach(grade => {
+            // Try multiple ways to get grade references
+            let gradePages = null;
+
+            if (grade.start_reference && grade.end_reference) {
+              gradePages = convertGradeReferencesToPages(grade.start_reference, grade.end_reference);
+            } else if (grade.start_surah_id && grade.start_ayah_number && grade.end_surah_id && grade.end_ayah_number) {
+              // Alternative: if references are stored differently
+              const startPage = calculateExactPageNumber(grade.start_surah_id, grade.start_ayah_number);
+              const endPage = calculateExactPageNumber(grade.end_surah_id, grade.end_ayah_number);
+              gradePages = { startPage, endPage };
+            }
+
+            if (gradePages) {
+              // If grade covers this specific page (handle both page directions)
+              const pageInRange = (page >= Math.min(gradePages.startPage, gradePages.endPage) &&
+                                 page <= Math.max(gradePages.startPage, gradePages.endPage));
+
+              if (pageInRange) {
+                const activityDate = new Date(grade.date_graded || grade.created_at || grade.updated_at);
+                if (!latestActivityDate || activityDate > latestActivityDate) {
+                  latestActivityDate = activityDate;
+                  console.log(`Found grade for page ${page}, date: ${activityDate}, grade:`, grade);
+                }
+              }
+            }
+          });
+        }
+
+        // If no specific grade activity found for this page, use memorization as baseline
+        // In real implementation, this would use the actual memorization date
+        if (!latestActivityDate) {
+          // For memorized pages without grade data, assume older memorization
+          // This ensures that pages with actual recent grades show green
+          latestActivityDate = new Date();
+          latestActivityDate.setDate(latestActivityDate.getDate() - 180); // Default to 6 months ago
+        }
+
+        // Get time-based status
+        pageStatus = getTimeBasedStatus(latestActivityDate);
+      }
+
+      pages.push({
+        pageNumber: page,
+        status: pageStatus,
+        latestActivityDate,
+        hasRecentActivity: pageStatus === 'dark_green' || pageStatus === 'light_green'
+      });
+    }
+
+    blocks.push({
+      blockNumber: juz.Juz,
+      juzName: juz.Name,
+      startPage,
+      endPage,
+      totalPages: endPage - startPage + 1,
+      status,
+      statusLabel,
+      // Calculate block-level stats from individual pages
+      isMemorized: pages.some(p => p.status !== 'not_memorized'),
+      hasRecentActivity: pages.some(p => p.status === 'dark_green' || p.status === 'light_green'),
+      pages // Add detailed page data
+    });
+  }
+
+  return {
+    blocks,
+    totalBlocks: QURAN_AJZA.length,
+    memorizedBlocks: blocks.filter(b => b.isMemorized).length,
+    recentActivityBlocks: blocks.filter(b => b.hasRecentActivity).length,
+    memorizedPageNumber,
+    currentJuz: getJuzFromPage(memorizedPageNumber)
+  };
+};
