@@ -626,9 +626,24 @@ export const calculateCircularChartData = (student, grades = []) => {
     hasValidTarget: !!(targetSurahId && targetAyah)
   });
 
+  console.log('MEMORIZED ANALYSIS:', {
+    memorized_surah_id_raw: student.memorized_surah_id,
+    memorized_ayah_number_raw: student.memorized_ayah_number,
+    memorized_surah_id_parsed: memorizedSurahId,
+    memorized_ayah_number_parsed: memorizedAyah,
+    hasValidMemorized: !!(memorizedSurahId && memorizedAyah)
+  });
+
   // Calculate page numbers using actual student data
   const memorizedPage = memorizedSurahId ? calculateExactPageNumber(memorizedSurahId, memorizedAyah) : 604;
   const targetPage = targetSurahId ? calculateExactPageNumber(targetSurahId, targetAyah) : 604;
+
+  console.log('PAGE CALCULATIONS:', {
+    memorizedPage: memorizedPage,
+    targetPage: targetPage,
+    memorizedFromEnd: 604 - memorizedPage + 1,
+    targetFromEnd: 604 - targetPage + 1
+  });
 
   console.log('Student input:', {
     memorized_surah_id: student.memorized_surah_id,
@@ -646,9 +661,21 @@ export const calculateCircularChartData = (student, grades = []) => {
   const quranProgress = calculateQuranProgress(memorizedSurahId, memorizedAyah);
   const actualMemorizedPages = quranProgress.memorizedPages || 0;
 
+  console.log('MEMORIZED PAGES CALCULATION:', {
+    memorizedSurahId: memorizedSurahId,
+    memorizedAyah: memorizedAyah,
+    quranProgress: quranProgress,
+    actualMemorizedPages: actualMemorizedPages
+  });
+
   // 1. GREEN: Memorized pages
   let memorizedPages = actualMemorizedPages;
   let greenPercent = 0;
+
+  console.log('GREEN SECTION CHECK:', {
+    memorizedPages: memorizedPages,
+    willCreateGreenSection: memorizedPages > 0
+  });
 
   if (memorizedPages > 0) {
     greenPercent = (memorizedPages / 604) * 100;
@@ -662,7 +689,9 @@ export const calculateCircularChartData = (student, grades = []) => {
       endPercentage: greenPercent
     });
 
-    console.log('GREEN:', memorizedPages, 'pages =', greenPercent.toFixed(1) + '%');
+    console.log('GREEN SECTION ADDED:', memorizedPages, 'pages =', greenPercent.toFixed(1) + '%');
+  } else {
+    console.log('GREEN SECTION SKIPPED: memorizedPages =', memorizedPages);
   }
 
   // 2. GOAL RANGE: Blue + Red

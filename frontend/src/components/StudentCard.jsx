@@ -31,12 +31,19 @@ const StudentCard = ({ student, onView, onEdit, onToggleStatus, onQuranProgress,
         if (response.ok) {
           const data = await response.json();
 
+          // Extract grades array from the response object
           if (Array.isArray(data)) {
+            // Direct array (old format)
             grades = data;
-            console.log('Grades fetched for blocks:', grades.length, 'grades');
+          } else if (data.grades && Array.isArray(data.grades)) {
+            // Object with grades property (new format)
+            grades = data.grades;
           } else {
+            console.log('Unexpected grades response format in StudentCard:', typeof data);
             grades = [];
           }
+
+          console.log('Grades fetched for blocks:', grades.length, 'grades');
         } else {
           console.log('Failed to fetch grades for blocks. Status:', response.status);
         }

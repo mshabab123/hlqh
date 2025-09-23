@@ -481,7 +481,10 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
         });
 
         if (studentResponse.ok) {
-          freshStudentData = await studentResponse.json();
+          const apiResponse = await studentResponse.json();
+          console.log('Raw API response:', apiResponse);
+          // Extract the student object from the API response
+          freshStudentData = apiResponse.student || apiResponse;
           console.log('Fresh student data fetched for blocks:', freshStudentData);
         }
 
@@ -495,10 +498,31 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
 
         if (gradesResponse.ok) {
           const gradesData = await gradesResponse.json();
+          console.log('Raw grades response:', gradesData);
+
+          // Extract grades array from the response object
           if (Array.isArray(gradesData)) {
+            // Direct array (old format)
             grades = gradesData;
-            console.log('Grades fetched for blocks:', grades.length, 'grades');
+          } else if (gradesData.grades && Array.isArray(gradesData.grades)) {
+            // Object with grades property (new format)
+            grades = gradesData.grades;
+          } else {
+            console.log('Unexpected grades response format:', typeof gradesData);
+            grades = [];
           }
+
+          console.log('Grades extracted for blocks:', grades.length, 'grades');
+          if (grades.length > 0) {
+            console.log('Sample grade data:', grades[0]);
+            console.log('Grades with start_reference:', grades.filter(g => g.start_reference).length);
+          } else {
+            console.log('No grades found for student');
+          }
+        } else {
+          console.error('Failed to fetch grades. Status:', gradesResponse.status);
+          const errorText = await gradesResponse.text();
+          console.error('Error response:', errorText);
         }
       } catch (error) {
         console.error('Error fetching fresh data for blocks:', error);
@@ -741,7 +765,10 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                   });
 
                   if (response.ok) {
-                    const freshStudentData = await response.json();
+                    const apiResponse = await response.json();
+                    console.log('Raw API response for QuranProgressModal:', apiResponse);
+                    // Extract the student object from the API response
+                    const freshStudentData = apiResponse.student || apiResponse;
                     console.log('Fresh student data fetched for QuranProgressModal:', freshStudentData);
                     console.log('Target surah data in fresh fetch:', {
                       target_surah_id: freshStudentData.target_surah_id,
@@ -858,7 +885,10 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                         });
 
                         if (response.ok) {
-                          const freshStudentData = await response.json();
+                          const apiResponse = await response.json();
+                          console.log('Raw API response from goal section:', apiResponse);
+                          // Extract the student object from the API response
+                          const freshStudentData = apiResponse.student || apiResponse;
                           console.log('Fresh student data fetched from goal section:', freshStudentData);
                           console.log('Target surah data in goal section fetch:', {
                             target_surah_id: freshStudentData.target_surah_id,
