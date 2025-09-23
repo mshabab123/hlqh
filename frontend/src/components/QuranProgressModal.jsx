@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { AiOutlineBook, AiOutlineCheck } from "react-icons/ai";
 import { QURAN_SURAHS, TOTAL_QURAN_PAGES } from "../utils/quranData";
-import { calculateQuranProgress, calculateStudentGoalProgress, calculateGoalProgressBar, getProgressColor, getProgressBgColor, generateAyahOptions } from "../utils/studentUtils";
+import { calculateQuranProgress, calculateStudentGoalProgress, calculateGoalProgressBar, getProgressColor, getProgressBgColor, generateAyahOptions, formatMemorizationDisplay, calculatePageNumber } from "../utils/studentUtils";
 
 const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) => {
   const [showForms, setShowForms] = useState(false);
@@ -59,10 +59,16 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
                         return position > 0 ? `سورة ${name} (${position})` : `سورة ${name}`;
                       };
 
+                      // Calculate page information for display
+                      const targetDisplay = formatMemorizationDisplay(targetSurahId, targetAyah);
+                      const currentDisplay = currentSurahId ?
+                        formatMemorizationDisplay(currentSurahId, currentAyah) :
+                        { display: 'سورة الفاتحة (صفحة 1)', pageNumber: 1 };
+
                       if (!currentSurahId || currentSurahId === 0) {
                         // No current memorization - start from الفاتحة (position 1)
                         const targetSurahWithPos = getCurrentSurahWithPosition(targetSurahId);
-                        return `من سورة الفاتحة (1) إلى ${targetSurahWithPos} الآية ${targetAyah}`;
+                        return `من سورة الفاتحة آية 1 إلى ${targetSurahWithPos} آية ${targetAyah} (من صفحة 1 إلى صفحة ${targetDisplay.pageNumber})`;
                       } else {
                         const currentPosition = getMemorizationPosition(currentSurahId);
                         const targetPosition = getMemorizationPosition(targetSurahId);
@@ -71,9 +77,9 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
                           // Same surah
                           const currentSurahWithPos = getCurrentSurahWithPosition(currentSurahId);
                           if (currentAyah >= targetAyah) {
-                            return `🎉 تم تحقيق الهدف - ${currentSurahWithPos} الآية ${currentAyah}`;
+                            return `🎉 تم تحقيق الهدف - ${currentSurahWithPos} آية ${currentAyah} (صفحة ${currentDisplay.pageNumber})`;
                           } else {
-                            return `من ${currentSurahWithPos} الآية ${currentAyah + 1} إلى الآية ${targetAyah}`;
+                            return `من ${currentSurahWithPos} آية ${currentAyah + 1} إلى آية ${targetAyah} (من صفحة ${currentDisplay.pageNumber} إلى صفحة ${targetDisplay.pageNumber})`;
                           }
                         } else {
                           // Different surahs - check memorization positions
@@ -81,9 +87,9 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
                           const targetSurahWithPos = getCurrentSurahWithPosition(targetSurahId);
 
                           if (currentPosition > targetPosition) {
-                            return `🎉 تم تجاوز الهدف - الحالي: ${currentSurahWithPos}`;
+                            return `🎉 تم تجاوز الهدف - الحالي: ${currentSurahWithPos} آية ${currentAyah} (صفحة ${currentDisplay.pageNumber})`;
                           } else {
-                            return `من ${currentSurahWithPos} الآية ${currentAyah + 1} إلى ${targetSurahWithPos} الآية ${targetAyah}`;
+                            return `من ${currentSurahWithPos} آية ${currentAyah + 1} إلى ${targetSurahWithPos} آية ${targetAyah} (من صفحة ${currentDisplay.pageNumber} إلى صفحة ${targetDisplay.pageNumber})`;
                           }
                         }
                       }
@@ -95,11 +101,11 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
                   <h4 className="text-sm font-medium text-gray-700 mb-2">التقدم نحو الهدف:</h4>
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
-                      <span>التقدم نحو الهدف:</span>
+                      <span>الصفحات نحو الهدف:</span>
                       <span className="font-bold">
                         {(() => {
                           const progress = calculateGoalProgressBar(student);
-                          return `${progress.newProgressVerses} من ${progress.totalGoalVerses}`;
+                          return `${progress.newProgressPages} من ${progress.totalGoalPages} صفحة`;
                         })()}
                       </span>
                     </div>
@@ -140,7 +146,7 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
 
                             {/* Percentage text overlay */}
                             <span className="text-white text-xs font-bold flex items-center justify-center h-full relative z-10">
-                              {progress.newProgressPercentage}%
+                              {progress.newProgressPagesPercentage}%
                             </span>
                           </>
                         );
@@ -180,9 +186,9 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
               <div className="space-y-4">
                 <h5 className="font-medium text-gray-700">التقدم الحالي</h5>
 
-                {progress.percentage > 0 ? (
+                {progress.pagesPercentage > 0 ? (
                   <>
-                    {/* Circular Progress */}
+                    {/* Circular Progress - Page-based */}
                     <div className="flex items-center justify-center">
                       <div className="relative w-32 h-32">
                         <svg className="w-32 h-32 transform -rotate-90" viewBox="0 0 120 120">
@@ -196,7 +202,7 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
                             fill="transparent"
                             className="text-gray-200"
                           />
-                          {/* Progress circle */}
+                          {/* Progress circle - based on pages */}
                           <circle
                             cx="60"
                             cy="60"
@@ -205,43 +211,43 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
                             strokeWidth="12"
                             fill="transparent"
                             strokeDasharray={339.292}
-                            strokeDashoffset={339.292 - (339.292 * progress.percentage) / 100}
-                            className={getProgressBgColor(progress.percentage).replace('bg-', 'text-')}
+                            strokeDashoffset={339.292 - (339.292 * progress.pagesPercentage) / 100}
+                            className={getProgressBgColor(progress.pagesPercentage).replace('bg-', 'text-')}
                             strokeLinecap="round"
                           />
                         </svg>
                         <div className="absolute inset-0 flex items-center justify-center">
                           <div className="text-center">
-                            <span className={`text-2xl font-bold ${getProgressColor(progress.percentage)}`}>
-                              {progress.percentage}%
-                            </span>
-                            <div className="text-xs text-gray-600">آيات</div>
-                            <div className={`text-sm font-semibold ${getProgressColor(progress.pagesPercentage)}`}>
+                            <span className={`text-2xl font-bold ${getProgressColor(progress.pagesPercentage)}`}>
                               {progress.pagesPercentage}%
-                            </div>
+                            </span>
                             <div className="text-xs text-gray-600">صفحات</div>
+                            <div className={`text-sm font-semibold text-blue-600`}>
+                              {progress.memorizedPages}
+                            </div>
+                            <div className="text-xs text-gray-600">صفحة محفوظة</div>
                           </div>
                         </div>
                       </div>
                     </div>
 
-                    {/* Progress Stats */}
+                    {/* Progress Stats - Page-based only */}
                     <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div className="bg-white p-3 rounded border">
-                        <div className="text-gray-600 mb-1">الآيات المحفوظة</div>
-                        <div className="font-bold text-green-600">{progress.memorizedAyahs.toLocaleString()}</div>
-                      </div>
                       <div className="bg-white p-3 rounded border">
                         <div className="text-gray-600 mb-1">الصفحات المحفوظة</div>
                         <div className="font-bold text-blue-600">{progress.memorizedPages}</div>
+                      </div>
+                      <div className="bg-white p-3 rounded border">
+                        <div className="text-gray-600 mb-1">الصفحة الحالية</div>
+                        <div className="font-bold text-green-600">{progress.currentPageNumber || 0}</div>
                       </div>
                       <div className="bg-white p-3 rounded border">
                         <div className="text-gray-600 mb-1">السور المكتملة</div>
                         <div className="font-bold text-purple-600">{progress.completedSurahs}</div>
                       </div>
                       <div className="bg-white p-3 rounded border">
-                        <div className="text-gray-600 mb-1">المتبقي</div>
-                        <div className="font-bold text-orange-600">{progress.remainingAyahs.toLocaleString()}</div>
+                        <div className="text-gray-600 mb-1">الصفحات المتبقية</div>
+                        <div className="font-bold text-orange-600">{progress.remainingPages}</div>
                       </div>
                     </div>
                   </>
@@ -253,27 +259,47 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
                 )}
               </div>
 
-              {/* Target Progress */}
+              {/* Target Progress - Page-based only */}
               <div className="space-y-4">
-                <h5 className="font-medium text-gray-700">تقدم الهدف</h5>
+                <h5 className="font-medium text-gray-700">تقدم الهدف (بالصفحات)</h5>
 
-                {targetProgress.percentage > 0 ? (
+                {student.target_surah_id && student.target_ayah_number ? (
                   <>
-                    <div className="flex justify-between">
-                      <span>الهدف (آيات):</span>
-                      <span className="font-bold text-blue-600">{targetProgress.memorizedAyahs.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>المتبقي للهدف:</span>
-                      <span className="font-bold text-orange-600">
-                        {Math.max(0, targetProgress.memorizedAyahs - progress.memorizedAyahs).toLocaleString()}
-                      </span>
-                    </div>
-                    {progress.memorizedAyahs >= targetProgress.memorizedAyahs && (
-                      <div className="text-center p-2 bg-green-100 text-green-700 rounded-lg font-bold">
-                        🎉 تم تحقيق الهدف!
-                      </div>
-                    )}
+                    {(() => {
+                      const goalProgress = calculateStudentGoalProgress(student);
+                      const targetDisplay = formatMemorizationDisplay(student.target_surah_id, student.target_ayah_number);
+                      const currentDisplay = student.memorized_surah_id ?
+                        formatMemorizationDisplay(student.memorized_surah_id, student.memorized_ayah_number) :
+                        { display: 'لم يبدأ بعد', pageNumber: 0 };
+
+                      return (
+                        <>
+                          <div className="flex justify-between">
+                            <span>صفحة الهدف:</span>
+                            <span className="font-bold text-blue-600">صفحة {targetDisplay.pageNumber}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>الصفحة الحالية:</span>
+                            <span className="font-bold text-green-600">صفحة {currentDisplay.pageNumber}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>الصفحات للهدف:</span>
+                            <span className="font-bold text-purple-600">{goalProgress.totalGoalPages} صفحة</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>الصفحات المتبقية:</span>
+                            <span className="font-bold text-orange-600">
+                              {Math.max(0, goalProgress.totalGoalPages - goalProgress.memorizedPages)} صفحة
+                            </span>
+                          </div>
+                          {goalProgress.pagePercentage >= 100 && (
+                            <div className="text-center p-2 bg-green-100 text-green-700 rounded-lg font-bold">
+                              🎉 تم تحقيق الهدف!
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
                   </>
                 ) : (
                   <div className="text-center text-gray-500 py-8">

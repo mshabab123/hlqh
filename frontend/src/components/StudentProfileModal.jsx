@@ -829,6 +829,71 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                   </div>
                   
                   <div>
+                    <h4 className="text-sm font-medium text-gray-700 mb-2">الهدف المحدد:</h4>
+
+                    {/* Goal Description - Same format as QuranProgressModal */}
+                    <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                      <p className="text-base font-bold text-blue-700">
+                        {(() => {
+                          const currentSurahId = parseInt(studentData?.memorized_surah_id) || 0;
+                          const currentAyah = parseInt(studentData?.memorized_ayah_number) || 0;
+                          const targetSurahId = parseInt(studentData.goal?.target_surah_id) || 0;
+                          const targetAyah = parseInt(studentData.goal?.target_ayah_number) || 0;
+
+                          const getCurrentSurahName = (surahId) => {
+                            const surah = QURAN_SURAHS.find(s => s.id === surahId);
+                            return surah ? surah.name : '';
+                          };
+
+                          const getMemorizationPosition = (surahId) => {
+                            const index = QURAN_SURAHS.findIndex(s => s.id == surahId);
+                            return index !== -1 ? index + 1 : 0;
+                          };
+
+                          const getCurrentSurahWithPosition = (surahId) => {
+                            const position = getMemorizationPosition(surahId);
+                            const name = getCurrentSurahName(surahId);
+                            return position > 0 ? `سورة ${name} (${position})` : `سورة ${name}`;
+                          };
+
+                          // Calculate page information for display
+                          const targetDisplay = formatMemorizationDisplay(targetSurahId, targetAyah);
+                          const currentDisplay = currentSurahId ?
+                            formatMemorizationDisplay(currentSurahId, currentAyah) :
+                            { display: 'سورة الفاتحة (صفحة 1)', pageNumber: 1 };
+
+                          if (!currentSurahId || currentSurahId === 0) {
+                            // No current memorization - start from الفاتحة (position 1)
+                            const targetSurahWithPos = getCurrentSurahWithPosition(targetSurahId);
+                            return `من سورة الفاتحة آية 1 إلى ${targetSurahWithPos} آية ${targetAyah} (من صفحة 1 إلى صفحة ${targetDisplay.pageNumber})`;
+                          } else {
+                            const currentPosition = getMemorizationPosition(currentSurahId);
+                            const targetPosition = getMemorizationPosition(targetSurahId);
+
+                            if (currentSurahId === targetSurahId) {
+                              // Same surah
+                              const currentSurahWithPos = getCurrentSurahWithPosition(currentSurahId);
+                              if (currentAyah >= targetAyah) {
+                                return `🎉 تم تحقيق الهدف - ${currentSurahWithPos} آية ${currentAyah} (صفحة ${currentDisplay.pageNumber})`;
+                              } else {
+                                return `من ${currentSurahWithPos} آية ${currentAyah + 1} إلى آية ${targetAyah} (من صفحة ${currentDisplay.pageNumber} إلى صفحة ${targetDisplay.pageNumber})`;
+                              }
+                            } else {
+                              // Different surahs - check memorization positions
+                              const currentSurahWithPos = getCurrentSurahWithPosition(currentSurahId);
+                              const targetSurahWithPos = getCurrentSurahWithPosition(targetSurahId);
+
+                              if (currentPosition > targetPosition) {
+                                return `🎉 تم تجاوز الهدف - الحالي: ${currentSurahWithPos} آية ${currentAyah} (صفحة ${currentDisplay.pageNumber})`;
+                              } else {
+                                return `من ${currentSurahWithPos} آية ${currentAyah + 1} إلى ${targetSurahWithPos} آية ${targetAyah} (من صفحة ${currentDisplay.pageNumber} إلى صفحة ${targetDisplay.pageNumber})`;
+                              }
+                            }
+                          }
+                        })()}
+                      </p>
+                    </div>
+
                     <h4 className="text-sm font-medium text-gray-700 mb-2">إحصائيات الهدف الحالي:</h4>
                     <div className="space-y-3">
                       {(() => {
