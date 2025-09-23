@@ -18,6 +18,13 @@ const CircularProgressChart = ({
   // Enhanced color palette with gradients
   const getColorConfig = (color) => {
     switch (color) {
+         case 'blue':
+        return {
+          primary: '#2563EB',    // Blue-600
+          secondary: '#3B82F6',  // Blue-500
+          shadow: 'rgba(37, 99, 235, 0.5)',
+          gradient: 'url(#blueGradient)'
+        };
       case 'green':
         return {
           primary: '#059669',    // Emerald-600
@@ -25,13 +32,7 @@ const CircularProgressChart = ({
           shadow: 'rgba(5, 150, 105, 0.4)',
           gradient: 'url(#greenGradient)'
         };
-      case 'blue':
-        return {
-          primary: '#2563EB',    // Blue-600
-          secondary: '#3B82F6',  // Blue-500
-          shadow: 'rgba(37, 99, 235, 0.5)',
-          gradient: 'url(#blueGradient)'
-        };
+    
       case 'red':
         return {
           primary: '#DC2626',    // Red-600
@@ -46,6 +47,7 @@ const CircularProgressChart = ({
           shadow: 'rgba(156, 163, 175, 0.2)',
           gradient: 'url(#grayGradient)'
         };
+     
       case 'lightgray':
         return {
           primary: '#F3F4F6',    // Gray-100 - very light
@@ -63,11 +65,18 @@ const CircularProgressChart = ({
     }
   };
 
+  // Debug logging for chart sections (only show if no sections)
+  if (!chartData.sections || chartData.sections.length === 0) {
+    console.log('CircularProgressChart - No sections found. chartData:', chartData);
+  }
+
   // Use predefined positioning from calculation
   const sectionsWithPositions = chartData.sections.map((section, index) => {
     const usePercentage = section.percentage;
     const startPercentage = section.startPercentage || 0;
     const endPercentage = section.endPercentage || section.percentage;
+
+    console.log(`Section ${index}:`, section.color, section.percentage + '%', section.pages + 'pages');
 
     return {
       ...section,
@@ -268,19 +277,19 @@ const CircularProgressChart = ({
               </span>
             </div>
             <div className="text-sm font-medium text-gray-600 mt-1">
-              {chartData.targetCompletionPercentage > 0 ? 'تقدم الهدف' : 'من القرآن'}
+              {chartData.targetCompletionPercentage > 0 ? 'الى الان المحفوظ' : 'من القرآن'}
             </div>
             <div className="text-xl font-bold text-blue-600 mt-2">
-              {chartData.totalProgressPages}
+              {chartData.totalProgressPages+ chartData.gradedPages}
             </div>
             <div className="text-xs text-gray-500 font-medium">صفحة</div>
 
             {/* Accuracy indicator */}
-            {chartData.accuracy && (
+            {/* {chartData.accuracy && (
               <div className="mt-2 px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
                 دقة {chartData.accuracy.decimal_places} خانات
               </div>
-            )}
+            )} */}
           </div>
         </div>
 
@@ -300,8 +309,8 @@ const CircularProgressChart = ({
               style={{ left: x, top: y }}
             >
               <div className={`w-2 h-2 rounded-full ${
-                section.color === 'green' ? 'bg-green-500' :
                 section.color === 'blue' ? 'bg-blue-500' :
+                section.color === 'green' ? 'bg-green-500' :
                 section.color === 'red' ? 'bg-red-500' :
                 section.color === 'lightgray' ? 'bg-gray-200' :
                 'bg-gray-400'
@@ -354,14 +363,18 @@ const CircularProgressChart = ({
       {chartData.pageRanges && (
         <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200 w-full max-w-md">
           <div className="text-xs font-medium text-gray-700 space-y-2">
-            <div className="flex items-center gap-2">
-              <span className="text-green-600">📚</span>
-              <span>المحفوظ: صفحة {chartData.pageRanges.memorized.end} - {chartData.pageRanges.memorized.start}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-red-600">🎯</span>
-              <span>الهدف: صفحة {chartData.pageRanges.target.end} - {chartData.pageRanges.target.start}</span>
-            </div>
+            {chartData.pageRanges.memorized && (
+              <div className="flex items-center gap-2">
+                <span className="text-green-600">📚</span>
+                <span>المحفوظ: صفحة {chartData.pageRanges.memorized.end} - {chartData.pageRanges.memorized.start}</span>
+              </div>
+            )}
+            {chartData.pageRanges.target && (
+              <div className="flex items-center gap-2">
+                <span className="text-red-600">🎯</span>
+                <span>الهدف: صفحة {chartData.pageRanges.target.end} - {chartData.pageRanges.target.start}</span>
+              </div>
+            )}
             {chartData.gradedPages > 0 && (
               <div className="flex items-center gap-2">
                 <span className="text-blue-600">📝</span>

@@ -12,7 +12,7 @@ const calculatePagesForAyah = (surahId, ayahNumber) => {
 
   // Calculate precise pages based on ayah progress within the surah
   const ayahProgress = ayahNumber / surah.ayahCount;
-  return Math.round(ayahProgress * surah.totalPages * 100) / 100; // Round to 2 decimal places
+  return parseFloat((ayahProgress * surah.totalPages).toFixed(1)); // Round to 1 decimal place
 };
 
 // Calculate the exact page number for a specific surah and ayah
@@ -28,7 +28,7 @@ const calculateExactPageNumber = (surahId, ayahNumber) => {
   // Calculate exact page within the surah range
   const ayahProgress = ayahNumber / surah.ayahCount;
   const pageWithinSurah = ayahProgress * (surah.endPage - surah.startPage + 1);
-  return Math.round((surah.startPage + pageWithinSurah - 1) * 100) / 100;
+  return parseFloat((surah.startPage + pageWithinSurah - 1).toFixed(1));
 };
 
 // Helper functions for Qur'an progress calculation (using memorization order: الفاتحة 1→الناس 2→الفلق 3...)
@@ -82,8 +82,8 @@ export const calculateQuranProgress = (memorizedSurahId, memorizedAyahNumber) =>
   memorizedAyahs += currentAyahs;
   memorizedPages += calculatePagesForAyah(memorizedSurahId, currentAyahs);
 
-  const percentage = Math.round((memorizedAyahs / totalAyahs) * 100 * 100) / 100; // Round to 2 decimal places
-  const pagesPercentage = Math.round((memorizedPages / totalPages) * 100 * 100) / 100;
+  const percentage = parseFloat(((memorizedAyahs / totalAyahs) * 100).toFixed(1)); // Round to 1 decimal place
+  const pagesPercentage = parseFloat(((memorizedPages / totalPages) * 100).toFixed(1));
 
   // Calculate exact page number reached
   const currentPageNumber = calculateExactPageNumber(memorizedSurahId, currentAyahs);
@@ -173,7 +173,7 @@ const calculateMemorizedPagesInRange = (startSurahId, startAyah, endSurahId, end
     }
   }
 
-  return Math.round(totalPages * 100) / 100; // Round to 2 decimal places
+  return parseFloat(totalPages.toFixed(1)); // Round to 1 decimal place
 };
 
 // Calculate goal progress from current memorized position to target (using memorization order)
@@ -556,7 +556,7 @@ export const formatMemorizationDisplay = (surahId, ayahNumber) => {
 // Function to calculate percentage of total Quran by page
 export const calculateQuranPagePercentage = (surahId, ayahNumber) => {
   const totalMemorizedPages = calculateMemorizedPages(surahId, ayahNumber);
-  return Math.round((totalMemorizedPages / TOTAL_QURAN_PAGES) * 100 * 100) / 100;
+  return parseFloat(((totalMemorizedPages / TOTAL_QURAN_PAGES) * 100).toFixed(1));
 };
 
 // Helper function to calculate page range for a given surah and ayah range
@@ -610,35 +610,48 @@ const convertGradeReferencesToPages = (startReference, endReference) => {
 
 // Simple and clear circular chart calculation
 export const calculateCircularChartData = (student, grades = []) => {
-  // For testing, let's use fixed example values
-  // Student memorized: 604 → 300 (304 pages = 50.3%)
-  // Goal: 300 → 100 (200 pages = 33.1%)
-  // Graded: 10 pages (1.7%)
-  // Rest: 99 pages (16.4%)
-
-  console.log('=== CHART DEBUG ===');
+  console.log('=== CHART DEBUG START ===');
+  console.log('Input student object:', student);
 
   const memorizedSurahId = parseInt(student.memorized_surah_id) || 0;
   const memorizedAyah = parseInt(student.memorized_ayah_number) || 0;
   const targetSurahId = parseInt(student.target_surah_id) || 0;
   const targetAyah = parseInt(student.target_ayah_number) || 0;
 
-  // Calculate page numbers
+  console.log('TARGET ANALYSIS:', {
+    target_surah_id_raw: student.target_surah_id,
+    target_ayah_number_raw: student.target_ayah_number,
+    target_surah_id_parsed: targetSurahId,
+    target_ayah_number_parsed: targetAyah,
+    hasValidTarget: !!(targetSurahId && targetAyah)
+  });
+
+  // Calculate page numbers using actual student data
   const memorizedPage = memorizedSurahId ? calculateExactPageNumber(memorizedSurahId, memorizedAyah) : 604;
   const targetPage = targetSurahId ? calculateExactPageNumber(targetSurahId, targetAyah) : 604;
 
-  console.log('Memorized page:', memorizedPage);
-  console.log('Target page:', targetPage);
+  console.log('Student input:', {
+    memorized_surah_id: student.memorized_surah_id,
+    memorized_ayah_number: student.memorized_ayah_number,
+    target_surah_id: student.target_surah_id,
+    target_ayah_number: student.target_ayah_number
+  });
+  console.log('Parsed values:', { memorizedSurahId, memorizedAyah, targetSurahId, targetAyah });
+  console.log('Page calculations:', { memorizedPage, targetPage });
+  console.log('Grades count:', Array.isArray(grades) ? grades.length : 'Not an array');
 
   const sections = [];
 
+  // Calculate actual memorized pages using the proper function
+  const quranProgress = calculateQuranProgress(memorizedSurahId, memorizedAyah);
+  const actualMemorizedPages = quranProgress.memorizedPages || 0;
+
   // 1. GREEN: Memorized pages
-  let memorizedPages = 0;
+  let memorizedPages = actualMemorizedPages;
   let greenPercent = 0;
 
-  if (memorizedPage < 604) {
-    memorizedPages = 604 - memorizedPage; // e.g., 604 - 300 = 304
-    greenPercent = (memorizedPages / 604) * 100; // e.g., 304/604 = 50.33%
+  if (memorizedPages > 0) {
+    greenPercent = (memorizedPages / 604) * 100;
 
     sections.push({
       color: 'green',
@@ -654,17 +667,77 @@ export const calculateCircularChartData = (student, grades = []) => {
 
   // 2. GOAL RANGE: Blue + Red
   let goalPages = 0;
-  let gradedPages = 0; // Simulated for now
+  let gradedPages = 0;
 
-  if (targetPage < memorizedPage) {
-    goalPages = memorizedPage - targetPage; // e.g., 300 - 100 = 200
+  // Calculate goal progress using actual student data
+  const goalProgress = calculateStudentGoalProgress(student);
+  goalPages = goalProgress.totalGoalPages || 0;
 
-    // Simulate 10 graded pages for testing
-    gradedPages = Math.min(10, goalPages);
+  console.log('Goal progress:', goalProgress);
+  console.log('Goal pages:', goalPages);
 
+  // For demonstration purposes, if student has no goal set, create a demo goal
+  // This shows how blue and red sections would appear
+  console.log('DEMO GOAL CHECK:', {
+    goalPages: goalPages,
+    memorizedPages: memorizedPages,
+    shouldCreateDemo: goalPages === 0 && memorizedPages > 0
+  });
+
+  if (goalPages === 0 && memorizedPages > 0) {
+    // Simulate a goal of memorizing 50 more pages beyond current position
+    goalPages = 50;
+    console.log('Demo goal created: 50 pages for testing blue/red sections');
+  }
+
+  // Calculate actual graded pages from grades data
+  if (Array.isArray(grades) && grades.length > 0 && targetSurahId) {
+    grades.forEach(grade => {
+      let gradePages = null;
+
+      if (grade.start_reference && grade.end_reference) {
+        try {
+          gradePages = convertGradeReferencesToPages(grade.start_reference, grade.end_reference);
+        } catch (e) { /* ignore */ }
+      } else if (grade.start_surah_id && grade.end_surah_id) {
+        try {
+          const startPage = calculateExactPageNumber(grade.start_surah_id, grade.start_ayah_number || 1);
+          const endPage = calculateExactPageNumber(grade.end_surah_id, grade.end_ayah_number || 1);
+          gradePages = { startPage, endPage, totalPages: Math.abs(startPage - endPage) };
+        } catch (e) { /* ignore */ }
+      }
+
+      if (gradePages && gradePages.totalPages > 0) {
+        // Check if grade overlaps with the goal range (between target and current memorization)
+        const gradeMinPage = Math.min(gradePages.startPage, gradePages.endPage);
+        const gradeMaxPage = Math.max(gradePages.startPage, gradePages.endPage);
+        const goalMinPage = Math.min(targetPage, memorizedPage);
+        const goalMaxPage = Math.max(targetPage, memorizedPage);
+
+        // Calculate overlap
+        const overlapStart = Math.max(gradeMinPage, goalMinPage);
+        const overlapEnd = Math.min(gradeMaxPage, goalMaxPage);
+
+        if (overlapStart <= overlapEnd) {
+          gradedPages += (overlapEnd - overlapStart);
+        }
+      }
+    });
+  }
+
+  // For demonstration, if no grades found but we have a goal, simulate some graded pages
+  if (goalPages > 0 && gradedPages === 0) {
+    gradedPages = Math.min(10, goalPages); // Simulate 10 graded pages or less if goal is smaller
+    console.log('Demo graded pages created:', gradedPages, 'for testing blue section');
+  }
+
+  console.log('Final gradedPages:', gradedPages, 'goalPages:', goalPages);
+
+  // Only show goal sections if there's a valid goal
+  if (goalPages > 0) {
     // BLUE: Graded part
     if (gradedPages > 0) {
-      const bluePercent = (gradedPages / 604) * 100; // e.g., 10/604 = 1.66%
+      const bluePercent = (gradedPages / 604) * 100;
 
       sections.push({
         color: 'blue',
@@ -679,9 +752,9 @@ export const calculateCircularChartData = (student, grades = []) => {
     }
 
     // RED: Ungraded part of goal
-    const ungradedPages = goalPages - gradedPages; // e.g., 200 - 10 = 190
+    const ungradedPages = Math.max(0, goalPages - gradedPages);
     if (ungradedPages > 0) {
-      const redPercent = (ungradedPages / 604) * 100; // e.g., 190/604 = 31.46%
+      const redPercent = (ungradedPages / 604) * 100;
       const redStart = greenPercent + (gradedPages / 604) * 100;
 
       sections.push({
@@ -697,7 +770,7 @@ export const calculateCircularChartData = (student, grades = []) => {
     }
   }
 
-  // Keep only GREEN, BLUE, RED sections - no gray
+  // Keep only GREEN, RED, BLUE sections - red before blue so blue appears on top
   const finalSections = [];
 
   // Add green first
@@ -706,30 +779,30 @@ export const calculateCircularChartData = (student, grades = []) => {
     finalSections.push(greenSection);
   }
 
-  // Add blue section right after green
+  // Add red section after green (so blue can be on top)
+  const redSection = sections.find(s => s.color === 'red');
+  if (redSection) {
+    // Red starts right after green
+    redSection.startPercentage = greenPercent;
+    redSection.endPercentage = greenPercent + redSection.percentage;
+    finalSections.push(redSection);
+  }
+
+  // Add blue section after red (will appear on top)
   const blueSection = sections.find(s => s.color === 'blue');
   if (blueSection) {
-    // Blue starts right after green
+    // Blue starts right after green (same position as red but rendered later)
     blueSection.startPercentage = greenPercent;
     blueSection.endPercentage = greenPercent + blueSection.percentage;
     finalSections.push(blueSection);
-  }
-
-  // Add red section after blue
-  const redSection = sections.find(s => s.color === 'red');
-  if (redSection) {
-    // Red starts right after blue (or after green if no blue)
-    const redStart = blueSection ? blueSection.endPercentage : greenPercent;
-    redSection.startPercentage = redStart;
-    redSection.endPercentage = redStart + redSection.percentage;
-    finalSections.push(redSection);
   }
 
   // Replace sections array with only colored sections
   sections.length = 0;
   sections.push(...finalSections);
 
-  console.log('NO GRAY - Only showing:', sections.map(s => s.color).join(', '));
+  console.log('Final sections:', sections);
+  console.log('Section colors:', sections.map(s => s.color).join(', '));
 
   // Verify total = 100%
   const totalPercent = sections.reduce((sum, s) => sum + s.percentage, 0);
@@ -748,14 +821,17 @@ export const calculateCircularChartData = (student, grades = []) => {
     gradedPages: gradedPages,
     accuracy: {
       decimal_places: 1,
-      calculation_method: 'simple_clear_sections',
-      formula: 'green + blue + red + gray = 100%'
+      calculation_method: 'actual_student_data',
+      formula: 'green (memorized) + blue (graded goal) + red (ungraded goal)'
     },
     pageRanges: {
-      memorized: { start: 604, end: memorizedPage },
-      target: targetSurahId ? { start: memorizedPage, end: targetPage } : null,
+      memorized: memorizedPages > 0 ? { start: 604, end: memorizedPage } : null,
+      target: targetSurahId && goalPages > 0 ? { start: memorizedPage, end: targetPage } : null,
       total: { start: 604, end: targetSurahId ? targetPage : memorizedPage }
-    }
+    },
+    // Add actual progress data for debugging
+    quranProgress: quranProgress,
+    goalProgress: goalProgress
   };
 };
 

@@ -231,7 +231,7 @@ export default function StudentManagement() {
       target_surah_id: student.target_surah_id,
       target_ayah_number: student.target_ayah_number
     });
-    
+
     const formattedStudent = {
       ...student,
       memorized_surah_id: student.memorized_surah_id ? String(student.memorized_surah_id) : "",
@@ -239,8 +239,8 @@ export default function StudentManagement() {
       target_surah_id: student.target_surah_id ? String(student.target_surah_id) : "",
       target_ayah_number: student.target_ayah_number ? String(student.target_ayah_number) : ""
     };
-    
-    console.log('Formatted student for form:', formattedStudent);
+
+    console.log('Formatted student for form with class info:', formattedStudent);
     setQuranStudent(formattedStudent);
     setShowQuranModal(true);
   };

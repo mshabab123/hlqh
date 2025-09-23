@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { AiOutlineStar, AiOutlineUserAdd, AiOutlineSave, AiOutlineClose, AiOutlineEdit, AiOutlineDelete, AiOutlineTable, AiOutlineCalendar } from "react-icons/ai";
+import { BsFillGridFill } from "react-icons/bs";
 import { QURAN_SURAHS, TOTAL_QURAN_PAGES } from "../utils/quranData";
 import {
   getMaxVerse,
@@ -11,10 +12,12 @@ import {
   calculateGoalProgressBar,
   formatMemorizationDisplay,
   calculatePageNumber,
-  calculateQuranPagePercentage
+  calculateQuranPagePercentage,
+  calculateQuranBlocks
 } from "../utils/studentUtils";
 import { getSurahIdFromName, getSurahNameFromId } from "../utils/quranData";
 import QuranProgressModal from "./QuranProgressModal";
+import QuranBlocksModal from "./QuranBlocksModal";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
@@ -45,6 +48,10 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
 
   // Quran Progress Modal state
   const [showQuranProgressModal, setShowQuranProgressModal] = useState(false);
+  const [quranModalStudentData, setQuranModalStudentData] = useState(null);
+
+  // Quran Blocks Modal state
+  const [showBlocksModal, setShowBlocksModal] = useState(false);
   
   // Grade modal state
   const [showGradeModal, setShowGradeModal] = useState(false);
@@ -384,14 +391,39 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
   const handleQuranProgressSubmit = async (e, updatedStudent) => {
     e?.preventDefault();
 
+    console.log('QuranProgressModal submit from StudentProfileModal:', updatedStudent);
+
     try {
-      // Save target surah changes to the database
+      // Prepare student data like the students page does
+      const studentData = {
+        first_name: updatedStudent.first_name,
+        second_name: updatedStudent.second_name,
+        third_name: updatedStudent.third_name,
+        last_name: updatedStudent.last_name,
+        school_level: updatedStudent.school_level,
+        status: updatedStudent.status
+      };
+
+      // Add Qur'an progress fields like students page
+      if (updatedStudent.memorized_surah_id && updatedStudent.memorized_surah_id !== "") {
+        studentData.memorized_surah_id = parseInt(updatedStudent.memorized_surah_id);
+      }
+      if (updatedStudent.memorized_ayah_number && updatedStudent.memorized_ayah_number !== "") {
+        studentData.memorized_ayah_number = parseInt(updatedStudent.memorized_ayah_number);
+      }
+      if (updatedStudent.target_surah_id && updatedStudent.target_surah_id !== "") {
+        studentData.target_surah_id = parseInt(updatedStudent.target_surah_id);
+      }
+      if (updatedStudent.target_ayah_number && updatedStudent.target_ayah_number !== "") {
+        studentData.target_ayah_number = parseInt(updatedStudent.target_ayah_number);
+      }
+
+      console.log('Saving student data using same endpoint as students page:', studentData);
+
+      // Use the same API endpoint as students page
       await axios.put(
-        `${API_BASE}/api/classes/${classItem.id}/student/${student.id}/goal`,
-        {
-          target_surah_id: updatedStudent.target_surah_id,
-          target_ayah_number: parseInt(updatedStudent.target_ayah_number)
-        },
+        `${API_BASE}/api/students/${student.id}`,
+        studentData,
         {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
         }
@@ -400,20 +432,26 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
       // Update the student data with the new progress
       setStudentData(prevData => ({
         ...prevData,
-        ...updatedStudent
+        ...updatedStudent,
+        // Ensure the data is properly converted for display
+        memorized_surah_id: parseInt(updatedStudent.memorized_surah_id) || null,
+        memorized_ayah_number: parseInt(updatedStudent.memorized_ayah_number) || null,
+        target_surah_id: parseInt(updatedStudent.target_surah_id) || null,
+        target_ayah_number: parseInt(updatedStudent.target_ayah_number) || null
       }));
 
       setShowQuranProgressModal(false);
       fetchStudentProfile(); // Refresh the data
     } catch (error) {
-      console.error("Error saving target surah:", error);
-      setError(error.response?.data?.error || "فشل في حفظ الهدف");
+      console.error("Error saving Quran progress:", error);
+      setError(error.response?.data?.error || "فشل في حفظ بيانات الحفظ");
       setTimeout(() => setError(''), 3000);
     }
   };
 
   const handleQuranProgressCancel = () => {
     setShowQuranProgressModal(false);
+    setQuranModalStudentData(null); // Clear temp data
   };
 
   const handleStudentChange = (updatedStudent) => {
@@ -421,6 +459,54 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
       ...prevData,
       ...updatedStudent
     }));
+  };
+
+  const handleShowBlocks = async () => {
+    console.log('Fetching fresh student data and grades for Quran blocks:', student.id);
+
+    // Fetch fresh student data and grades
+    let freshStudentData = studentData;
+    let grades = [];
+
+    if (student.id) {
+      try {
+        const token = localStorage.getItem('token');
+
+        // Fetch fresh student data from same endpoint as students page
+        const studentResponse = await fetch(`/api/students/${student.id}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (studentResponse.ok) {
+          freshStudentData = await studentResponse.json();
+          console.log('Fresh student data fetched for blocks:', freshStudentData);
+        }
+
+        // Fetch grades using simple endpoint (no class_id or semester_id)
+        const gradesResponse = await fetch(`/api/grading/student/${student.id}/grades`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (gradesResponse.ok) {
+          const gradesData = await gradesResponse.json();
+          if (Array.isArray(gradesData)) {
+            grades = gradesData;
+            console.log('Grades fetched for blocks:', grades.length, 'grades');
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching fresh data for blocks:', error);
+      }
+    }
+
+    const blocksData = calculateQuranBlocks(freshStudentData, grades);
+    setShowBlocksModal(blocksData);
   };
 
   const fetchAbsentRecords = async () => {
@@ -613,7 +699,7 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
         {/* Quick Actions */}
         <div className="mb-6 bg-gray-50 p-4 rounded-lg">
           <h3 className="text-lg font-semibold mb-3">إجراءات سريعة</h3>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
             <button
               onClick={openPointsModal}
               className="flex items-center gap-2 px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
@@ -641,6 +727,63 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
             >
               <AiOutlineTable />
               جدول النقاط
+            </button>
+            <button
+              onClick={async () => {
+                console.log('Fetching fresh student data by ID for QuranProgressModal:', student.id);
+                try {
+                  const token = localStorage.getItem('token');
+                  const response = await fetch(`/api/students/${student.id}`, {
+                    headers: {
+                      'Authorization': `Bearer ${token}`,
+                      'Content-Type': 'application/json'
+                    }
+                  });
+
+                  if (response.ok) {
+                    const freshStudentData = await response.json();
+                    console.log('Fresh student data fetched for QuranProgressModal:', freshStudentData);
+                    console.log('Target surah data in fresh fetch:', {
+                      target_surah_id: freshStudentData.target_surah_id,
+                      target_ayah_number: freshStudentData.target_ayah_number,
+                      memorized_surah_id: freshStudentData.memorized_surah_id,
+                      memorized_ayah_number: freshStudentData.memorized_ayah_number
+                    });
+
+                    // Create a temporary student object for QuranProgressModal only
+                    const tempStudentForModal = {
+                      ...freshStudentData,
+                      memorized_surah_id: freshStudentData.memorized_surah_id ? String(freshStudentData.memorized_surah_id) : "",
+                      memorized_ayah_number: freshStudentData.memorized_ayah_number ? String(freshStudentData.memorized_ayah_number) : "",
+                      target_surah_id: freshStudentData.target_surah_id ? String(freshStudentData.target_surah_id) : "",
+                      target_ayah_number: freshStudentData.target_ayah_number ? String(freshStudentData.target_ayah_number) : ""
+                    };
+
+                    console.log('Formatted temp student for modal:', tempStudentForModal);
+
+                    // Store the temp data in a separate state for the modal
+                    setQuranModalStudentData(tempStudentForModal);
+                    setShowQuranProgressModal(true);
+                  } else {
+                    console.error('Failed to fetch fresh student data, using existing data');
+                    setShowQuranProgressModal(true);
+                  }
+                } catch (error) {
+                  console.error('Error fetching fresh student data:', error);
+                  setShowQuranProgressModal(true);
+                }
+              }}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              <AiOutlineEdit />
+              خطة الحفظ
+            </button>
+            <button
+              onClick={handleShowBlocks}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
+            >
+              <BsFillGridFill />
+              أجزاء القرآن
             </button>
           </div>
         </div>
@@ -703,7 +846,50 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                 <div className="flex justify-between items-center mb-3">
                   <h3 className="text-lg font-semibold">الهدف والتقدم</h3>
                   <button
-                    onClick={() => setShowQuranProgressModal(true)}
+                    onClick={async () => {
+                      console.log('Fetching fresh student data from goal section for QuranProgressModal:', student.id);
+                      try {
+                        const token = localStorage.getItem('token');
+                        const response = await fetch(`/api/students/${student.id}`, {
+                          headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                          }
+                        });
+
+                        if (response.ok) {
+                          const freshStudentData = await response.json();
+                          console.log('Fresh student data fetched from goal section:', freshStudentData);
+                          console.log('Target surah data in goal section fetch:', {
+                            target_surah_id: freshStudentData.target_surah_id,
+                            target_ayah_number: freshStudentData.target_ayah_number,
+                            memorized_surah_id: freshStudentData.memorized_surah_id,
+                            memorized_ayah_number: freshStudentData.memorized_ayah_number
+                          });
+
+                          // Create a temporary student object for QuranProgressModal only
+                          const tempStudentForModal = {
+                            ...freshStudentData,
+                            memorized_surah_id: freshStudentData.memorized_surah_id ? String(freshStudentData.memorized_surah_id) : "",
+                            memorized_ayah_number: freshStudentData.memorized_ayah_number ? String(freshStudentData.memorized_ayah_number) : "",
+                            target_surah_id: freshStudentData.target_surah_id ? String(freshStudentData.target_surah_id) : "",
+                            target_ayah_number: freshStudentData.target_ayah_number ? String(freshStudentData.target_ayah_number) : ""
+                          };
+
+                          console.log('Formatted temp student for modal from goal section:', tempStudentForModal);
+
+                          // Store the temp data in a separate state for the modal
+                          setQuranModalStudentData(tempStudentForModal);
+                          setShowQuranProgressModal(true);
+                        } else {
+                          console.error('Failed to fetch fresh student data from goal section, using existing data');
+                          setShowQuranProgressModal(true);
+                        }
+                      } catch (error) {
+                        console.error('Error fetching fresh student data from goal section:', error);
+                        setShowQuranProgressModal(true);
+                      }
+                    }}
                     className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
                   >
                     تعديل الهدف
@@ -1908,14 +2094,42 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
       )}
 
       {/* Quran Progress Modal */}
-      {showQuranProgressModal && studentData && (
-        <QuranProgressModal
-          student={studentData}
-          onSubmit={handleQuranProgressSubmit}
-          onCancel={handleQuranProgressCancel}
-          onStudentChange={handleStudentChange}
-        />
-      )}
+      {showQuranProgressModal && (quranModalStudentData || studentData) && (() => {
+        // Use the fresh student data if available, otherwise fall back to regular studentData
+        const sourceData = quranModalStudentData || studentData;
+        console.log('SOURCE DATA ANALYSIS:', {
+          hasQuranModalStudentData: !!quranModalStudentData,
+          usingFreshData: !!quranModalStudentData,
+          sourceData_target_surah_id: sourceData.target_surah_id,
+          sourceData_goal_target_surah_id: sourceData.goal?.target_surah_id,
+          sourceDataKeys: Object.keys(sourceData)
+        });
+        const formattedStudentData = {
+          ...sourceData,
+          memorized_surah_id: sourceData.memorized_surah_id ? String(sourceData.memorized_surah_id) : "",
+          memorized_ayah_number: sourceData.memorized_ayah_number ? String(sourceData.memorized_ayah_number) : "",
+          // Handle both flat structure (fresh data) and nested structure (original data)
+          target_surah_id: sourceData.target_surah_id
+            ? String(sourceData.target_surah_id)
+            : (sourceData.goal?.target_surah_id ? String(sourceData.goal.target_surah_id) : ""),
+          target_ayah_number: sourceData.target_ayah_number
+            ? String(sourceData.target_ayah_number)
+            : (sourceData.goal?.target_ayah_number ? String(sourceData.goal.target_ayah_number) : "")
+        };
+
+        console.log('StudentProfileModal - Formatted data for QuranProgressModal:', formattedStudentData);
+        console.log('StudentProfileModal - Original studentData:', studentData);
+        console.log('StudentProfileModal - classItem:', classItem);
+
+        return (
+          <QuranProgressModal
+            student={formattedStudentData}
+            onSubmit={handleQuranProgressSubmit}
+            onCancel={handleQuranProgressCancel}
+            onStudentChange={handleStudentChange}
+          />
+        );
+      })()}
     </div>
   );
 };

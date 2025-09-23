@@ -9,12 +9,25 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
   const [studentGrades, setStudentGrades] = useState([]);
   const [loadingGrades, setLoadingGrades] = useState(true);
 
+  // Debug logging
+  console.log('QuranProgressModal - Received student data:', student);
+  console.log('QuranProgressModal - Student grades:', studentGrades);
+  console.log('QuranProgressModal - Target data analysis:', {
+    target_surah_id: student.target_surah_id,
+    target_ayah_number: student.target_ayah_number,
+    memorized_surah_id: student.memorized_surah_id,
+    memorized_ayah_number: student.memorized_ayah_number
+  });
+
   // Calculate progress
   const progress = calculateQuranProgress(student.memorized_surah_id, student.memorized_ayah_number);
   const targetProgress = calculateQuranProgress(student.target_surah_id, student.target_ayah_number);
 
   // Calculate circular chart data with grades
   const circularChartData = calculateCircularChartData(student, studentGrades);
+
+  console.log('QuranProgressModal - Progress calculation:', progress);
+  console.log('QuranProgressModal - Circular chart data:', circularChartData);
 
 
   // Helper function to get memorization position (1-114) from surah ID
@@ -26,7 +39,10 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
   // Fetch student grades on component mount
   useEffect(() => {
     const fetchStudentGrades = async () => {
-      if (!student.id || !student.class_id) {
+      console.log('QuranProgressModal - Attempting to fetch grades for student_id:', student.id);
+
+      if (!student.id) {
+        console.log('QuranProgressModal - Missing student ID for grade fetching');
         setLoadingGrades(false);
         return;
       }
@@ -35,11 +51,12 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
         setLoadingGrades(true);
         const token = localStorage.getItem('token');
 
-        // Try to get current semester ID - we'll use a reasonable default if not available
-        let semesterId = student.semester_id || 1; // Default to semester 1
+        // Use simple API endpoint with just student_id
+        const apiUrl = `/api/grading/student/${student.id}/grades`;
 
-        const response = await fetch(
-          `/api/grading/student/${student.id}/class/${student.class_id}/semester/${semesterId}/grades`,
+        console.log('QuranProgressModal - Fetching grades from:', apiUrl);
+
+        const response = await fetch(apiUrl,
           {
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -50,6 +67,8 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
 
         if (response.ok) {
           const data = await response.json();
+          console.log('QuranProgressModal - Grade API response:', data);
+
           if (data.success && data.courseGrades) {
             // Extract all grades from all courses
             const allGrades = [];
@@ -58,10 +77,11 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
                 allGrades.push(...course.grades);
               }
             });
+            console.log('QuranProgressModal - Extracted grades:', allGrades);
             setStudentGrades(allGrades);
           }
         } else {
-          console.warn('Could not fetch student grades:', response.status);
+          console.warn('QuranProgressModal - Could not fetch student grades:', response.status);
         }
       } catch (error) {
         console.error('Error fetching student grades:', error);
@@ -71,7 +91,7 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
     };
 
     fetchStudentGrades();
-  }, [student.id, student.class_id, student.semester_id]);
+  }, [student.id]);
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
@@ -200,6 +220,158 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
                       </div>
                     </div>
 
+                    {/* الهدف والتقدم - إحصائيات الحفظ */}
+                    <div className="mt-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
+                      <h6 className="font-semibold text-gray-800 mb-4 text-center">الهدف والتقدم - إحصائيات الحفظ</h6>
+
+                      {/* Overall Progress Stats */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div className="bg-white p-4 rounded-lg shadow-sm">
+                          <h7 className="font-medium text-gray-700 mb-3 flex items-center gap-2">
+                            📚 إجمالي التقدم
+                          </h7>
+                          <div className="space-y-2 text-sm">
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">الآيات المحفوظة:</span>
+                              <span className="font-bold text-green-600">{progress.memorizedAyahs.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">إجمالي الآيات:</span>
+                              <span className="font-bold text-gray-800">{progress.totalAyahs.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">النسبة المئوية:</span>
+                              <span className="font-bold text-blue-600">{progress.percentage.toFixed(1)}%</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="bg-white p-4 rounded-lg shadow-sm">
+                          <h7 className="font-medium text-gray-700 mb-3 flex items-center gap-2">
+                            🎯 تقدم الهدف
+                          </h7>
+                          <div className="space-y-2 text-sm">
+                            {(() => {
+                              console.log('TARGET SURAH CHECK:', {
+                                target_surah_id: student.target_surah_id,
+                                target_surah_id_type: typeof student.target_surah_id,
+                                target_surah_id_truthy: !!student.target_surah_id,
+                                target_ayah_number: student.target_ayah_number
+                              });
+                              return student.target_surah_id && student.target_surah_id !== "" && student.target_surah_id !== "0";
+                            })() ? (
+                              <>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">الهدف المحدد:</span>
+                                  <span className="font-bold text-purple-600">
+                                    {QURAN_SURAHS.find(s => s.id == student.target_surah_id)?.name || 'غير محدد'}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">نسبة إنجاز الهدف:</span>
+                                  <span className="font-bold text-red-600">
+                                    {circularChartData.targetCompletionPercentage.toFixed(1)}%
+                                  </span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">صفحات متبقية:</span>
+                                  <span className="font-bold text-orange-600">
+                                    {Math.max(0, circularChartData.targetPages - circularChartData.gradedPages)}
+                                  </span>
+                                </div>
+                              </>
+                            ) : (
+                              <div className="text-center text-gray-500 py-2">
+                                <span>السورة المستهدفة: لم يتم تحديد هدف بعد</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Detailed Quran Statistics */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                        <div className="bg-green-50 p-3 rounded-lg text-center">
+                          <div className="text-lg font-bold text-green-600">{progress.memorizedPages.toFixed(1)}</div>
+                          <div className="text-xs text-green-700">صفحة محفوظة</div>
+                        </div>
+                        <div className="bg-blue-50 p-3 rounded-lg text-center">
+                          <div className="text-lg font-bold text-blue-600">{progress.completedSurahs}</div>
+                          <div className="text-xs text-blue-700">سورة مكتملة</div>
+                        </div>
+                        <div className="bg-purple-50 p-3 rounded-lg text-center">
+                          <div className="text-lg font-bold text-purple-600">{(progress.memorizedPages / 20).toFixed(1)}</div>
+                          <div className="text-xs text-purple-700">جزء تقريبي</div>
+                        </div>
+                        <div className="bg-orange-50 p-3 rounded-lg text-center">
+                          <div className="text-lg font-bold text-orange-600">{progress.remainingAyahs.toLocaleString()}</div>
+                          <div className="text-xs text-orange-700">آية متبقية</div>
+                        </div>
+                      </div>
+
+                      {/* Grade Activity Summary */}
+                      {circularChartData.gradedPages > 0 && (
+                        <div className="bg-white p-4 rounded-lg shadow-sm">
+                          <h7 className="font-medium text-gray-700 mb-3 flex items-center gap-2">
+                            📝 ملخص التقييمات
+                          </h7>
+                          <div className="grid grid-cols-3 gap-3 text-center text-sm">
+                            <div>
+                              <div className="text-lg font-bold text-blue-600">{circularChartData.gradedPages}</div>
+                              <div className="text-xs text-gray-600">صفحة مُقيّمة</div>
+                            </div>
+                            <div>
+                              <div className="text-lg font-bold text-green-600">
+                                {((circularChartData.gradedPages / circularChartData.memorizedPages) * 100).toFixed(1)}%
+                              </div>
+                              <div className="text-xs text-gray-600">من المحفوظ</div>
+                            </div>
+                            <div>
+                              <div className="text-lg font-bold text-purple-600">{studentGrades.length}</div>
+                              <div className="text-xs text-gray-600">عدد التقييمات</div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Current Position Information */}
+                      <div className="bg-white p-4 rounded-lg shadow-sm mt-4">
+                        <h7 className="font-medium text-gray-700 mb-3 flex items-center gap-2">
+                          📍 الموقع الحالي
+                        </h7>
+                        <div className="text-sm space-y-2">
+                          {student.memorized_surah_id ? (
+                            <>
+                              <div className="flex justify-between">
+                                <span className="text-gray-600">السورة الحالية:</span>
+                                <span className="font-bold text-green-600">
+                                  {QURAN_SURAHS.find(s => s.id == student.memorized_surah_id)?.name || 'غير محدد'}
+                                </span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-600">آخر آية محفوظة:</span>
+                                <span className="font-bold text-green-600">{student.memorized_ayah_number}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-600">رقم الصفحة:</span>
+                                <span className="font-bold text-blue-600">{progress.currentPageNumber}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-600">ترتيب الحفظ:</span>
+                                <span className="font-bold text-purple-600">
+                                  {getMemorizationPosition(student.memorized_surah_id)} من 114
+                                </span>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="text-center text-gray-500 py-2">
+                              <span>لم يبدأ الحفظ بعد</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
                   </>
                 ) : (
                   <div className="text-center text-gray-500 py-8">
@@ -289,10 +461,13 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
                         <option value="">اختر السورة</option>
                         {QURAN_SURAHS.map((surah, index) => (
                           <option key={surah.id} value={surah.id}>
-                            {index + 1}. {surah.name}
+                              {index + 1}. {surah.name}
                           </option>
                         ))}
                       </select>
+                      <p className="text-xs text-gray-600 mt-1">
+                        * الترقيم حسب ترتيب الحفظ (الفاتحة→الناس→الفلق...)
+                      </p>
                     </div>
 
                     <div>
@@ -349,13 +524,85 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
                         }}
                         className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
-                        <option value="">اختر السورة</option>
-                        {QURAN_SURAHS.map((surah, index) => (
-                          <option key={surah.id} value={surah.id}>
-                            {index + 1}. {surah.name}
-                          </option>
-                        ))}
+                        <option value="">
+                          {student.memorized_surah_id ? "اختر السورة المستهدفة" : "اختر السورة"}
+                        </option>
+                        {(() => {
+                          const availableSurahs = QURAN_SURAHS.filter(surah => {
+                            // Always include the current target surah if it's set
+                            if (student.target_surah_id && surah.id == student.target_surah_id) {
+                              return true;
+                            }
+
+                            // If no current memorization, show all surahs except the last ones
+                            if (!student.memorized_surah_id) {
+                              return getMemorizationPosition(surah.id) <= 110; // Show first 110 surahs as potential targets
+                            }
+
+                            const currentPosition = getMemorizationPosition(student.memorized_surah_id);
+                            const surahPosition = getMemorizationPosition(surah.id);
+
+                            // Target should be before current in memorization order
+                            return surahPosition < currentPosition;
+                          });
+
+                          if (availableSurahs.length === 0 && student.memorized_surah_id) {
+                            return (
+                              <option value="" disabled className="text-gray-500">
+                                🏆 مبروك! وصلت للفاتحة - لا توجد أهداف إضافية
+                              </option>
+                            );
+                          }
+
+                          // Sort by memorization position for consistent ordering
+                          const sortedSurahs = availableSurahs.sort((a, b) =>
+                            getMemorizationPosition(a.id) - getMemorizationPosition(b.id)
+                          );
+
+                          return sortedSurahs.map((surah, index) => (
+                            <option key={surah.id} value={surah.id}>
+                                {getMemorizationPosition(surah.id)}. {surah.name}
+                              {student.target_surah_id && surah.id == student.target_surah_id ? ' (الهدف الحالي)' : ''}
+                            </option>
+                          ));
+                        })()}
                       </select>
+                      {student.memorized_surah_id ? (
+                        <p className="text-xs text-gray-600 mt-1">
+                          * يجب أن يكون الهدف قبل الموضع الحالي (ترتيب {getMemorizationPosition(student.memorized_surah_id)}) في ترتيب الحفظ
+                        </p>
+                      ) : (
+                        <p className="text-xs text-blue-600 mt-1">
+                          💡 يمكنك اختيار أي سورة كهدف. ننصح بالبدء بهدف قريب مثل سور الجزء الثلاثين
+                        </p>
+                      )}
+
+                      {/* Show count of available targets */}
+                      {(() => {
+                        const availableCount = QURAN_SURAHS.filter(surah => {
+                          if (!student.memorized_surah_id) {
+                            return getMemorizationPosition(surah.id) <= 110;
+                          }
+                          const currentPosition = getMemorizationPosition(student.memorized_surah_id);
+                          const surahPosition = getMemorizationPosition(surah.id);
+                          return surahPosition < currentPosition;
+                        }).length;
+
+                        if (availableCount > 0) {
+                          return (
+                            <p className="text-xs text-green-600 mt-1">
+                              ✅ {availableCount} سورة متاحة كأهداف
+                            </p>
+                          );
+                        } else if (student.memorized_surah_id) {
+                          return (
+                            <p className="text-xs text-orange-600 mt-1">
+                              🏆 تم إكمال جميع الأهداف الممكنة - أنت في المقدمة!
+                            </p>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
 
                     <div>
@@ -376,6 +623,26 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
                     {student.target_surah_id && student.target_ayah_number && (
                       <div className="p-3 bg-blue-100 rounded-lg text-sm">
                         <strong>الهدف المحدد:</strong> سورة {QURAN_SURAHS.find(s => s.id == student.target_surah_id)?.name} حتى الآية {student.target_ayah_number}
+                        <div className="mt-2 text-xs text-blue-700">
+                          📍 ترتيب الحفظ: {getMemorizationPosition(student.target_surah_id)} من 114
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Goal Progress Information */}
+                    {student.memorized_surah_id && student.target_surah_id && (
+                      <div className="p-3 bg-yellow-50 rounded-lg text-sm border border-yellow-200">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-yellow-600">🎯</span>
+                          <strong className="text-yellow-800">مسافة الهدف:</strong>
+                        </div>
+                        <div className="text-xs space-y-1">
+                          <div>من: ترتيب {getMemorizationPosition(student.memorized_surah_id)} ({QURAN_SURAHS.find(s => s.id == student.memorized_surah_id)?.name})</div>
+                          <div>إلى: ترتيب {getMemorizationPosition(student.target_surah_id)} ({QURAN_SURAHS.find(s => s.id == student.target_surah_id)?.name})</div>
+                          <div className="font-medium text-yellow-700">
+                            المسافة: {getMemorizationPosition(student.memorized_surah_id) - getMemorizationPosition(student.target_surah_id)} موضع في ترتيب الحفظ
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>

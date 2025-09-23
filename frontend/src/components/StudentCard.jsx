@@ -9,15 +9,17 @@ const StudentCard = ({ student, onView, onEdit, onToggleStatus, onQuranProgress,
   const [showBlocksModal, setShowBlocksModal] = useState(false);
 
   const handleShowBlocks = async () => {
-    // Fetch student grades first
+    console.log('Fetching grades for Quran blocks:', student.id);
+
+    // Fetch student grades using simple endpoint
     let grades = [];
 
-    if (student.id && student.class_id) {
+    if (student.id) {
       try {
         const token = localStorage.getItem('token');
-        let semesterId = student.semester_id || 1; // Default to semester 1
 
-        const apiUrl = `/api/grading/student/${student.id}/class/${student.class_id}/semester/${semesterId}/grades`;
+        // Use simple API endpoint (no class_id or semester_id)
+        const apiUrl = `/api/grading/student/${student.id}/grades`;
 
         const response = await fetch(apiUrl, {
           headers: {
@@ -29,19 +31,9 @@ const StudentCard = ({ student, onView, onEdit, onToggleStatus, onQuranProgress,
         if (response.ok) {
           const data = await response.json();
 
-          // Extract grades from the correct field - flatten nested grades
-          if (data.courseGrades && Array.isArray(data.courseGrades)) {
-            // Flatten the nested grades from each course
-            grades = [];
-            data.courseGrades.forEach(course => {
-              if (course.grades && Array.isArray(course.grades)) {
-                grades.push(...course.grades);
-              }
-            });
-          } else if (data.grades && Array.isArray(data.grades)) {
-            grades = data.grades;
-          } else if (Array.isArray(data)) {
+          if (Array.isArray(data)) {
             grades = data;
+            console.log('Grades fetched for blocks:', grades.length, 'grades');
           } else {
             grades = [];
           }
