@@ -52,7 +52,7 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
         const token = localStorage.getItem('token');
 
         // Use simple API endpoint with just student_id
-        const apiUrl = `/api/grading/student/${student.id}/grades`;
+        const apiUrl = `/api/grades/student/${student.id}`;
 
         console.log('QuranProgressModal - Fetching grades from:', apiUrl);
 

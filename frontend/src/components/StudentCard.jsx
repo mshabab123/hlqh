@@ -19,7 +19,7 @@ const StudentCard = ({ student, onView, onEdit, onToggleStatus, onQuranProgress,
         const token = localStorage.getItem('token');
 
         // Use simple API endpoint (no class_id or semester_id)
-        const apiUrl = `/api/grading/student/${student.id}/grades`;
+        const apiUrl = `/api/grades/student/${student.id}`;
 
         const response = await fetch(apiUrl, {
           headers: {

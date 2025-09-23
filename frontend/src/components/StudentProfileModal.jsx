@@ -486,7 +486,7 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
         }
 
         // Fetch grades using simple endpoint (no class_id or semester_id)
-        const gradesResponse = await fetch(`/api/grading/student/${student.id}/grades`, {
+        const gradesResponse = await fetch(`/api/grades/student/${student.id}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -2130,6 +2130,15 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
           />
         );
       })()}
+
+      {/* Quran Blocks Modal */}
+      {showBlocksModal && (
+        <QuranBlocksModal
+          student={studentData}
+          blocksData={showBlocksModal}
+          onClose={() => setShowBlocksModal(false)}
+        />
+      )}
     </div>
   );
 };

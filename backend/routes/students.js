@@ -282,14 +282,11 @@ router.get('/:id', auth, async (req, res) => {
 
     // Get current class enrollments
     const enrollmentsResult = await db.query(`
-      SELECT 
+      SELECT
         c.id as class_id, c.name as class_name, c.room_number,
-        se.enrollment_date, se.status, se.final_grade,
-        u.first_name || ' ' || u.last_name as teacher_name
+        se.enrollment_date, se.status, se.final_grade
       FROM student_enrollments se
       JOIN classes c ON se.class_id = c.id
-      LEFT JOIN teachers t ON c.teacher_id = t.id
-      LEFT JOIN users u ON t.id = u.id
       WHERE se.student_id = $1 AND se.status = 'enrolled'
       ORDER BY se.enrollment_date DESC
     `, [id]);
