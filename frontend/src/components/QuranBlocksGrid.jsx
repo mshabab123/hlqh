@@ -71,11 +71,7 @@ const QuranBlocksGrid = ({ blocksData }) => {
 
             {/* Pages Row - Show individual pages in a horizontal line */}
             <div className="flex flex-wrap gap-0.5">
-              {(block.pages || Array.from({ length: block.totalPages }, (_, pageIndex) => ({
-                pageNumber: block.startPage + pageIndex,
-                status: (block.startPage + pageIndex) >= blocksData.memorizedPageNumber ? 'red' : 'not_memorized',
-                hasRecentActivity: false
-              }))).map((page) => {
+              {block.pages ? block.pages.map((page) => {
                 const getPageColor = (status) => {
                   switch (status) {
                     case 'dark_green':
@@ -132,7 +128,11 @@ const QuranBlocksGrid = ({ blocksData }) => {
                     </span>
                   </div>
                 );
-              })}
+              }) : (
+                <div className="text-xs text-gray-500 p-2">
+                  بيانات الصفحات غير متوفرة
+                </div>
+              )}
             </div>
           </div>
         ))}

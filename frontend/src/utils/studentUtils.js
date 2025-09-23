@@ -841,6 +841,33 @@ export const getJuzFromPage = (pageNumber) => {
   return 1; // Default to first Juz
 };
 
+// Helper function to determine grade type from grade data
+const getGradeType = (grade) => {
+  if (grade.grade_type) {
+    return grade.grade_type;
+  }
+
+  // Try to infer from field names or other properties
+  if (grade.type) {
+    return grade.type;
+  }
+
+  // Default classifications based on common patterns
+  if (grade.is_new_memorization || grade.new_memorization) {
+    return 'new_memorization';
+  }
+
+  if (grade.is_short_memorization || grade.short_memorization) {
+    return 'short_memorization';
+  }
+
+  if (grade.is_long_memorization || grade.long_memorization) {
+    return 'long_memorization';
+  }
+
+  return 'general_grade';
+};
+
 // Helper function to get time-based status
 const getTimeBasedStatus = (activityDate) => {
   if (!activityDate) return 'not_memorized';
@@ -850,22 +877,15 @@ const getTimeBasedStatus = (activityDate) => {
   const timeDiff = now - activityDateTime;
   const daysDiff = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
 
-  console.log(`Activity date: ${activityDate}, Days diff: ${daysDiff}`);
-
   if (daysDiff <= 7) {
-    console.log('Status: dark_green (< 1 week)');
     return 'dark_green'; // Less than 1 week
   } else if (daysDiff <= 30) {
-    console.log('Status: light_green (1 week - 1 month)');
     return 'light_green'; // 1 week to 1 month
   } else if (daysDiff <= 60) {
-    console.log('Status: light_red (1-2 months)');
     return 'light_red'; // 1 to 2 months
   } else if (daysDiff <= 180) {
-    console.log('Status: red (2-6 months)');
     return 'red'; // 2 to 6 months
   } else {
-    console.log('Status: dark_red (> 6 months)');
     return 'dark_red'; // More than 6 months
   }
 };
@@ -876,11 +896,41 @@ export const calculateQuranBlocks = (student, grades = []) => {
   const memorizedAyah = parseInt(student.memorized_ayah_number) || 0;
   const memorizedPageNumber = memorizedSurahId ? calculateExactPageNumber(memorizedSurahId, memorizedAyah) : 604;
 
-  // Debug grade data
-  console.log('=== QURAN BLOCKS DEBUG ===');
-  console.log('Student:', student.first_name, student.last_name);
-  console.log('Grades data:', grades);
-  console.log('Memorized page:', memorizedPageNumber);
+  // Ensure grades is an array
+  if (!Array.isArray(grades)) {
+    console.log('⚠️ Grades is not an array, type:', typeof grades, 'value:', grades);
+    grades = [];
+  }
+
+  // Check for grades that cover page 500 as an example
+  if (Array.isArray(grades) && grades.length > 0) {
+    const page500Grades = grades.filter(grade => {
+      let gradePages = null;
+
+      if (grade.start_reference && grade.end_reference) {
+        try {
+          gradePages = convertGradeReferencesToPages(grade.start_reference, grade.end_reference);
+        } catch (e) { /* ignore */ }
+      } else if (grade.start_surah_id && grade.end_surah_id) {
+        try {
+          const startPage = calculateExactPageNumber(grade.start_surah_id, grade.start_ayah_number || 1);
+          const endPage = calculateExactPageNumber(grade.end_surah_id, grade.end_ayah_number || 1);
+          gradePages = { startPage, endPage };
+        } catch (e) { /* ignore */ }
+      }
+
+      if (gradePages) {
+        const minPage = Math.min(gradePages.startPage, gradePages.endPage);
+        const maxPage = Math.max(gradePages.startPage, gradePages.endPage);
+        return (500 >= minPage && 500 <= maxPage);
+      }
+      return false;
+    });
+
+    if (page500Grades.length > 0) {
+      console.log('Grades covering page 500:', page500Grades);
+    }
+  }
 
   const blocks = [];
   const now = new Date();
@@ -904,53 +954,85 @@ export const calculateQuranBlocks = (student, grades = []) => {
       let pageStatus = 'not_memorized';
       let latestActivityDate = null;
 
-      // Check if page is memorized
-      if (page >= memorizedPageNumber) {
-        // For memorized pages, we need to find the most recent activity date
-        // This could be memorization date, grade date, or review date
+      // Check ALL grades for this specific page (regardless of memorization status)
+      if (Array.isArray(grades) && grades.length > 0) {
+        grades.forEach(grade => {
+          // Try multiple ways to get grade references
+          let gradePages = null;
+          let gradeType = getGradeType(grade);
 
-        // Check grades for this page
-        if (grades && grades.length > 0) {
-          grades.forEach(grade => {
-            // Try multiple ways to get grade references
-            let gradePages = null;
-
-            if (grade.start_reference && grade.end_reference) {
+          // Method 1: Using start_reference and end_reference
+          if (grade.start_reference && grade.end_reference) {
+            try {
               gradePages = convertGradeReferencesToPages(grade.start_reference, grade.end_reference);
-            } else if (grade.start_surah_id && grade.start_ayah_number && grade.end_surah_id && grade.end_ayah_number) {
-              // Alternative: if references are stored differently
+            } catch (error) {
+              console.warn('Error converting grade references:', error);
+            }
+          }
+
+          // Method 2: Using surah_id and ayah_number fields
+          else if (grade.start_surah_id && grade.start_ayah_number && grade.end_surah_id && grade.end_ayah_number) {
+            try {
               const startPage = calculateExactPageNumber(grade.start_surah_id, grade.start_ayah_number);
               const endPage = calculateExactPageNumber(grade.end_surah_id, grade.end_ayah_number);
               gradePages = { startPage, endPage };
+            } catch (error) {
+              console.warn('Error calculating pages from surah/ayah:', error);
             }
+          }
 
-            if (gradePages) {
-              // If grade covers this specific page (handle both page directions)
-              const pageInRange = (page >= Math.min(gradePages.startPage, gradePages.endPage) &&
-                                 page <= Math.max(gradePages.startPage, gradePages.endPage));
+          // Method 3: If it's a single surah grade
+          else if (grade.surah_id) {
+            try {
+              // For single surah, get all pages of that surah
+              const surahData = QURAN_SURAHS.find(s => s.id == grade.surah_id);
+              if (surahData) {
+                const startPage = calculateExactPageNumber(grade.surah_id, 1);
+                const endPage = calculateExactPageNumber(grade.surah_id, surahData.ayah_count);
+                gradePages = { startPage, endPage };
+              }
+            } catch (error) {
+              console.warn('Error calculating single surah pages:', error);
+            }
+          }
 
-              if (pageInRange) {
-                const activityDate = new Date(grade.date_graded || grade.created_at || grade.updated_at);
-                if (!latestActivityDate || activityDate > latestActivityDate) {
-                  latestActivityDate = activityDate;
-                  console.log(`Found grade for page ${page}, date: ${activityDate}, grade:`, grade);
-                }
+          if (gradePages) {
+            // Ensure we handle page direction correctly (Quran memorization goes backwards)
+            const minPage = Math.min(gradePages.startPage, gradePages.endPage);
+            const maxPage = Math.max(gradePages.startPage, gradePages.endPage);
+
+            // Check if this page falls within the graded range
+            const pageInRange = (page >= minPage && page <= maxPage);
+
+            if (pageInRange) {
+              // Get the most recent date from available fields
+              let gradeDate = null;
+              if (grade.date_graded) {
+                gradeDate = new Date(grade.date_graded);
+              } else if (grade.created_at) {
+                gradeDate = new Date(grade.created_at);
+              } else if (grade.updated_at) {
+                gradeDate = new Date(grade.updated_at);
+              }
+
+              if (gradeDate && (!latestActivityDate || gradeDate > latestActivityDate)) {
+                latestActivityDate = gradeDate;
               }
             }
-          });
-        }
+          }
+        });
+      }
 
-        // If no specific grade activity found for this page, use memorization as baseline
-        // In real implementation, this would use the actual memorization date
-        if (!latestActivityDate) {
-          // For memorized pages without grade data, assume older memorization
-          // This ensures that pages with actual recent grades show green
-          latestActivityDate = new Date();
-          latestActivityDate.setDate(latestActivityDate.getDate() - 180); // Default to 6 months ago
-        }
-
-        // Get time-based status
+      // Determine page status based on activity
+      if (latestActivityDate) {
+        // Page has recent grade activity - use time-based color
         pageStatus = getTimeBasedStatus(latestActivityDate);
+      } else if (page >= memorizedPageNumber) {
+        // Page is memorized but no recent grade activity - use default older status
+        pageStatus = 'dark_red'; // Default for memorized pages without recent activity
+      } else {
+        // Page is not memorized and no grade activity
+        pageStatus = 'not_memorized';
       }
 
       pages.push({

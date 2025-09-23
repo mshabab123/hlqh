@@ -17,22 +17,36 @@ const StudentCard = ({ student, onView, onEdit, onToggleStatus, onQuranProgress,
         const token = localStorage.getItem('token');
         let semesterId = student.semester_id || 1; // Default to semester 1
 
-        const response = await fetch(
-          `/api/grading/student/${student.id}/class/${student.class_id}/semester/${semesterId}/grades`,
-          {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            }
+        const apiUrl = `/api/grading/student/${student.id}/class/${student.class_id}/semester/${semesterId}/grades`;
+
+        const response = await fetch(apiUrl, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
           }
-        );
+        });
 
         if (response.ok) {
           const data = await response.json();
-          grades = data.grades || [];
-          console.log('Fetched grades for blocks:', grades);
+
+          // Extract grades from the correct field - flatten nested grades
+          if (data.courseGrades && Array.isArray(data.courseGrades)) {
+            // Flatten the nested grades from each course
+            grades = [];
+            data.courseGrades.forEach(course => {
+              if (course.grades && Array.isArray(course.grades)) {
+                grades.push(...course.grades);
+              }
+            });
+          } else if (data.grades && Array.isArray(data.grades)) {
+            grades = data.grades;
+          } else if (Array.isArray(data)) {
+            grades = data;
+          } else {
+            grades = [];
+          }
         } else {
-          console.log('Failed to fetch grades for blocks');
+          console.log('Failed to fetch grades for blocks. Status:', response.status);
         }
       } catch (error) {
         console.error('Error fetching grades for blocks:', error);
