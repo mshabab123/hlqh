@@ -881,137 +881,136 @@ const AttendanceManagement = () => {
                   {/* All Days Grid - Weekly Layout */}
                   <div className="bg-white border border-gray-200 rounded-lg p-4">
                     {/* Week day headers */}
-                    <div className="grid grid-cols-7 gap-1 mb-2">
+                    <div className="grid grid-cols-7 gap-2 mb-3 bg-gray-50 p-2 rounded">
                       {['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'].map(day => (
-                        <div key={day} className="text-center text-xs font-medium text-gray-600 py-1">
+                        <div key={day} className="text-center text-sm font-semibold text-gray-700 py-1">
                           {day}
                         </div>
                       ))}
                     </div>
 
-                    {/* Days organized by weeks */}
-                    <div className="space-y-1">
-                      {(() => {
-                        // Group days by weeks
-                        const weeks = [];
-                        const allDays = [...studentWorkDays.all];
+                    {/* Organize days into weekly rows */}
+                    {(() => {
+                      const days = studentWorkDays.all;
+                      if (days.length === 0) return <div className="text-center text-gray-500 py-8">لا توجد أيام</div>;
 
-                        // Ensure we start from the beginning of the week
-                        if (allDays.length > 0) {
-                          const firstDay = new Date(allDays[0].dateString);
-                          const dayOfWeek = firstDay.getDay(); // 0 = Sunday
+                      // Group days by weeks
+                      const weeks = [];
+                      const startDate = new Date(days[0].dateString);
+                      const startDayOfWeek = startDate.getDay(); // 0 = Sunday
 
-                          // Add empty cells for days before the first day of the month
-                          for (let i = 0; i < dayOfWeek; i++) {
-                            allDays.unshift(null);
-                          }
+                      // Create first week with proper alignment
+                      let currentWeek = new Array(7).fill(null);
+                      let dayIndex = 0;
+
+                      // Fill the weeks
+                      for (let i = 0; i < days.length; i++) {
+                        const weekPosition = (startDayOfWeek + i) % 7;
+                        currentWeek[weekPosition] = days[i];
+
+                        if (weekPosition === 6 || i === days.length - 1) {
+                          // End of week or last day
+                          weeks.push([...currentWeek]);
+                          currentWeek = new Array(7).fill(null);
                         }
+                      }
 
-                        // Group into weeks of 7 days
-                        for (let i = 0; i < allDays.length; i += 7) {
-                          weeks.push(allDays.slice(i, i + 7));
-                        }
+                      return (
+                        <div className="space-y-2">
+                          {weeks.map((week, weekIndex) => (
+                            <div key={weekIndex} className="grid grid-cols-7 gap-2">
+                              {week.map((dayData, dayIndex) => {
+                                if (!dayData) {
+                                  return <div key={dayIndex} className="h-16"></div>;
+                                }
 
-                        return weeks.map((week, weekIndex) => (
-                          <div key={weekIndex} className="grid grid-cols-7 gap-1">
-                            {week.map((dayData, dayIndex) => {
-                              if (!dayData) {
-                                // Empty cell for days not in the month
-                                return <div key={dayIndex} className="p-2"></div>;
-                              }
+                                const today = new Date().toISOString().split('T')[0];
+                                const isUpcoming = dayData.dateString > today;
+                                const isPresent = dayData.isPresent;
+                                const isUpdatingThisDay = updatingDay === dayData.dateString;
 
-                              const index = weekIndex * 7 + dayIndex;
-                              return (
-                                <div key={index}>
-                                  {(() => {
-                        const today = new Date().toISOString().split('T')[0];
-                        const isUpcoming = dayData.dateString > today;
-                        const isPresent = dayData.isPresent;
-                        
-                        // Determine colors based on status
-                        let bgColor, borderColor, textColor, hoverBg;
-                        if (isUpcoming) {
-                          bgColor = 'bg-blue-100';
-                          borderColor = 'border-blue-300';
-                          textColor = 'text-blue-800';
-                          hoverBg = 'hover:bg-blue-200';
-                        } else if (isPresent) {
-                          bgColor = 'bg-green-100';
-                          borderColor = 'border-green-300';
-                          textColor = 'text-green-800';
-                          hoverBg = 'hover:bg-green-200';
-                        } else {
-                          bgColor = 'bg-red-100';
-                          borderColor = 'border-red-300';
-                          textColor = 'text-red-800';
-                          hoverBg = 'hover:bg-red-200';
-                        }
+                                // Determine colors based on status
+                                let bgColor, borderColor, textColor, hoverBg;
+                                if (isUpcoming) {
+                                  bgColor = 'bg-blue-50';
+                                  borderColor = 'border-blue-200';
+                                  textColor = 'text-blue-800';
+                                  hoverBg = 'hover:bg-blue-100';
+                                } else if (isPresent) {
+                                  bgColor = 'bg-green-50';
+                                  borderColor = 'border-green-200';
+                                  textColor = 'text-green-800';
+                                  hoverBg = 'hover:bg-green-100';
+                                } else {
+                                  bgColor = 'bg-red-50';
+                                  borderColor = 'border-red-200';
+                                  textColor = 'text-red-800';
+                                  hoverBg = 'hover:bg-red-100';
+                                }
 
-                        const isUpdatingThisDay = updatingDay === dayData.dateString;
-                        
-                        return (
-                          <div
-                            key={index}
-                            onClick={() => !isUpcoming && !isUpdatingThisDay && !updatingAttendance && toggleAttendance(dayData)}
-                            className={`
-                              p-2 ${bgColor} border ${borderColor} rounded text-center relative transition-all duration-200
-                              ${!isUpcoming && !isUpdatingThisDay && !updatingAttendance ? `cursor-pointer ${hoverBg} hover:shadow-md` : 'cursor-default'}
-                              ${dayData.isToday ? 'ring-2 ring-yellow-400 ring-opacity-50' : ''}
-                              ${isUpdatingThisDay ? 'opacity-70 animate-pulse border-blue-400' : ''}
-                              ${updatingAttendance && !isUpdatingThisDay ? 'opacity-40' : ''}
-                              transform hover:scale-105
-                            `}
-                            title={
-                              isUpdatingThisDay
-                                ? `جاري تحديث الحضور... - ${dayData.formattedDate}`
-                                : isUpcoming 
-                                  ? `${dayData.formattedDate} - يوم قادم` 
-                                  : isPresent 
-                                    ? `انقر لتغيير إلى غياب - ${dayData.formattedDate}`
-                                    : `انقر لتغيير إلى حضور - ${dayData.formattedDate}`
-                            }
-                          >
-                            {dayData.isToday && (
-                              <div className="absolute -top-1 -right-1 bg-yellow-500 text-white text-xs px-1 rounded-full font-bold">
-                                اليوم
-                              </div>
-                            )}
-                            
-                            {/* Status indicator */}
-                            <div className="absolute -top-1 -left-1">
-                              {isUpdatingThisDay ? (
-                                <span className="text-blue-600 text-xs animate-spin">⏳</span>
-                              ) : isUpcoming ? (
-                                <span className="text-blue-600 text-xs">⏳</span>
-                              ) : isPresent ? (
-                                <span className="text-green-600 text-xs font-bold">✓</span>
-                              ) : (
-                                <span className="text-red-600 text-xs font-bold">✗</span>
-                              )}
+                                return (
+                                  <div
+                                    key={`${weekIndex}-${dayIndex}`}
+                                    onClick={() => !isUpcoming && !isUpdatingThisDay && !updatingAttendance && toggleAttendance(dayData)}
+                                    className={`
+                                      min-h-16 p-2 ${bgColor} border-2 ${borderColor} rounded-lg text-center relative transition-all duration-200
+                                      ${!isUpcoming && !isUpdatingThisDay && !updatingAttendance ? `cursor-pointer ${hoverBg} hover:shadow-lg hover:scale-105` : 'cursor-default'}
+                                      ${dayData.isToday ? 'ring-2 ring-yellow-400 ring-offset-1' : ''}
+                                      ${isUpdatingThisDay ? 'opacity-70 animate-pulse border-blue-400' : ''}
+                                      ${updatingAttendance && !isUpdatingThisDay ? 'opacity-40' : ''}
+                                    `}
+                                    title={
+                                      isUpdatingThisDay
+                                        ? `جاري تحديث الحضور... - ${dayData.formattedDate}`
+                                        : isUpcoming
+                                          ? `${dayData.formattedDate} - يوم قادم`
+                                          : isPresent
+                                            ? `انقر لتغيير إلى غياب - ${dayData.formattedDate}`
+                                            : `انقر لتغيير إلى حضور - ${dayData.formattedDate}`
+                                    }
+                                  >
+                                    {/* Today indicator */}
+                                    {dayData.isToday && (
+                                      <div className="absolute -top-2 -right-2 bg-yellow-500 text-white text-xs px-2 py-1 rounded-full font-bold shadow-lg">
+                                        اليوم
+                                      </div>
+                                    )}
+
+                                    {/* Status indicator */}
+                                    <div className="absolute -top-2 -left-2 text-lg">
+                                      {isUpdatingThisDay ? (
+                                        <span className="text-blue-600 animate-spin">⏳</span>
+                                      ) : isUpcoming ? (
+                                        <span className="text-blue-600">⏰</span>
+                                      ) : isPresent ? (
+                                        <span className="text-green-600 font-bold">✅</span>
+                                      ) : (
+                                        <span className="text-red-600 font-bold">❌</span>
+                                      )}
+                                    </div>
+
+                                    {/* Date display */}
+                                    <div className={`font-medium ${textColor} text-sm mb-1`}>
+                                      {dayData.shortDate}
+                                    </div>
+
+                                    {/* Source indicator */}
+                                    {!isUpcoming && (
+                                      <div className="text-xs text-gray-600">
+                                        {dayData.attendanceSource === 'manual' && '📝 يدوي'}
+                                        {dayData.attendanceSource === 'grade-based' && '📊 درجة'}
+                                        {dayData.attendanceSource === 'grade-inference' && '🎯 تلقائي'}
+                                        {dayData.attendanceSource === 'none' && '❓ غير محدد'}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
                             </div>
-                            
-                            <p className={`text-xs font-medium ${textColor}`}>
-                              {dayData.shortDate}
-                            </p>
-                            
-                            {!isUpcoming && (
-                              <p className="text-xs text-gray-600 mt-1">
-                                {dayData.attendanceSource === 'manual' && '📝'}
-                                {dayData.attendanceSource === 'grade-based' && '📊'}
-                                {dayData.attendanceSource === 'grade-inference' && '🎯'}
-                                {dayData.attendanceSource === 'none' && '❓'}
-                              </p>
-                            )}
-                          </div>
-                        );
-                                  })()}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        ));
-                      })()}
-                    </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                 </div>

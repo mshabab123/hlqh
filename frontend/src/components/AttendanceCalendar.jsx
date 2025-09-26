@@ -296,78 +296,89 @@ const AttendanceCalendar = ({ classItem, semester, onClose }) => {
                 </div>
               </div>
               
-              {/* Calendar Grid */}
-              <div className="border border-gray-300 rounded-lg overflow-hidden">
+              {/* Calendar Grid - Clean Weekly Layout */}
+              <div className="bg-white border border-gray-300 rounded-lg overflow-hidden shadow-sm">
                 {/* Day headers */}
-                <div className="grid grid-cols-7 gap-0">
+                <div className="grid grid-cols-7 bg-gray-100">
                   {['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'].map(day => (
-                    <div key={day} className="p-1 sm:p-2 text-center font-medium text-[8px] sm:text-xs md:text-sm text-gray-700 bg-gray-200 border-r border-gray-300 last:border-r-0">
+                    <div key={day} className="p-3 text-center font-semibold text-sm text-gray-700 border-r border-gray-300 last:border-r-0">
                       {day}
                     </div>
                   ))}
                 </div>
 
-                {/* Calendar weeks */}
-                <div className="space-y-0">
-                  {(() => {
-                    const allDays = generateCalendarDays();
-                    const weeks = [];
+                {/* Calendar weeks - each week in one row */}
+                {(() => {
+                  const allDays = generateCalendarDays();
+                  const weeks = [];
 
-                    // Group days into weeks of 7
-                    for (let i = 0; i < allDays.length; i += 7) {
-                      weeks.push(allDays.slice(i, i + 7));
-                    }
+                  // Group days into weeks of 7
+                  for (let i = 0; i < allDays.length; i += 7) {
+                    weeks.push(allDays.slice(i, i + 7));
+                  }
 
-                    return weeks.map((week, weekIndex) => (
-                      <div key={weekIndex} className="grid grid-cols-7 gap-0 border-t border-gray-200">
-                        {week.map((date, dayIndex) => {
-                          const index = weekIndex * 7 + dayIndex;
-                  const dateStr = date.toISOString().split('T')[0];
-                  const isCurrentMonth = date.getMonth() === currentMonth.getMonth();
-                  const isToday = dateStr === new Date().toISOString().split('T')[0];
-                  const isSelected = dateStr === selectedDate;
-                  const isWorking = isWorkingDay(date);
-                  
-                  // Calculate attendance for this date
-                  const dateAttendance = attendanceData[dateStr] || {};
-                  const presentCount = Object.values(dateAttendance).filter(a => a.is_present).length;
-                  const totalStudents = students.length;
-                  
-                  return (
-                    <div
-                      key={index}
-                      onClick={() => setSelectedDate(dateStr)}
-                      className={`
-                        p-0.5 sm:p-1 md:p-2 text-center cursor-pointer border-r border-gray-200 last:border-r-0 min-h-[30px] sm:min-h-[40px] md:min-h-[50px] flex flex-col justify-between
-                        ${isCurrentMonth ? 'text-gray-900' : 'text-gray-400'}
-                        ${isToday ? 'bg-blue-100' : 'bg-white'}
-                        ${isSelected ? 'ring-1 sm:ring-2 ring-blue-500 ring-inset' : ''}
-                        ${!isWorking ? 'bg-gray-50' : ''}
-                        hover:bg-gray-50
-                      `}
-                    >
-                      <div>
-                        <span className="text-[10px] sm:text-xs md:text-sm font-medium">{date.getDate()}</span>
-                        <div className="text-[8px] sm:text-[9px] text-gray-600 mt-0.5">
-                          {getShortHijriDate(date).split('/')[0]}
-                        </div>
-                      </div>
-                      {isWorking && totalStudents > 0 && (
-                        <div className="hidden sm:block">
-                          <div className={`w-1 h-1 sm:w-1.5 sm:h-1.5 md:w-2 md:h-2 rounded-full mx-auto ${
-                            presentCount === totalStudents ? 'bg-green-500' :
-                            presentCount > 0 ? 'bg-yellow-500' : 'bg-red-500'
-                          }`} />
-                          <span className="text-[8px] sm:text-[10px] md:text-xs">{presentCount}/{totalStudents}</span>
-                        </div>
-                      )}
+                  return weeks.map((week, weekIndex) => (
+                    <div key={weekIndex} className="grid grid-cols-7 border-t border-gray-200">
+                      {week.map((date, dayIndex) => {
+                        const dateStr = date.toISOString().split('T')[0];
+                        const isCurrentMonth = date.getMonth() === currentMonth.getMonth();
+                        const isToday = dateStr === new Date().toISOString().split('T')[0];
+                        const isSelected = dateStr === selectedDate;
+                        const isWorking = isWorkingDay(date);
+
+                        // Calculate attendance for this date
+                        const dateAttendance = attendanceData[dateStr] || {};
+                        const presentCount = Object.values(dateAttendance).filter(a => a.is_present).length;
+                        const totalStudents = students.length;
+
+                        return (
+                          <div
+                            key={`week-${weekIndex}-day-${dayIndex}`}
+                            onClick={() => setSelectedDate(dateStr)}
+                            className={`
+                              min-h-20 p-2 text-center cursor-pointer border-r border-gray-200 last:border-r-0 flex flex-col justify-between transition-all duration-200
+                              ${isCurrentMonth ? 'text-gray-900' : 'text-gray-400'}
+                              ${isToday ? 'bg-blue-50 border-blue-300' : 'bg-white'}
+                              ${isSelected ? 'bg-blue-100 ring-2 ring-blue-400 ring-inset' : ''}
+                              ${!isWorking ? 'bg-gray-50' : ''}
+                              hover:bg-blue-50 hover:shadow-inner
+                            `}
+                          >
+                            {/* Date display */}
+                            <div className="flex-1 flex flex-col items-center justify-center">
+                              <span className={`text-lg font-bold ${isCurrentMonth ? 'text-gray-900' : 'text-gray-400'}`}>
+                                {date.getDate()}
+                              </span>
+                              <div className="text-xs text-gray-500 mt-1">
+                                {getShortHijriDate(date).split('/')[0]}هـ
+                              </div>
+                            </div>
+
+                            {/* Attendance indicator */}
+                            {isWorking && totalStudents > 0 && (
+                              <div className="mt-2">
+                                <div className={`w-3 h-3 rounded-full mx-auto mb-1 ${
+                                  presentCount === totalStudents ? 'bg-green-500' :
+                                  presentCount > 0 ? 'bg-yellow-500' : 'bg-red-500'
+                                }`} />
+                                <span className="text-xs font-medium text-gray-600">
+                                  {presentCount}/{totalStudents}
+                                </span>
+                              </div>
+                            )}
+
+                            {/* Today badge */}
+                            {isToday && (
+                              <div className="absolute top-1 right-1 bg-blue-500 text-white text-xs px-2 py-1 rounded-full font-bold shadow-md">
+                                اليوم
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
-                          );
-                        })}
-                      </div>
-                    ));
-                  })()}
-                </div>
+                  ));
+                })()}
               </div>
           </div>
         )}
