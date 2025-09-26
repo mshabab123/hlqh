@@ -14,7 +14,7 @@ const QuranBlocksModal = ({ student, blocksData, onClose }) => {
             <div className="flex items-center gap-3">
               <AiOutlineBook className="text-2xl text-purple-600" />
               <div>
-                <h2 className="text-xl font-bold text-gray-900">خريطة أجزاء القرآن الكريم</h2>
+                <h2 className="text-xl font-bold text-gray-900">نظام المراجعة (المحفوظ والمراجع من صفحات القران الكريم)</h2>
                 <p className="text-sm text-gray-600">
                   {student.first_name} {student.second_name} {student.last_name}
                 </p>

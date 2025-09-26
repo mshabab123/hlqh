@@ -810,7 +810,7 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
               className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
             >
               <BsFillGridFill />
-              أجزاء القرآن
+             متابعة المراجعة
             </button>
           </div>
         </div>

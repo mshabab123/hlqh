@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { AiOutlineCalendar, AiOutlineCheck, AiOutlineClose, AiOutlineEye, AiOutlinePlus, AiOutlineReload, AiOutlineUser, AiOutlineClockCircle, AiOutlineFileText } from "react-icons/ai";
+import { formatDateWithHijri } from "../utils/hijriDate";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
@@ -92,7 +93,10 @@ const AttendanceModal = ({ session, students, onSave, onClose, initialAttendance
             تسجيل الحضور والغياب
           </h3>
           <p className="text-gray-600">
-            {session.session_date} - {session.start_time} إلى {session.end_time}
+            {(() => {
+              const dateWithHijri = formatDateWithHijri(new Date(session.session_date));
+              return `${dateWithHijri.full} - ${session.start_time} إلى ${session.end_time}`;
+            })()}
           </p>
         </div>
         
@@ -428,7 +432,10 @@ export default function AttendanceSystem() {
                   <div className="flex-1">
                     <div className="flex items-center gap-4 mb-2">
                       <h3 className="font-semibold text-lg">
-                        {new Date(session.session_date).toLocaleDateString('ar-SA')}
+                        {(() => {
+                          const dateWithHijri = formatDateWithHijri(new Date(session.session_date));
+                          return dateWithHijri.short;
+                        })()}
                       </h3>
                       <span className={`px-3 py-1 rounded-full text-sm font-medium ${getSessionStatusColor(session)}`}>
                         {getSessionStatusText(session)}

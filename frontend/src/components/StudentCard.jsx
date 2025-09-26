@@ -150,7 +150,7 @@ const StudentCard = ({ student, onView, onEdit, onToggleStatus, onQuranProgress,
         onClick={handleShowBlocks}
         className="bg-purple-600 text-white py-2 px-2 rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center gap-1 text-sm"
       >
-        <BsFillGridFill /> أجزاء القرآن
+        <BsFillGridFill /> متابعة المراجعة
       </button>
       <button
         onClick={() => onToggleStatus(student)}

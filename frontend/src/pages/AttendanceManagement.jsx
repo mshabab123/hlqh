@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { AiOutlineUser, AiOutlineEye, AiOutlineCheckCircle, AiOutlineCloseCircle } from "react-icons/ai";
+import { formatDateWithHijri, getArabicDayName } from "../utils/hijriDate";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
@@ -322,19 +323,20 @@ const AttendanceManagement = () => {
           }
         }
 
+        // Format date with both Gregorian and Hijri
+        const dateWithHijri = formatDateWithHijri(day);
+
         return {
           date: day,
           dateString: dateStr,
           isPresent,
           isToday: dateStr === today,
           attendanceSource,
-          dayName: day.toLocaleDateString('ar-EG', { weekday: 'long' }),
-          formattedDate: day.toLocaleDateString('ar-EG', { 
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric'
-          }),
-          shortDate: `${day.getDate()}/${day.getMonth() + 1}`
+          dayName: dateWithHijri.dayName,
+          formattedDate: dateWithHijri.full,
+          gregorianDate: dateWithHijri.gregorian,
+          hijriDate: dateWithHijri.hijri,
+          shortDate: dateWithHijri.short
         };
       });
 
@@ -876,10 +878,52 @@ const AttendanceManagement = () => {
                     </div>
                   </div>
 
-                  {/* All Days Grid */}
+                  {/* All Days Grid - Weekly Layout */}
                   <div className="bg-white border border-gray-200 rounded-lg p-4">
-                    <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-12 gap-2">
-                      {studentWorkDays.all.map((dayData, index) => {
+                    {/* Week day headers */}
+                    <div className="grid grid-cols-7 gap-1 mb-2">
+                      {['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'].map(day => (
+                        <div key={day} className="text-center text-xs font-medium text-gray-600 py-1">
+                          {day}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Days organized by weeks */}
+                    <div className="space-y-1">
+                      {(() => {
+                        // Group days by weeks
+                        const weeks = [];
+                        const allDays = [...studentWorkDays.all];
+
+                        // Ensure we start from the beginning of the week
+                        if (allDays.length > 0) {
+                          const firstDay = new Date(allDays[0].dateString);
+                          const dayOfWeek = firstDay.getDay(); // 0 = Sunday
+
+                          // Add empty cells for days before the first day of the month
+                          for (let i = 0; i < dayOfWeek; i++) {
+                            allDays.unshift(null);
+                          }
+                        }
+
+                        // Group into weeks of 7 days
+                        for (let i = 0; i < allDays.length; i += 7) {
+                          weeks.push(allDays.slice(i, i + 7));
+                        }
+
+                        return weeks.map((week, weekIndex) => (
+                          <div key={weekIndex} className="grid grid-cols-7 gap-1">
+                            {week.map((dayData, dayIndex) => {
+                              if (!dayData) {
+                                // Empty cell for days not in the month
+                                return <div key={dayIndex} className="p-2"></div>;
+                              }
+
+                              const index = weekIndex * 7 + dayIndex;
+                              return (
+                                <div key={index}>
+                                  {(() => {
                         const today = new Date().toISOString().split('T')[0];
                         const isUpcoming = dayData.dateString > today;
                         const isPresent = dayData.isPresent;
@@ -960,7 +1004,13 @@ const AttendanceManagement = () => {
                             )}
                           </div>
                         );
-                      })}
+                                  })()}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ));
+                      })()}
                     </div>
                   </div>
 

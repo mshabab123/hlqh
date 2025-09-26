@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../config/database');
 const { body, validationResult } = require('express-validator');
-const { calculateMemorizedPages, TOTAL_QURAN_PAGES, QURAN_SURAHS, getSurahIdFromName, getSurahNameFromId } = require('../../frontend/src/utils/quranData.js');
+const { TOTAL_QURAN_PAGES, QURAN_SURAHS, getSurahIdFromName, getSurahNameFromId, calculateQuranProgress } = require('../utils/quranUtils.js');
 
 // Import authentication middleware
 const { authenticateToken: requireAuth } = require('../middleware/auth');
@@ -731,23 +731,26 @@ router.get('/:id/student/:studentId/profile', requireAuth, async (req, res) => {
     `, [classId, studentId]);
     
     const studentData = studentInfo.rows[0] || {};
-    
-    // Calculate memorized pages
-    const memorizedPages = calculateMemorizedPages(
-      studentData.memorized_surah_id, 
+
+    // Calculate memorized pages using the comprehensive function
+    const quranProgress = calculateQuranProgress(
+      studentData.memorized_surah_id,
       studentData.memorized_ayah_number
     );
-    
-    const pagesPercentage = memorizedPages > 0 ? 
+    const memorizedPages = quranProgress.memorizedPages;
+
+    const pagesPercentage = memorizedPages > 0 ?
       Math.round((memorizedPages / TOTAL_QURAN_PAGES) * 100 * 100) / 100 : 0;
-    
+
+    const goalObject = (studentData.target_surah_id && studentData.target_surah_id > 0) ? {
+      target_surah_id: studentData.target_surah_id,
+      target_ayah_number: studentData.target_ayah_number
+    } : null;
+
     res.json({
       courses: courses.rows,
       grades: grades.rows,
-      goal: studentData.target_surah_id ? {
-        target_surah_id: studentData.target_surah_id,
-        target_ayah_number: studentData.target_ayah_number
-      } : null,
+      goal: goalObject,
       memorized_surah_id: studentData.memorized_surah_id,
       memorized_ayah_number: studentData.memorized_ayah_number,
       memorized_pages: memorizedPages,

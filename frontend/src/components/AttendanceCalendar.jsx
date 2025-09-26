@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
+import { formatDateWithHijri, getShortHijriDate } from "../utils/hijriDate";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
@@ -204,12 +205,11 @@ const AttendanceCalendar = ({ classItem, semester, onClose }) => {
             <div className="bg-white border rounded-lg">
               <div className="bg-gray-100 p-3 border-b">
                 <h3 className="text-lg font-semibold">
-                  حضور الطلاب ليوم {new Date(selectedDate + 'T00:00:00').toLocaleDateString('ar-EG', {
-                    weekday: 'long',
-                    year: 'numeric',
-                    month: 'long', 
-                    day: 'numeric'
-                  })}
+                  حضور الطلاب ليوم {(() => {
+                    const selectedDateObj = new Date(selectedDate + 'T00:00:00');
+                    const dateWithHijri = formatDateWithHijri(selectedDateObj);
+                    return dateWithHijri.full;
+                  })()}
                 </h3>
                 {!isWorkingDay(new Date(selectedDate + 'T00:00:00')) && (
                   <p className="text-sm text-orange-600 mt-1">
@@ -297,14 +297,31 @@ const AttendanceCalendar = ({ classItem, semester, onClose }) => {
               </div>
               
               {/* Calendar Grid */}
-              <div className="grid grid-cols-7 gap-0.5 sm:gap-1">
-                {['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'].map(day => (
-                  <div key={day} className="p-0.5 sm:p-1 md:p-2 text-center font-medium text-[8px] sm:text-xs md:text-sm text-gray-600 bg-gray-100">
-                    {day}
-                  </div>
-                ))}
-                
-                {generateCalendarDays().map((date, index) => {
+              <div className="border border-gray-300 rounded-lg overflow-hidden">
+                {/* Day headers */}
+                <div className="grid grid-cols-7 gap-0">
+                  {['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'].map(day => (
+                    <div key={day} className="p-1 sm:p-2 text-center font-medium text-[8px] sm:text-xs md:text-sm text-gray-700 bg-gray-200 border-r border-gray-300 last:border-r-0">
+                      {day}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Calendar weeks */}
+                <div className="space-y-0">
+                  {(() => {
+                    const allDays = generateCalendarDays();
+                    const weeks = [];
+
+                    // Group days into weeks of 7
+                    for (let i = 0; i < allDays.length; i += 7) {
+                      weeks.push(allDays.slice(i, i + 7));
+                    }
+
+                    return weeks.map((week, weekIndex) => (
+                      <div key={weekIndex} className="grid grid-cols-7 gap-0 border-t border-gray-200">
+                        {week.map((date, dayIndex) => {
+                          const index = weekIndex * 7 + dayIndex;
                   const dateStr = date.toISOString().split('T')[0];
                   const isCurrentMonth = date.getMonth() === currentMonth.getMonth();
                   const isToday = dateStr === new Date().toISOString().split('T')[0];
@@ -321,15 +338,20 @@ const AttendanceCalendar = ({ classItem, semester, onClose }) => {
                       key={index}
                       onClick={() => setSelectedDate(dateStr)}
                       className={`
-                        p-0.5 sm:p-1 md:p-2 text-center cursor-pointer border min-h-[30px] sm:min-h-[40px] md:min-h-[50px] flex flex-col justify-between
+                        p-0.5 sm:p-1 md:p-2 text-center cursor-pointer border-r border-gray-200 last:border-r-0 min-h-[30px] sm:min-h-[40px] md:min-h-[50px] flex flex-col justify-between
                         ${isCurrentMonth ? 'text-gray-900' : 'text-gray-400'}
-                        ${isToday ? 'bg-blue-100 border-blue-300' : 'bg-white border-gray-200'}
-                        ${isSelected ? 'ring-1 sm:ring-2 ring-blue-500' : ''}
-                        ${!isWorking ? 'bg-gray-100' : ''}
+                        ${isToday ? 'bg-blue-100' : 'bg-white'}
+                        ${isSelected ? 'ring-1 sm:ring-2 ring-blue-500 ring-inset' : ''}
+                        ${!isWorking ? 'bg-gray-50' : ''}
                         hover:bg-gray-50
                       `}
                     >
-                      <span className="text-[10px] sm:text-xs md:text-sm">{date.getDate()}</span>
+                      <div>
+                        <span className="text-[10px] sm:text-xs md:text-sm font-medium">{date.getDate()}</span>
+                        <div className="text-[8px] sm:text-[9px] text-gray-600 mt-0.5">
+                          {getShortHijriDate(date).split('/')[0]}
+                        </div>
+                      </div>
                       {isWorking && totalStudents > 0 && (
                         <div className="hidden sm:block">
                           <div className={`w-1 h-1 sm:w-1.5 sm:h-1.5 md:w-2 md:h-2 rounded-full mx-auto ${
@@ -340,10 +362,13 @@ const AttendanceCalendar = ({ classItem, semester, onClose }) => {
                         </div>
                       )}
                     </div>
-                  );
-                })}
+                          );
+                        })}
+                      </div>
+                    ));
+                  })()}
+                </div>
               </div>
-            </div>
           </div>
         )}
 

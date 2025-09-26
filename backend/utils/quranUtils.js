@@ -1,6 +1,4 @@
-// Frontend utility for Quran data - mirrors backend/utils/quranData.js
-// This should ideally be fetched from the backend API, but for now we'll maintain consistency
-
+// Backend Quran utilities - CommonJS format
 const QURAN_SURAHS = [
   { id: 1, name: "الفاتحة", ayahCount: 7, startPage: 1, endPage: 1, totalPages: 1 },
   { id: 2, name: "الناس", ayahCount: 6, startPage: 604, endPage: 604, totalPages: 1 },
@@ -63,11 +61,11 @@ const QURAN_SURAHS = [
   { id: 59, name: "الحديد", ayahCount: 29, startPage: 537, endPage: 542, totalPages: 5 },
   { id: 60, name: "الواقعة", ayahCount: 96, startPage: 534, endPage: 537, totalPages: 3 },
   { id: 61, name: "الرحمن", ayahCount: 78, startPage: 531, endPage: 534, totalPages: 3 },
-  { id: 62, name: "القمر", ayahCount: 55, startPage: 528, endPage: 533, totalPages: 5 },
-  { id: 63, name: "النجم", ayahCount: 62, startPage: 526, endPage: 529, totalPages: 3 },
-  { id: 64, name: "الطور", ayahCount: 49, startPage: 523, endPage: 528, totalPages: 5 },
-  { id: 65, name: "الذاريات", ayahCount: 60, startPage: 523, endPage: 528, totalPages: 5 },
-  { id: 66, name: "ق", ayahCount: 45, startPage: 518, endPage: 523, totalPages: 5 },
+  { id: 62, name: "القمر", ayahCount: 55, startPage: 528, endPage: 531, totalPages: 3 },
+  { id: 63, name: "النجم", ayahCount: 62, startPage: 526, endPage: 528, totalPages: 2 },
+  { id: 64, name: "الطور", ayahCount: 49, startPage: 523, endPage: 526, totalPages: 3 },
+  { id: 65, name: "الذاريات", ayahCount: 60, startPage: 520, endPage: 523, totalPages: 3 },
+  { id: 66, name: "ق", ayahCount: 45, startPage: 518, endPage: 520, totalPages: 2 },
   { id: 67, name: "الحجرات", ayahCount: 18, startPage: 515, endPage: 518, totalPages: 3 },
   { id: 68, name: "الفتح", ayahCount: 29, startPage: 511, endPage: 515, totalPages: 4 },
   { id: 69, name: "محمد", ayahCount: 38, startPage: 507, endPage: 511, totalPages: 4 },
@@ -76,7 +74,7 @@ const QURAN_SURAHS = [
   { id: 72, name: "الدخان", ayahCount: 59, startPage: 496, endPage: 499, totalPages: 3 },
   { id: 73, name: "الزخرف", ayahCount: 89, startPage: 489, endPage: 496, totalPages: 7 },
   { id: 74, name: "الشورى", ayahCount: 53, startPage: 483, endPage: 489, totalPages: 6 },
-  { id: 75, name: "فصلت", ayahCount: 54, startPage: 477, endPage: 482, totalPages: 5 },
+  { id: 75, name: "فصلت", ayahCount: 54, startPage: 477, endPage: 483, totalPages: 6 },
   { id: 76, name: "غافر", ayahCount: 85, startPage: 467, endPage: 477, totalPages: 10 },
   { id: 77, name: "الزمر", ayahCount: 75, startPage: 458, endPage: 467, totalPages: 9 },
   { id: 78, name: "ص", ayahCount: 88, startPage: 453, endPage: 458, totalPages: 5 },
@@ -84,9 +82,9 @@ const QURAN_SURAHS = [
   { id: 80, name: "يس", ayahCount: 83, startPage: 440, endPage: 446, totalPages: 6 },
   { id: 81, name: "فاطر", ayahCount: 45, startPage: 434, endPage: 440, totalPages: 6 },
   { id: 82, name: "سبأ", ayahCount: 54, startPage: 428, endPage: 434, totalPages: 6 },
-  { id: 83, name: "الأحزاب", ayahCount: 73, startPage: 418, endPage: 427, totalPages: 9 },
+  { id: 83, name: "الأحزاب", ayahCount: 73, startPage: 418, endPage: 428, totalPages: 10 },
   { id: 84, name: "السجدة", ayahCount: 30, startPage: 415, endPage: 418, totalPages: 3 },
-  { id: 85, name: "لقمان", ayahCount: 34, startPage: 411, endPage: 414, totalPages: 3 },
+  { id: 85, name: "لقمان", ayahCount: 34, startPage: 411, endPage: 415, totalPages: 4 },
   { id: 86, name: "الروم", ayahCount: 60, startPage: 404, endPage: 411, totalPages: 7 },
   { id: 87, name: "العنكبوت", ayahCount: 69, startPage: 396, endPage: 404, totalPages: 8 },
   { id: 88, name: "القصص", ayahCount: 88, startPage: 385, endPage: 396, totalPages: 11 },
@@ -95,47 +93,30 @@ const QURAN_SURAHS = [
   { id: 91, name: "الفرقان", ayahCount: 77, startPage: 359, endPage: 367, totalPages: 8 },
   { id: 92, name: "النور", ayahCount: 64, startPage: 350, endPage: 359, totalPages: 9 },
   { id: 93, name: "المؤمنون", ayahCount: 118, startPage: 342, endPage: 350, totalPages: 8 },
-  { id: 94, name: "الحج", ayahCount: 78, startPage: 332, endPage: 341, totalPages: 9 },
+  { id: 94, name: "الحج", ayahCount: 78, startPage: 332, endPage: 342, totalPages: 10 },
   { id: 95, name: "الأنبياء", ayahCount: 112, startPage: 322, endPage: 332, totalPages: 10 },
   { id: 96, name: "طه", ayahCount: 135, startPage: 312, endPage: 322, totalPages: 10 },
   { id: 97, name: "مريم", ayahCount: 98, startPage: 305, endPage: 312, totalPages: 7 },
-  { id: 98, name: "الكهف", ayahCount: 110, startPage: 293, endPage: 304, totalPages: 11 },
+  { id: 98, name: "الكهف", ayahCount: 110, startPage: 293, endPage: 305, totalPages: 12 },
   { id: 99, name: "الإسراء", ayahCount: 111, startPage: 282, endPage: 293, totalPages: 11 },
-  { id: 100, name: "النحل", ayahCount: 128, startPage: 267, endPage: 281, totalPages: 14 },
+  { id: 100, name: "النحل", ayahCount: 128, startPage: 267, endPage: 282, totalPages: 15 },
   { id: 101, name: "الحجر", ayahCount: 99, startPage: 262, endPage: 267, totalPages: 5 },
-  { id: 102, name: "إبراهيم", ayahCount: 52, startPage: 255, endPage: 261, totalPages: 6 },
+  { id: 102, name: "إبراهيم", ayahCount: 52, startPage: 255, endPage: 262, totalPages: 7 },
   { id: 103, name: "الرعد", ayahCount: 43, startPage: 249, endPage: 255, totalPages: 6 },
   { id: 104, name: "يوسف", ayahCount: 111, startPage: 235, endPage: 249, totalPages: 14 },
   { id: 105, name: "هود", ayahCount: 123, startPage: 221, endPage: 235, totalPages: 14 },
   { id: 106, name: "يونس", ayahCount: 109, startPage: 208, endPage: 221, totalPages: 13 },
-  { id: 107, name: "التوبة", ayahCount: 129, startPage: 187, endPage: 207, totalPages: 20 },
-  { id: 108, name: "الأنفال", ayahCount: 75, startPage: 177, endPage: 187, totalPages: 10 },
-  { id: 109, name: "الأعراف", ayahCount: 206, startPage: 151, endPage: 177, totalPages: 26 },
+  { id: 107, name: "التوبة", ayahCount: 129, startPage: 187, endPage: 208, totalPages: 21 },
+  { id: 108, name: "الأنفال", ayahCount: 75, startPage: 176, endPage: 187, totalPages: 11 },
+  { id: 109, name: "الأعراف", ayahCount: 206, startPage: 151, endPage: 176, totalPages: 25 },
   { id: 110, name: "الأنعام", ayahCount: 165, startPage: 128, endPage: 151, totalPages: 23 },
   { id: 111, name: "المائدة", ayahCount: 120, startPage: 106, endPage: 128, totalPages: 22 },
-  { id: 112, name: "النساء", ayahCount: 176, startPage: 77, endPage: 106, totalPages: 30 },
-  { id: 113, name: "آل عمران", ayahCount: 200, startPage: 50, endPage: 76, totalPages: 27 },
-  { id: 114, name: "البقرة", ayahCount: 286, startPage: 2, endPage: 49, totalPages: 48 }
+  { id: 112, name: "النساء", ayahCount: 176, startPage: 77, endPage: 106, totalPages: 29 },
+  { id: 113, name: "آل عمران", ayahCount: 200, startPage: 50, endPage: 77, totalPages: 27 },
+  { id: 114, name: "البقرة", ayahCount: 286, startPage: 2, endPage: 50, totalPages: 48 }
 ];
 
-// Total Quran pages
 const TOTAL_QURAN_PAGES = 604;
-
-// Helper function to get Surah ID from name
-const getSurahIdFromName = (surahName) => {
-  if (!surahName) return null;
-  
-  const surah = QURAN_SURAHS.find(s => s.name === surahName.trim());
-  return surah ? surah.id : null;
-};
-
-// Helper function to get Surah name from ID
-const getSurahNameFromId = (surahId) => {
-  if (!surahId) return null;
-
-  const surah = QURAN_SURAHS.find(s => s.id === parseInt(surahId));
-  return surah ? surah.name : null;
-};
 
 // Helper function to calculate pages for a given ayah position within a surah
 const calculatePagesForAyah = (surahId, ayahNumber) => {
@@ -147,7 +128,7 @@ const calculatePagesForAyah = (surahId, ayahNumber) => {
     return surah.totalPages;
   }
 
-  // Calculate approximate pages based on ayah progress within the surah
+  // Calculate precise pages based on ayah progress within the surah
   const ayahProgress = ayahNumber / surah.ayahCount;
   return Math.ceil(ayahProgress * surah.totalPages);
 };
@@ -164,14 +145,99 @@ const getSurahIdFromPosition = (position) => {
   return QURAN_SURAHS[position - 1].id;
 };
 
+// Helper function for Qur'an progress calculation (using memorization order: الفاتحة 1→الناس 2→الفلق 3...)
+const calculateQuranProgress = (memorizedSurahId, memorizedAyahNumber) => {
+  if (!memorizedSurahId || !memorizedAyahNumber) {
+    return {
+      totalAyahs: 0,
+      memorizedAyahs: 0,
+      percentage: 0,
+      completedSurahs: 0,
+      totalPages: 0,
+      memorizedPages: 0,
+      pagesPercentage: 0
+    };
+  }
 
+  const currentSurah = QURAN_SURAHS.find(s => s.id == memorizedSurahId);
+  if (!currentSurah) return {
+    totalAyahs: 0,
+    memorizedAyahs: 0,
+    percentage: 0,
+    completedSurahs: 0,
+    totalPages: 0,
+    memorizedPages: 0,
+    pagesPercentage: 0
+  };
 
-export {
+  // Calculate total ayahs and pages in Qur'an
+  const totalAyahs = QURAN_SURAHS.reduce((sum, surah) => sum + surah.ayahCount, 0);
+  const totalPages = TOTAL_QURAN_PAGES;
+
+  // Get memorization position (الفاتحة=1, الناس=2, الفلق=3, etc.)
+  const currentPosition = getMemorizationPosition(memorizedSurahId);
+
+  // Calculate memorized ayahs and pages (from position 1 up to current position)
+  let memorizedAyahs = 0;
+  let memorizedPages = 0;
+
+  // Add all ayahs and pages from completed surahs (from position 1 to current position - 1)
+  for (let pos = 1; pos < currentPosition; pos++) {
+    const surahId = getSurahIdFromPosition(pos);
+    const surah = QURAN_SURAHS.find(s => s.id === surahId);
+    if (surah) {
+      memorizedAyahs += surah.ayahCount;
+      memorizedPages += surah.totalPages;
+    }
+  }
+
+  // Add ayahs and pages from current surah
+  const currentAyahs = parseInt(memorizedAyahNumber) || 0;
+  memorizedAyahs += currentAyahs;
+  memorizedPages += calculatePagesForAyah(memorizedSurahId, currentAyahs);
+
+  const percentage = parseFloat(((memorizedAyahs / totalAyahs) * 100).toFixed(1));
+  const pagesPercentage = parseFloat(((memorizedPages / totalPages) * 100).toFixed(1));
+
+  // Count completed surahs (memorization positions completed)
+  let completedSurahs = currentPosition - 1; // Positions before current
+  if (memorizedAyahNumber == currentSurah.ayahCount) {
+    completedSurahs += 1; // Current surah is also complete
+  }
+
+  return {
+    totalAyahs,
+    memorizedAyahs,
+    percentage,
+    completedSurahs,
+    currentSurah,
+    remainingAyahs: totalAyahs - memorizedAyahs,
+    totalPages,
+    memorizedPages,
+    pagesPercentage,
+    remainingPages: totalPages - memorizedPages
+  };
+};
+
+// Get surah name by ID
+const getSurahNameFromId = (surahId) => {
+  const surah = QURAN_SURAHS.find(s => s.id == surahId);
+  return surah ? surah.name : '';
+};
+
+// Get surah ID by name
+const getSurahIdFromName = (surahName) => {
+  const surah = QURAN_SURAHS.find(s => s.name === surahName);
+  return surah ? surah.id : 0;
+};
+
+module.exports = {
   QURAN_SURAHS,
   TOTAL_QURAN_PAGES,
   getSurahIdFromName,
   getSurahNameFromId,
   calculatePagesForAyah,
   getMemorizationPosition,
-  getSurahIdFromPosition
+  getSurahIdFromPosition,
+  calculateQuranProgress
 };

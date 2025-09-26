@@ -452,6 +452,41 @@ router.put('/:id', auth, async (req, res) => {
       grade_date
     } = req.body;
 
+    // If user is a teacher, verify they can edit this grade
+    if (req.user.role === 'teacher') {
+      // First get the grade details to check class assignment
+      const gradeDetails = await pool.query(`
+        SELECT class_id, student_id FROM grades WHERE id = $1
+      `, [id]);
+
+      if (gradeDetails.rows.length === 0) {
+        return res.status(404).json({ message: 'الدرجة غير موجودة' });
+      }
+
+      const existingClassId = gradeDetails.rows[0].class_id;
+      const studentId = gradeDetails.rows[0].student_id;
+
+      // Verify teacher is assigned to the existing class
+      const teacherClassResult = await pool.query(
+        'SELECT id FROM teacher_class_assignments WHERE teacher_id = $1 AND class_id = $2 AND is_active = true',
+        [req.user.id, existingClassId]
+      );
+
+      if (teacherClassResult.rows.length === 0) {
+        return res.status(403).json({ message: 'ليس لديك صلاحية لتعديل درجات هذه الحلقة' });
+      }
+
+      // Verify the student is in the teacher's class
+      const studentClassResult = await pool.query(
+        'SELECT id FROM student_enrollments WHERE student_id = $1 AND class_id = $2 AND status = $3',
+        [studentId, existingClassId, 'enrolled']
+      );
+
+      if (studentClassResult.rows.length === 0) {
+        return res.status(403).json({ message: 'هذا الطالب غير مسجل في حلقتك' });
+      }
+    }
+
     // Use the appropriate field values (support both old and new formats)
     const gradeValue = grade_value || score;
     const startRef = start_reference || (from_surah && from_ayah ? `${from_surah}:${from_ayah}` : null);
@@ -509,11 +544,46 @@ router.put('/:id', auth, async (req, res) => {
 router.delete('/:id', auth, async (req, res) => {
   try {
     // Check if user has permission
-    if (!['admin', 'administrator'].includes(req.user.role)) {
+    if (!['admin', 'administrator', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({ message: 'ليس لديك صلاحية لحذف الدرجات' });
     }
 
     const { id } = req.params;
+
+    // If user is a teacher, verify they can delete this grade
+    if (req.user.role === 'teacher') {
+      // First get the grade details to check class assignment
+      const gradeDetails = await pool.query(`
+        SELECT class_id, student_id FROM grades WHERE id = $1
+      `, [id]);
+
+      if (gradeDetails.rows.length === 0) {
+        return res.status(404).json({ message: 'الدرجة غير موجودة' });
+      }
+
+      const { class_id, student_id } = gradeDetails.rows[0];
+
+      // Verify teacher is assigned to this class
+      const teacherClassResult = await pool.query(
+        'SELECT id FROM teacher_class_assignments WHERE teacher_id = $1 AND class_id = $2 AND is_active = true',
+        [req.user.id, class_id]
+      );
+
+      if (teacherClassResult.rows.length === 0) {
+        return res.status(403).json({ message: 'ليس لديك صلاحية لحذف درجات هذه الحلقة' });
+      }
+
+      // Verify the student is in the teacher's class
+      const studentClassResult = await pool.query(
+        'SELECT id FROM student_enrollments WHERE student_id = $1 AND class_id = $2 AND status = $3',
+        [student_id, class_id, 'enrolled']
+      );
+
+      if (studentClassResult.rows.length === 0) {
+        return res.status(403).json({ message: 'هذا الطالب غير مسجل في حلقتك' });
+      }
+    }
+
     const result = await pool.query('DELETE FROM grades WHERE id = $1 RETURNING *', [id]);
 
     if (result.rows.length === 0) {

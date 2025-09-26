@@ -177,9 +177,10 @@ router.get('/', auth, async (req, res) => {
     const userRole = userResult.rows[0]?.role;
     
     let query = `
-      SELECT 
+      SELECT
         u.id, u.first_name, u.second_name, u.third_name, u.last_name,
         u.email, u.phone, u.address, u.date_of_birth, u.is_active,
+        CASE WHEN u.is_active = true THEN 'active' ELSE 'inactive' END as status,
         s.school_level, s.enrollment_date, s.graduation_date, s.notes,
         s.memorized_surah_id, s.memorized_ayah_number, s.target_surah_id, s.target_ayah_number,
         sc.name as school_name, sc.id as school_id,

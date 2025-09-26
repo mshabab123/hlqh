@@ -555,8 +555,8 @@ export const formatMemorizationDisplay = (surahId, ayahNumber) => {
 
 // Function to calculate percentage of total Quran by page
 export const calculateQuranPagePercentage = (surahId, ayahNumber) => {
-  const totalMemorizedPages = calculateMemorizedPages(surahId, ayahNumber);
-  return parseFloat(((totalMemorizedPages / TOTAL_QURAN_PAGES) * 100).toFixed(1));
+  const progress = calculateQuranProgress(surahId, ayahNumber);
+  return parseFloat(((progress.memorizedPages / TOTAL_QURAN_PAGES) * 100).toFixed(1));
 };
 
 // Helper function to calculate page range for a given surah and ayah range
