@@ -580,22 +580,23 @@ router.post('/:id/grades', requireAuth, async (req, res) => {
     }
     
     // **MARK ATTENDANCE WHEN GRADE IS ENTERED**
-    
+
     try {
-      const today = new Date().toISOString().split('T')[0];
-      
+      // Use the grade date for attendance, not today's date
+      const attendanceDate = grade_date || new Date().toISOString().split('T')[0];
+
       await db.query(`
         INSERT INTO semester_attendance (
-          student_id, semester_id, class_id, attendance_date, 
+          student_id, semester_id, class_id, attendance_date,
           is_present, is_explicit, has_grade, notes, created_at, updated_at
         ) VALUES ($1, $2, $3, $4, true, false, true, 'Auto-marked based on grade entry', NOW(), NOW())
-        ON CONFLICT (student_id, semester_id, class_id, attendance_date) 
-        DO UPDATE SET 
+        ON CONFLICT (student_id, semester_id, class_id, attendance_date)
+        DO UPDATE SET
           is_present = true,
           has_grade = true,
           notes = 'Auto-marked based on grade entry',
           updated_at = NOW()
-      `, [student_id, semesterId, classId, today]);
+      `, [student_id, semesterId, classId, attendanceDate]);
       
     } catch (attendanceError) {
       console.error('❌ Failed to mark attendance from class grades:', attendanceError);

@@ -20,7 +20,8 @@ import {
   AiOutlineCrown,
   AiOutlineHeart,
   AiOutlineStar,
-  AiOutlineSafety
+  AiOutlineSafety,
+  AiOutlineTable
 } from "react-icons/ai";
 import { 
   FaChalkboardTeacher, 
@@ -302,14 +303,7 @@ const NavigationSidebar = ({ isOpen, setIsOpen, className = "" }) => {
           path: "/attendance",
           icon: AiOutlineCheckCircle,
           roles: ["admin", "administrator", "teacher"],
-          description: "متابعة حضور الطلاب"
-        },
-        {
-          title: "نظام الحضور",
-          path: "/attendance-system",
-          icon: AiOutlineCalendar,
-          roles: ["admin", "administrator", "teacher"],
-          description: "نظام الحضور الإلكتروني"
+          description: "إدارة حضور وغياب الطلاب"
         },
         {
           title: "إدارة النقاط",
@@ -317,6 +311,13 @@ const NavigationSidebar = ({ isOpen, setIsOpen, className = "" }) => {
           icon: AiOutlineStar,
           roles: ["admin", "administrator", "supervisor", "teacher"],
           description: "إعطاء النقاط اليومية للطلاب"
+        },
+        {
+          title: "تقارير النقاط",
+          path: "/points-reports",
+          icon: AiOutlineTable,
+          roles: ["admin", "administrator", "supervisor", "teacher"],
+          description: "عرض تقارير النقاط للطلاب"
         },
         {
           title: "التقارير اليومية",

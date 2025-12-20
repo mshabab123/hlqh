@@ -702,8 +702,6 @@ router.delete('/:id', auth, async (req, res) => {
       // Remove student from all classes (foreign key relationships)
       await client.query('DELETE FROM student_enrollments WHERE student_id = $1', [id]);
 
-      // Delete any attendance records
-      await client.query('DELETE FROM attendance WHERE student_id = $1', [id]);
 
       // Delete student record (hard delete)
       await client.query('DELETE FROM students WHERE id = $1', [id]);
@@ -727,56 +725,6 @@ router.delete('/:id', auth, async (req, res) => {
   }
 });
 
-// GET /api/students/:id/attendance - Get student attendance
-router.get('/:id/attendance', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { from_date, to_date, class_id } = req.query;
-    
-    let query = `
-      SELECT 
-        a.date, a.status, a.notes,
-        c.name as class_name, c.room_number
-      FROM attendance a
-      JOIN classes c ON a.class_id = c.id
-      WHERE a.student_id = $1
-    `;
-    
-    const params = [id];
-    let paramIndex = 2;
-
-    if (from_date) {
-      query += ` AND a.date >= $${paramIndex}`;
-      params.push(from_date);
-      paramIndex++;
-    }
-
-    if (to_date) {
-      query += ` AND a.date <= $${paramIndex}`;
-      params.push(to_date);
-      paramIndex++;
-    }
-
-    if (class_id) {
-      query += ` AND a.class_id = $${paramIndex}`;
-      params.push(class_id);
-      paramIndex++;
-    }
-
-    query += ` ORDER BY a.date DESC, c.name`;
-
-    const result = await db.query(query, params);
-    
-    res.json({
-      student_id: id,
-      attendance_records: result.rows
-    });
-
-  } catch (err) {
-    console.error('Get attendance error:', err);
-    res.status(500).json({ error: 'حدث خطأ أثناء جلب سجل الحضور' });
-  }
-});
 
 // GET /api/students/available - Get students available for parent linking
 router.get('/available', auth, async (req, res) => {

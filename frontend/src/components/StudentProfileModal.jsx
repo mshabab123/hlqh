@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { AiOutlineStar, AiOutlineUserAdd, AiOutlineSave, AiOutlineClose, AiOutlineEdit, AiOutlineDelete, AiOutlineTable, AiOutlineCalendar } from "react-icons/ai";
+import { AiOutlineStar, AiOutlineUserAdd, AiOutlineSave, AiOutlineClose, AiOutlineEdit, AiOutlineDelete, AiOutlineTable, AiOutlineCalendar, AiOutlineCheck } from "react-icons/ai";
 import { BsFillGridFill } from "react-icons/bs";
 import { QURAN_SURAHS, TOTAL_QURAN_PAGES } from "../utils/quranData";
 import {
@@ -21,12 +21,54 @@ import QuranBlocksModal from "./QuranBlocksModal";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
+// Safe date formatting function showing both Hijri and Gregorian dates
+const formatSafeDate = (dateString, options = {}) => {
+  if (!dateString) return 'تاريخ غير صحيح';
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return 'تاريخ غير صحيح';
+
+    // Use local date formatting to avoid timezone issues
+    const localDate = new Date(date.getTime() + (date.getTimezoneOffset() * 60000));
+
+    // Format Hijri date (primary display - what's currently being used)
+    const hijriDate = localDate.toLocaleDateString('ar-SA', {
+      weekday: options.weekday || 'short',
+      year: 'numeric',
+      month: options.month || 'short',
+      day: 'numeric',
+      calendar: 'islamic-umalqura',
+      ...options
+    });
+
+    // Format Gregorian date (additional information from database)
+    const gregorianDate = localDate.toLocaleDateString('ar-SA', {
+      weekday: options.weekday || 'short',
+      year: 'numeric',
+      month: options.month || 'short',
+      day: 'numeric',
+      calendar: 'gregory'
+    });
+
+    return (
+      <div className="text-xs">
+        <div className="font-semibold text-gray-800">{hijriDate} هـ</div>
+        <div className="text-gray-600 mt-1">{gregorianDate} م</div>
+      </div>
+    );
+  } catch (error) {
+    console.error('Date formatting error:', error);
+    return 'تاريخ غير صحيح';
+  }
+};
+
 const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
   const [studentData, setStudentData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [selectedCourse, setSelectedCourse] = useState(null);
+  const [userRole, setUserRole] = useState(null);
   
   // Points and attendance data
   const [pointsData, setPointsData] = useState({ totalPoints: 0, averagePoints: 0, pointsCount: 0 });
@@ -34,15 +76,31 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
   
   // Points modal state
   const [showPointsModal, setShowPointsModal] = useState(false);
-  const [pointsForm, setPointsForm] = useState({ points: 0, notes: "" });
+  const [pointsForm, setPointsForm] = useState({
+    points: 0,
+    notes: "",
+    date: new Date().toISOString().split('T')[0] // Default to today
+  });
   
   // Attendance modal state
   const [showAttendanceModal, setShowAttendanceModal] = useState(false);
   const [attendanceStatus, setAttendanceStatus] = useState("present");
+  const [attendanceDate, setAttendanceDate] = useState(new Date().toISOString().split('T')[0]);
 
   // New table modals state
   const [showAbsentTableModal, setShowAbsentTableModal] = useState(false);
   const [showPointsTableModal, setShowPointsTableModal] = useState(false);
+
+  // Points editing state
+  const [editingPointRecord, setEditingPointRecord] = useState(null);
+  const [editingPointForm, setEditingPointForm] = useState({ points: 0, notes: "", date: "" });
+
+  // Attendance editing state
+  const [editingAttendanceCell, setEditingAttendanceCell] = useState(null);
+  const [editingAttendanceData, setEditingAttendanceData] = useState({
+    date: '',
+    isPresent: null
+  });
   const [absentRecords, setAbsentRecords] = useState([]);
   const [pointsRecords, setPointsRecords] = useState([]);
 
@@ -80,8 +138,37 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
   useEffect(() => {
     if (student && classItem) {
       fetchStudentProfile();
+      fetchUserRole();
     }
   }, [student, classItem]);
+
+  // Close attendance editing dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (editingAttendanceCell && !event.target.closest('.attendance-edit-cell')) {
+        setEditingAttendanceCell(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [editingAttendanceCell]);
+
+  // Fetch user role
+  const fetchUserRole = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      // Decode token to get user role
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      setUserRole(payload.role);
+    } catch (error) {
+      console.error('Error fetching user role:', error);
+    }
+  };
 
   // Calculate goal progress whenever studentData changes
   useEffect(() => {
@@ -175,7 +262,10 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
       
-      const attendanceRecords = attendanceResponse.data || [];
+      // Get the student's attendance data from the response
+      const studentAttendance = attendanceResponse.data.students?.find(s => s.student_id === student.id);
+      const attendanceRecords = studentAttendance?.attendance || [];
+
       const presentDays = attendanceRecords.filter(record => record.is_present === true).length;
       const totalDays = attendanceRecords.length;
       const attendanceRate = totalDays > 0 ? (presentDays / totalDays) * 100 : 0;
@@ -387,6 +477,80 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
     }
   };
 
+  // Attendance editing handlers
+  const handleAttendanceCellClick = (recordIndex, record) => {
+    const cellKey = `attendance_${recordIndex}`;
+
+    if (editingAttendanceCell === cellKey) {
+      // Close if already editing this cell
+      setEditingAttendanceCell(null);
+      setEditingAttendanceData({ date: '', isPresent: null });
+    } else {
+      // Open editing for this cell
+      setEditingAttendanceCell(cellKey);
+      setEditingAttendanceData({
+        date: record.date || record.attendance_date || '',
+        isPresent: record.is_present
+      });
+    }
+  };
+
+  const handleAttendanceChange = async () => {
+    if (!editingAttendanceData.date || editingAttendanceData.isPresent === null) {
+      setError('يرجى تحديد التاريخ والحالة');
+      setTimeout(() => setError(''), 3000);
+      return;
+    }
+
+    try {
+      // Get current semester
+      const semesterResponse = await axios.get(`${API_BASE}/api/semesters/current`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+
+      const currentSemester = semesterResponse.data.semester;
+      if (!currentSemester) {
+        setError('لا يوجد فصل دراسي حالي');
+        return;
+      }
+
+      // Update attendance
+      await axios.post(`${API_BASE}/api/attendance/mark`, {
+        semester_id: currentSemester.id,
+        class_id: classItem.id,
+        student_id: student.id,
+        attendance_date: editingAttendanceData.date,
+        is_present: editingAttendanceData.isPresent,
+        notes: ''
+      }, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+
+      // Update the local state
+      setAbsentRecords(prev => prev.map(r => {
+        const recordDate = r.date || r.attendance_date;
+        if (recordDate === editingAttendanceData.date) {
+          return {
+            ...r,
+            is_present: editingAttendanceData.isPresent,
+            date: editingAttendanceData.date,
+            attendance_date: editingAttendanceData.date
+          };
+        }
+        return r;
+      }));
+
+      setEditingAttendanceCell(null);
+      setEditingAttendanceData({ date: '', isPresent: null });
+      setSuccess(`تم تسجيل ${editingAttendanceData.isPresent ? 'الحضور' : 'الغياب'} بنجاح`);
+      setTimeout(() => setSuccess(''), 3000);
+
+    } catch (err) {
+      setError('فشل في حفظ الحضور');
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
   // QuranProgressModal handlers
   const handleQuranProgressSubmit = async (e, updatedStudent) => {
     e?.preventDefault();
@@ -533,7 +697,7 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
     setShowBlocksModal(blocksData);
   };
 
-  const fetchAbsentRecords = async () => {
+  const fetchAttendanceRecords = async () => {
     try {
       // Get current semester
       const semesterResponse = await axios.get(`${API_BASE}/api/semesters/current`, {
@@ -543,22 +707,69 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
       const currentSemester = semesterResponse.data.semester;
       if (!currentSemester) return;
 
-      // Fetch absent records for this student
+      // Fetch all attendance records for this student
       const response = await axios.get(`${API_BASE}/api/attendance/semester/${currentSemester.id}/class/${classItem.id}`, {
-        params: {
-          student_id: student.id,
-          status: 'absent'
-        },
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
 
-      // Filter only absent records
-      const absentOnly = response.data.filter(record => !record.is_present);
-      setAbsentRecords(absentOnly);
+      // Get the student's attendance data
+      const studentAttendance = response.data.students?.find(s => s.student_id === student.id);
+
+      // Get all attendance records (both present and absent)
+      const allRecords = studentAttendance?.attendance || [];
+
+      // Filter records that have been marked (show records with explicit is_present values)
+      const recordedAttendance = allRecords.filter(record => {
+        const hasExplicitAttendance = record.is_present !== null; // Show if marked as present/absent
+        const hasDate = record.date || record.attendance_date;
+        return hasExplicitAttendance && hasDate;
+      });
+
+      setAbsentRecords(recordedAttendance);
       setShowAbsentTableModal(true);
     } catch (error) {
-      console.error('Error fetching absent records:', error);
-      setError('فشل في جلب سجلات الغياب');
+      console.error('Error fetching attendance records:', error);
+      setError('فشل في جلب سجلات الحضور');
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
+  // Add function to handle attendance editing by teachers
+  const handleAttendanceEdit = async (record, isPresent) => {
+    try {
+      // Get current semester
+      const semesterResponse = await axios.get(`${API_BASE}/api/semesters/current`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+
+      const currentSemester = semesterResponse.data.semester;
+      if (!currentSemester) {
+        setError('لم يتم العثور على الفصل الدراسي الحالي');
+        return;
+      }
+
+      // Update attendance
+      await axios.post(`${API_BASE}/api/attendance/mark`, {
+        semester_id: currentSemester.id,
+        class_id: classItem.id,
+        student_id: student.id,
+        attendance_date: record.date || record.attendance_date,
+        is_present: isPresent,
+        notes: record.notes || ''
+      }, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+
+      setSuccess(`تم تحديث ${isPresent ? 'الحضور' : 'الغياب'} بنجاح`);
+      setTimeout(() => setSuccess(''), 3000);
+
+      // Refresh attendance records
+      fetchAttendanceRecords();
+      fetchAttendanceData(); // Refresh summary data as well
+
+    } catch (error) {
+      console.error('Error updating attendance:', error);
+      setError('فشل في تحديث الحضور');
       setTimeout(() => setError(''), 3000);
     }
   };
@@ -591,30 +802,36 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
   };
 
   const openPointsModal = () => {
-    setPointsForm({ points: 0, notes: "" });
+    setPointsForm({
+      points: 0,
+      notes: "",
+      date: new Date().toISOString().split('T')[0] // Default to today
+    });
     setShowPointsModal(true);
   };
 
   const closePointsModal = () => {
     setShowPointsModal(false);
-    setPointsForm({ points: 0, notes: "" });
+    setPointsForm({
+      points: 0,
+      notes: "",
+      date: new Date().toISOString().split('T')[0] // Reset to today
+    });
   };
 
   const handleGivePoints = async (e) => {
     e.preventDefault();
     try {
-      const currentDate = new Date().toISOString().split('T')[0];
-      
       // Get current semester
       const semesterResponse = await axios.get(`${API_BASE}/api/semesters/current`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
-      
+
       await axios.post(`${API_BASE}/api/points`, {
         student_id: student.id,
         class_id: classItem.id,
         semester_id: semesterResponse.data.semester.id,
-        points_date: currentDate,
+        points_date: pointsForm.date,
         points_given: parseFloat(pointsForm.points),
         notes: pointsForm.notes
       }, {
@@ -631,6 +848,59 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
     }
   };
 
+  // Points editing functions
+  const startEditingPoint = (record) => {
+    setEditingPointRecord(record.id);
+    setEditingPointForm({
+      points: record.points_given,
+      notes: record.notes || "",
+      date: record.points_date
+    });
+  };
+
+  const cancelEditingPoint = () => {
+    setEditingPointRecord(null);
+    setEditingPointForm({ points: 0, notes: "", date: "" });
+  };
+
+  const saveEditedPoint = async () => {
+    try {
+      await axios.put(`${API_BASE}/api/points/${editingPointRecord}`, {
+        points_given: parseFloat(editingPointForm.points),
+        notes: editingPointForm.notes
+      }, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+
+      setSuccess("تم تحديث النقاط بنجاح");
+      cancelEditingPoint();
+      fetchPointsRecords(); // Refresh the points table
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (error) {
+      setError(error.response?.data?.error || "فشل في تحديث النقاط");
+      setTimeout(() => setError(""), 3000);
+    }
+  };
+
+  const deletePointRecord = async (recordId) => {
+    if (!window.confirm('هل أنت متأكد من حذف هذا السجل؟')) {
+      return;
+    }
+
+    try {
+      await axios.delete(`${API_BASE}/api/points/${recordId}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+
+      setSuccess("تم حذف السجل بنجاح");
+      fetchPointsRecords(); // Refresh the points table
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (error) {
+      setError(error.response?.data?.error || "فشل في حذف السجل");
+      setTimeout(() => setError(""), 3000);
+    }
+  };
+
   const openAttendanceModal = () => {
     setAttendanceStatus("present");
     setShowAttendanceModal(true);
@@ -639,23 +909,23 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
   const closeAttendanceModal = () => {
     setShowAttendanceModal(false);
     setAttendanceStatus("present");
+    setAttendanceDate(new Date().toISOString().split('T')[0]);
   };
 
   const handleMarkAttendance = async (e) => {
     e.preventDefault();
     try {
-      const currentDate = new Date().toISOString().split('T')[0];
       
       // Get current semester
       const semesterResponse = await axios.get(`${API_BASE}/api/semesters/current`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
       
-      await axios.post(`${API_BASE}/api/attendance`, {
+      await axios.post(`${API_BASE}/api/attendance/mark`, {
         semester_id: semesterResponse.data.semester.id,
         class_id: classItem.id,
         student_id: student.id,
-        attendance_date: currentDate,
+        attendance_date: attendanceDate,
         is_present: attendanceStatus === 'present',
         is_explicit: true,
         notes: null
@@ -739,11 +1009,11 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
               تسجيل حضور
             </button>
             <button
-              onClick={fetchAbsentRecords}
-              className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+              onClick={fetchAttendanceRecords}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
             >
               <AiOutlineCalendar />
-              جدول الغياب
+              سجلات الحضور
             </button>
             <button
               onClick={fetchPointsRecords}
@@ -990,12 +1260,7 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                               {Math.round(parseFloat(latestGrade.grade_value))}
                             </div>
                             <div className="text-xs text-gray-500 mt-1">
-                              {new Date(latestGrade.date_graded || latestGrade.created_at).toLocaleDateString('ar-SA', {
-                                weekday: 'short',
-                                year: 'numeric',
-                                month: 'short',
-                                day: 'numeric'
-                              })}
+                              {formatSafeDate(latestGrade.date_graded || latestGrade.created_at)}
                             </div>
                           </div>
                         </div>
@@ -1005,47 +1270,27 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Target Position */}
                   <div>
-                    <h4 className="text-sm font-medium text-gray-700 mb-2">الهدف المحدد:</h4>
+                    <h4 className="text-sm font-medium text-gray-700 mb-2">الهدف المطلوب:</h4>
                     <p className="text-base font-bold text-blue-700">
                       {(() => {
-                        const currentSurahId = parseInt(studentData?.memorized_surah_id) || 0;
-                        const currentAyah = parseInt(studentData?.memorized_ayah_number) || 0;
                         const targetSurahId = parseInt(studentData.goal.target_surah_id) || 0;
                         const targetAyah = parseInt(studentData.goal.target_ayah_number) || 0;
-                        
+
                         const getCurrentSurahName = (surahId) => {
                           const surah = QURAN_SURAHS.find(s => s.id === surahId);
                           return surah ? surah.name : '';
                         };
-                        
-                        if (!currentSurahId || currentSurahId === 0) {
-                          // No current memorization - start from beginning
-                          return `من سورة الناس إلى سورة ${getCurrentSurahName(targetSurahId)} الآية ${targetAyah}`;
-                        } else if (currentSurahId === targetSurahId) {
-                          // Same surah
-                          const currentSurahName = getCurrentSurahName(currentSurahId);
-                          if (currentAyah >= targetAyah) {
-                            return `🎉 تم تحقيق الهدف - سورة ${currentSurahName} الآية ${currentAyah}`;
-                          } else {
-                            return `من سورة ${currentSurahName} الآية ${currentAyah + 1} إلى الآية ${targetAyah}`;
-                          }
-                        } else {
-                          // Different surahs
-                          const currentSurahName = getCurrentSurahName(currentSurahId);
-                          const targetSurahName = getCurrentSurahName(targetSurahId);
-                          if (currentSurahId < targetSurahId) {
-                            return `🎉 تم تجاوز الهدف - الحالي: سورة ${currentSurahName}`;
-                          } else {
-                            return `من سورة ${currentSurahName} الآية ${currentAyah + 1} إلى سورة ${targetSurahName} الآية ${targetAyah}`;
-                          }
-                        }
+
+                        const targetSurahName = getCurrentSurahName(targetSurahId);
+                        return `سورة ${targetSurahName} - الآية ${targetAyah}`;
                       })()}
                     </p>
                   </div>
                   
                   <div>
-                    <h4 className="text-sm font-medium text-gray-700 mb-2">الهدف المحدد:</h4>
+                    <h4 className="text-sm font-medium text-gray-700 mb-2">الهدف المطلوب:</h4>
 
                     {/* Goal Description - Same format as QuranProgressModal */}
                     <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
@@ -1393,7 +1638,7 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                       }}
                     >
                       <option value="">اختر السورة</option>
-                      {[...QURAN_SURAHS].reverse().map(surah => (
+                      {[...QURAN_SURAHS].sort((a, b) => a.id - b.id).map(surah => (
                         <option key={surah.id} value={surah.name}>
                           {surah.id}. {surah.name}
                         </option>
@@ -1775,12 +2020,7 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                                 </td>
                               )}
                               <td className="p-2 text-center text-xs border">
-                                {new Date(grade.date_graded || grade.created_at).toLocaleDateString('ar-SA', {
-                                  weekday: 'short',
-                                  year: 'numeric',
-                                  month: 'short',
-                                  day: 'numeric'
-                                })}
+                                {formatSafeDate(grade.date_graded || grade.created_at)}
                               </td>
                               <td className="p-2 text-xs border">
                                 {grade.notes || '-'}
@@ -1862,7 +2102,20 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                   <option value={5}>5 - خمس نقاط (ممتاز)</option>
                 </select>
               </div>
-              
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  التاريخ
+                </label>
+                <input
+                  type="date"
+                  value={pointsForm.date}
+                  onChange={(e) => setPointsForm({...pointsForm, date: e.target.value})}
+                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   ملاحظات (اختيارية)
@@ -1914,6 +2167,19 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
             </div>
             
             <form onSubmit={handleMarkAttendance} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  التاريخ
+                </label>
+                <input
+                  type="date"
+                  value={attendanceDate}
+                  onChange={(e) => setAttendanceDate(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  required
+                />
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   حالة الحضور
@@ -1968,13 +2234,13 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
         </div>
       )}
 
-      {/* Absent Records Table Modal */}
+      {/* Attendance Records Table Modal */}
       {showAbsentTableModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60]">
-          <div className="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg p-6 max-w-5xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-gray-900">
-                سجل الغياب - {student.first_name} {student.last_name}
+                سجلات الحضور والغياب - {student.first_name} {student.last_name}
               </h3>
               <button
                 onClick={() => setShowAbsentTableModal(false)}
@@ -1989,36 +2255,181 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                 <thead className="bg-gray-100">
                   <tr>
                     <th className="p-3 text-center text-sm font-medium border">التاريخ</th>
-                    <th className="p-3 text-center text-sm font-medium border">نوع الغياب</th>
+                    <th className="p-3 text-center text-sm font-medium border">الحالة</th>
                     <th className="p-3 text-center text-sm font-medium border">ملاحظات</th>
+                    {['teacher', 'admin', 'administrator'].includes(userRole) && (
+                      <th className="p-3 text-center text-sm font-medium border">إجراءات</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
                   {absentRecords.length > 0 ? (
-                    absentRecords.map((record, index) => (
-                      <tr key={index} className="hover:bg-gray-50">
-                        <td className="p-3 text-center text-sm border">
-                          {new Date(record.attendance_date).toLocaleDateString('ar-SA', {
+                    absentRecords.map((record, index) => {
+                      // Dual calendar date formatting
+                      const formatDate = (dateString) => {
+                        if (!dateString) return 'تاريخ غير صحيح';
+                        try {
+                          const date = new Date(dateString);
+                          if (isNaN(date.getTime())) return 'تاريخ غير صحيح';
+
+                          // Use local date formatting to avoid timezone issues
+                          const localDate = new Date(date.getTime() + (date.getTimezoneOffset() * 60000));
+
+                          // Format Hijri date (primary display)
+                          const hijriDate = localDate.toLocaleDateString('ar-SA', {
                             weekday: 'long',
                             year: 'numeric',
                             month: 'long',
-                            day: 'numeric'
-                          })}
-                        </td>
-                        <td className="p-3 text-center text-sm border">
-                          <span className="px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs">
-                            غياب
-                          </span>
-                        </td>
-                        <td className="p-3 text-center text-sm border">
-                          {record.notes || '-'}
-                        </td>
-                      </tr>
-                    ))
+                            day: 'numeric',
+                            calendar: 'islamic-umalqura'
+                          });
+
+                          // Format Gregorian date (secondary display)
+                          const gregorianDate = localDate.toLocaleDateString('ar-SA', {
+                            weekday: 'long',
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                            calendar: 'gregory'
+                          });
+
+                          return (
+                            <div className="text-sm">
+                              <div className="font-semibold text-gray-800">{hijriDate} هـ</div>
+                              <div className="text-gray-600 mt-1">{gregorianDate} م</div>
+                            </div>
+                          );
+                        } catch (error) {
+                          console.error('Date formatting error:', error);
+                          return 'تاريخ غير صحيح';
+                        }
+                      };
+
+                      return (
+                        <tr key={index} className="hover:bg-gray-50">
+                          <td className="p-3 text-center text-sm border">
+                            {formatDate(record.date || record.attendance_date)}
+                          </td>
+                          <td className="p-3 text-center text-sm border">
+                            <span className={`px-2 py-1 rounded-full text-xs ${
+                              record.is_present === true
+                                ? 'bg-green-100 text-green-800'
+                                : record.is_present === false
+                                ? 'bg-red-100 text-red-800'
+                                : 'bg-gray-100 text-gray-800'
+                            }`}>
+                              {record.is_present === true ? 'حضور' : record.is_present === false ? 'غياب' : 'غير محدد'}
+                            </span>
+                          </td>
+                          <td className="p-3 text-center text-sm border">
+                            {record.notes || '-'}
+                          </td>
+                          {['teacher', 'admin', 'administrator'].includes(userRole) && (
+                            <td className="p-3 text-center text-sm border">
+                              <div className="relative attendance-edit-cell">
+                                <button
+                                  onClick={() => handleAttendanceCellClick(index, record)}
+                                  className="px-3 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 transition-colors"
+                                  title="تعديل الحضور"
+                                >
+                                  تعديل
+                                </button>
+                                {editingAttendanceCell === `attendance_${index}` && (
+                                  <>
+                                    {/* Overlay Background */}
+                                    <div className="fixed inset-0 bg-black/50 z-[70]" onClick={() => setEditingAttendanceCell(null)}></div>
+
+                                    {/* Centered Modal */}
+                                    <div className="fixed inset-0 flex items-center justify-center z-[80] p-4">
+                                      <div className="bg-white border rounded-lg shadow-xl p-6 min-w-[300px] max-w-md w-full">
+                                        <h4 className="text-lg font-semibold mb-4 text-center">تعديل سجل الحضور</h4>
+                                        <div className="flex flex-col gap-4">
+                                      {/* Date Input */}
+                                      <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">التاريخ:</label>
+                                        <input
+                                          type="date"
+                                          value={editingAttendanceData.date}
+                                          onChange={(e) => setEditingAttendanceData(prev => ({
+                                            ...prev,
+                                            date: e.target.value
+                                          }))}
+                                          className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                        />
+                                      </div>
+
+                                      {/* Status Selection */}
+                                      <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">الحالة:</label>
+                                        <div className="flex gap-3">
+                                          <button
+                                            onClick={() => setEditingAttendanceData(prev => ({
+                                              ...prev,
+                                              isPresent: true
+                                            }))}
+                                            className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+                                              editingAttendanceData.isPresent === true
+                                                ? 'bg-green-500 text-white shadow-lg'
+                                                : 'bg-gray-200 text-gray-700 hover:bg-green-100 border border-gray-300'
+                                            }`}
+                                          >
+                                            <AiOutlineCheck className="w-4 h-4" />
+                                            حاضر
+                                          </button>
+                                          <button
+                                            onClick={() => setEditingAttendanceData(prev => ({
+                                              ...prev,
+                                              isPresent: false
+                                            }))}
+                                            className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+                                              editingAttendanceData.isPresent === false
+                                                ? 'bg-red-500 text-white shadow-lg'
+                                                : 'bg-gray-200 text-gray-700 hover:bg-red-100 border border-gray-300'
+                                            }`}
+                                          >
+                                            <AiOutlineClose className="w-4 h-4" />
+                                            غائب
+                                          </button>
+                                        </div>
+                                      </div>
+
+                                      {/* Action Buttons */}
+                                      <div className="flex gap-3 pt-4">
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setEditingAttendanceCell(null);
+                                            setEditingAttendanceData({ date: '', isPresent: null });
+                                          }}
+                                          className="flex-1 px-4 py-3 bg-gray-500 text-white rounded-lg text-sm font-medium hover:bg-gray-600 transition-colors"
+                                        >
+                                          إلغاء
+                                        </button>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleAttendanceChange();
+                                          }}
+                                          className="flex-1 px-4 py-3 bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors shadow-lg"
+                                        >
+                                          حفظ التغييرات
+                                        </button>
+                                      </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })
                   ) : (
                     <tr>
-                      <td colSpan="3" className="p-6 text-center text-gray-500">
-                        لا توجد سجلات غياب لهذا الطالب
+                      <td colSpan={['teacher', 'admin', 'administrator'].includes(userRole) ? '4' : '3'} className="p-6 text-center text-gray-500">
+                        لا توجد سجلات حضور لهذا الطالب
                       </td>
                     </tr>
                   )}
@@ -2062,6 +2473,7 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                     <th className="p-3 text-center text-sm font-medium border">النقاط</th>
                     <th className="p-3 text-center text-sm font-medium border">النقاط من 5</th>
                     <th className="p-3 text-center text-sm font-medium border">ملاحظات</th>
+                    <th className="p-3 text-center text-sm font-medium border">الإجراءات</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2069,15 +2481,30 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                     pointsRecords.map((record, index) => (
                       <tr key={index} className="hover:bg-gray-50">
                         <td className="p-3 text-center text-sm border">
-                          {new Date(record.points_date || record.created_at).toLocaleDateString('ar-SA', {
-                            weekday: 'long',
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric'
-                          })}
+                          {formatSafeDate(record.points_date || record.created_at, { weekday: 'long', month: 'long' })}
                         </td>
                         <td className="p-3 text-center text-sm border font-semibold">
-                          {record.points_given}
+                          {editingPointRecord === record.id ? (
+                            <select
+                              value={editingPointForm.points}
+                              onChange={(e) => setEditingPointForm({...editingPointForm, points: e.target.value})}
+                              className="w-20 p-1 border rounded text-center"
+                            >
+                              <option value={0}>0</option>
+                              <option value={0.5}>0.5</option>
+                              <option value={1}>1</option>
+                              <option value={1.5}>1.5</option>
+                              <option value={2}>2</option>
+                              <option value={2.5}>2.5</option>
+                              <option value={3}>3</option>
+                              <option value={3.5}>3.5</option>
+                              <option value={4}>4</option>
+                              <option value={4.5}>4.5</option>
+                              <option value={5}>5</option>
+                            </select>
+                          ) : (
+                            record.points_given
+                          )}
                         </td>
                         <td className="p-3 text-center text-sm border">
                           <div className="flex items-center justify-center">
@@ -2086,7 +2513,7 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                                 <span
                                   key={star}
                                   className={`text-lg ${
-                                    star <= record.points_given ? 'text-yellow-400' : 'text-gray-300'
+                                    star <= (editingPointRecord === record.id ? editingPointForm.points : record.points_given) ? 'text-yellow-400' : 'text-gray-300'
                                   }`}
                                 >
                                   ★
@@ -2096,13 +2523,60 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                           </div>
                         </td>
                         <td className="p-3 text-center text-sm border">
-                          {record.notes || '-'}
+                          {editingPointRecord === record.id ? (
+                            <textarea
+                              value={editingPointForm.notes}
+                              onChange={(e) => setEditingPointForm({...editingPointForm, notes: e.target.value})}
+                              className="w-32 p-1 border rounded text-xs resize-none"
+                              rows={2}
+                              placeholder="ملاحظات..."
+                            />
+                          ) : (
+                            record.notes || '-'
+                          )}
+                        </td>
+                        <td className="p-3 text-center text-sm border">
+                          {editingPointRecord === record.id ? (
+                            <div className="flex gap-1 justify-center">
+                              <button
+                                onClick={saveEditedPoint}
+                                className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600"
+                                title="حفظ"
+                              >
+                                ✓
+                              </button>
+                              <button
+                                onClick={cancelEditingPoint}
+                                className="px-2 py-1 bg-gray-500 text-white rounded text-xs hover:bg-gray-600"
+                                title="إلغاء"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex gap-1 justify-center">
+                              <button
+                                onClick={() => startEditingPoint(record)}
+                                className="px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600"
+                                title="تعديل"
+                              >
+                                ✏️
+                              </button>
+                              <button
+                                onClick={() => deletePointRecord(record.id)}
+                                className="px-2 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600"
+                                title="حذف"
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="4" className="p-6 text-center text-gray-500">
+                      <td colSpan="5" className="p-6 text-center text-gray-500">
                         لا توجد سجلات نقاط لهذا الطالب
                       </td>
                     </tr>

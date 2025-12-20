@@ -1,18 +1,19 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { 
-  AiOutlinePlus, 
-  AiOutlineEdit, 
-  AiOutlineDelete, 
-  AiOutlineEye, 
-  AiOutlineCheck, 
-  AiOutlineClose, 
+import {
+  AiOutlinePlus,
+  AiOutlineEdit,
+  AiOutlineDelete,
+  AiOutlineEye,
+  AiOutlineCheck,
+  AiOutlineClose,
   AiOutlineUser,
   AiOutlineSearch,
   AiOutlineCrown,
   AiOutlineKey,
   AiOutlineSetting,
-  AiOutlineSafety
+  AiOutlineSafety,
+  AiOutlineCalendar
 } from "react-icons/ai";
 import { Link } from "react-router-dom";
 
@@ -20,8 +21,10 @@ const AdminRoots = () => {
   const [adminRoots, setAdminRoots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [showModal, setShowModal] = useState(false);
+  const [fixingAttendance, setFixingAttendance] = useState(false);
   const [editingAdmin, setEditingAdmin] = useState(null);
   const [formData, setFormData] = useState({
     first_name: "",
@@ -123,7 +126,7 @@ const AdminRoots = () => {
   const handleToggleStatus = async (id, currentStatus) => {
     try {
       const token = localStorage.getItem("token");
-      await axios.patch(`${import.meta.env.VITE_API_URL}/api/users/${id}`, 
+      await axios.patch(`${import.meta.env.VITE_API_URL}/api/users/${id}`,
         { is_active: !currentStatus },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -131,6 +134,27 @@ const AdminRoots = () => {
       setError("");
     } catch (err) {
       setError(err.response?.data?.error || "فشل في تغيير حالة التفعيل");
+    }
+  };
+
+  const handleFixAttendanceDates = async () => {
+    if (!window.confirm("هل أنت متأكد من إصلاح تواريخ الحضور؟ هذه العملية ستقوم بتعديل البيانات في قاعدة البيانات.")) return;
+
+    try {
+      setFixingAttendance(true);
+      setError("");
+      setSuccess("");
+
+      const token = localStorage.getItem("token");
+      const response = await axios.post(`${import.meta.env.VITE_API_BASE || ""}/api/attendance/fix-dates`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      setSuccess(`تم إصلاح تواريخ الحضور بنجاح: تم إنشاء ${response.data.summary.createdRecords} سجل جديد، وحذف ${response.data.summary.deletedRecords} سجل غير صحيح، وتعديل ${response.data.summary.markedGrades} سجل درجات`);
+    } catch (err) {
+      setError(err.response?.data?.error || "فشل في إصلاح تواريخ الحضور");
+    } finally {
+      setFixingAttendance(false);
     }
   };
 
@@ -228,10 +252,16 @@ const AdminRoots = () => {
               {error}
             </div>
           )}
+
+          {success && (
+            <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-4">
+              {success}
+            </div>
+          )}
         </div>
 
         {/* Admin Control Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {/* Privilege Management Card */}
           <Link to="/privilege-management" className="group">
             <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg p-6 hover:shadow-xl transition-all duration-200 group-hover:scale-[1.02]">
@@ -303,6 +333,41 @@ const AdminRoots = () => {
               </div>
             </div>
           </Link>
+
+          {/* Fix Attendance Dates Card */}
+          <div className="group">
+            <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg p-6 hover:shadow-xl transition-all duration-200 group-hover:scale-[1.02]">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="p-3 bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl shadow-lg">
+                  <AiOutlineCalendar className="text-white text-2xl" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-800">إصلاح تواريخ الحضور</h3>
+                  <p className="text-gray-600 text-sm">تصحيح تواريخ الحضور</p>
+                </div>
+              </div>
+              <p className="text-gray-700 mb-4">
+                إصلاح التواريخ المرتبطة بالدرجات في جدول الحضور
+              </p>
+              <button
+                onClick={handleFixAttendanceDates}
+                disabled={fixingAttendance}
+                className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white px-4 py-2 rounded-lg hover:from-orange-600 hover:to-orange-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {fixingAttendance ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    جاري الإصلاح...
+                  </>
+                ) : (
+                  <>
+                    <AiOutlineSetting />
+                    إصلاح التواريخ
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Search and Add */}

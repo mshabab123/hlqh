@@ -625,17 +625,7 @@ export default function MyClasses() {
             </div>
             <div className="text-center py-8">
               <AiOutlineCalendar className="mx-auto text-4xl text-gray-400 mb-4" />
-              <p className="text-gray-600 mb-4">إدارة الحضور متاحة قريباً</p>
-              <button
-                onClick={() => {
-                  setSelectedClassForAttendance(null);
-                  // Navigate to attendance system
-                  window.location.href = '/attendance-system';
-                }}
-                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-              >
-                الذهاب إلى نظام الحضور
-              </button>
+              <p className="text-gray-600">إدارة الحضور غير متوفرة حالياً</p>
             </div>
           </div>
         </div>

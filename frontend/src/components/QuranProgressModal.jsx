@@ -8,6 +8,10 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
   const [showForms, setShowForms] = useState(false);
   const [studentGrades, setStudentGrades] = useState([]);
   const [loadingGrades, setLoadingGrades] = useState(true);
+  const [selectedSurahId, setSelectedSurahId] = useState(student.target_surah_id || "");
+  const [selectedAyahNumber, setSelectedAyahNumber] = useState(student.target_ayah_number || "");
+  const [selectedMemorizedSurahId, setSelectedMemorizedSurahId] = useState(student.memorized_surah_id || "");
+  const [selectedMemorizedAyahNumber, setSelectedMemorizedAyahNumber] = useState(student.memorized_ayah_number || "");
 
   // Debug logging
   console.log('QuranProgressModal - Received student data:', student);
@@ -18,6 +22,8 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
     memorized_surah_id: student.memorized_surah_id,
     memorized_ayah_number: student.memorized_ayah_number
   });
+  console.log('QuranProgressModal - onStudentChange function:', onStudentChange);
+  console.log('QuranProgressModal - onStudentChange type:', typeof onStudentChange);
 
   // Calculate progress
   const progress = calculateQuranProgress(student.memorized_surah_id, student.memorized_ayah_number);
@@ -227,9 +233,9 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
                       {/* Overall Progress Stats */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                         <div className="bg-white p-4 rounded-lg shadow-sm">
-                          <h7 className="font-medium text-gray-700 mb-3 flex items-center gap-2">
+                          <h6 className="font-medium text-gray-700 mb-3 flex items-center gap-2">
                             📚 إجمالي التقدم
-                          </h7>
+                          </h6>
                           <div className="space-y-2 text-sm">
                             <div className="flex justify-between">
                               <span className="text-gray-600">الآيات المحفوظة:</span>
@@ -247,9 +253,9 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
                         </div>
 
                         <div className="bg-white p-4 rounded-lg shadow-sm">
-                          <h7 className="font-medium text-gray-700 mb-3 flex items-center gap-2">
+                          <h6 className="font-medium text-gray-700 mb-3 flex items-center gap-2">
                             🎯 تقدم الهدف
-                          </h7>
+                          </h6>
                           <div className="space-y-2 text-sm">
                             {(() => {
                               console.log('TARGET SURAH CHECK:', {
@@ -312,9 +318,9 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
                       {/* Grade Activity Summary */}
                       {circularChartData.gradedPages > 0 && (
                         <div className="bg-white p-4 rounded-lg shadow-sm">
-                          <h7 className="font-medium text-gray-700 mb-3 flex items-center gap-2">
+                          <h6 className="font-medium text-gray-700 mb-3 flex items-center gap-2">
                             📝 ملخص التقييمات
-                          </h7>
+                          </h6>
                           <div className="grid grid-cols-3 gap-3 text-center text-sm">
                             <div>
                               <div className="text-lg font-bold text-blue-600">{circularChartData.gradedPages}</div>
@@ -336,9 +342,9 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
 
                       {/* Current Position Information */}
                       <div className="bg-white p-4 rounded-lg shadow-sm mt-4">
-                        <h7 className="font-medium text-gray-700 mb-3 flex items-center gap-2">
+                        <h6 className="font-medium text-gray-700 mb-3 flex items-center gap-2">
                           📍 الموقع الحالي
-                        </h7>
+                        </h6>
                         <div className="text-sm space-y-2">
                           {student.memorized_surah_id ? (
                             <>
@@ -357,9 +363,9 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
                                 <span className="font-bold text-blue-600">{progress.currentPageNumber}</span>
                               </div>
                               <div className="flex justify-between">
-                                <span className="text-gray-600">ترتيب الحفظ:</span>
+                                <span className="text-gray-600">رقم السورة:</span>
                                 <span className="font-bold text-purple-600">
-                                  {getMemorizationPosition(student.memorized_surah_id)} من 114
+                                  {student.memorized_surah_id} من 114
                                 </span>
                               </div>
                             </>
@@ -401,7 +407,17 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
                 type="button"
                 onClick={(e) => {
                   e.preventDefault();
-                  onSubmit(e, student);
+
+                  // Create updated student object with local state values
+                  const updatedStudent = {
+                    ...student,
+                    target_surah_id: selectedSurahId,
+                    target_ayah_number: selectedAyahNumber,
+                    memorized_surah_id: selectedMemorizedSurahId,
+                    memorized_ayah_number: selectedMemorizedAyahNumber
+                  };
+
+                  onSubmit(e, updatedStudent);
                   setShowForms(false);
                 }}
                 className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
@@ -437,7 +453,7 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
                     <div>
                       <label className="block text-sm font-medium mb-2">السورة المحفوظة</label>
                       <select
-                        value={student.memorized_surah_id || ""}
+                        value={selectedMemorizedSurahId}
                         onChange={(e) => {
                           const newSurahId = e.target.value;
                           let defaultAyah = "";
@@ -449,6 +465,9 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
                               defaultAyah = surah.ayahCount.toString();
                             }
                           }
+
+                          setSelectedMemorizedSurahId(newSurahId);
+                          setSelectedMemorizedAyahNumber(defaultAyah);
 
                           onStudentChange({
                             ...student,
@@ -473,13 +492,23 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
                     <div>
                       <label className="block text-sm font-medium mb-2">آخر آية محفوظة</label>
                       <select
-                        value={student.memorized_ayah_number || ""}
-                        onChange={(e) => onStudentChange({...student, memorized_ayah_number: e.target.value})}
+                        value={selectedMemorizedAyahNumber}
+                        onChange={(e) => {
+                          const newAyahNumber = e.target.value;
+                          setSelectedMemorizedAyahNumber(newAyahNumber);
+
+                          if (onStudentChange && typeof onStudentChange === 'function') {
+                            onStudentChange({
+                              ...student,
+                              memorized_ayah_number: newAyahNumber
+                            });
+                          }
+                        }}
                         className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                        disabled={!student.memorized_surah_id}
+                        disabled={!selectedMemorizedSurahId}
                       >
                         <option value="">اختر الآية</option>
-                        {generateAyahOptions(student.memorized_surah_id).map(ayahNum => (
+                        {generateAyahOptions(selectedMemorizedSurahId).map(ayahNum => (
                           <option key={ayahNum} value={ayahNum}>الآية {ayahNum}</option>
                         ))}
                       </select>
@@ -503,148 +532,116 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
                     <div>
                       <label className="block text-sm font-medium mb-2">السورة المستهدفة</label>
                       <select
-                        value={student.target_surah_id || ""}
+                        value={selectedSurahId}
                         onChange={(e) => {
                           const newSurahId = e.target.value;
-                          let defaultAyah = "";
+                          const surah = QURAN_SURAHS.find(s => s.id == newSurahId);
+                          const defaultAyah = surah ? surah.ayahCount.toString() : "";
 
-                          // Set last ayah as default when selecting a surah
-                          if (newSurahId) {
-                            const surah = QURAN_SURAHS.find(s => s.id == newSurahId);
-                            if (surah) {
-                              defaultAyah = surah.ayahCount.toString();
-                            }
+                          setSelectedSurahId(newSurahId);
+                          setSelectedAyahNumber(defaultAyah);
+
+                          if (onStudentChange && typeof onStudentChange === 'function') {
+                            onStudentChange({
+                              ...student,
+                              target_surah_id: newSurahId,
+                              target_ayah_number: defaultAyah
+                            });
                           }
-
-                          onStudentChange({
-                            ...student,
-                            target_surah_id: newSurahId,
-                            target_ayah_number: defaultAyah
-                          });
                         }}
                         className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
-                        <option value="">
-                          {student.memorized_surah_id ? "اختر السورة المستهدفة" : "اختر السورة"}
-                        </option>
-                        {(() => {
-                          const availableSurahs = QURAN_SURAHS.filter(surah => {
-                            // Always include the current target surah if it's set
-                            if (student.target_surah_id && surah.id == student.target_surah_id) {
-                              return true;
-                            }
-
-                            // If no current memorization, show all surahs except the last ones
-                            if (!student.memorized_surah_id) {
-                              return getMemorizationPosition(surah.id) <= 110; // Show first 110 surahs as potential targets
-                            }
-
-                            const currentPosition = getMemorizationPosition(student.memorized_surah_id);
-                            const surahPosition = getMemorizationPosition(surah.id);
-
-                            // Target should be before current in memorization order
-                            return surahPosition < currentPosition;
-                          });
-
-                          if (availableSurahs.length === 0 && student.memorized_surah_id) {
-                            return (
-                              <option value="" disabled className="text-gray-500">
-                                🏆 مبروك! وصلت للفاتحة - لا توجد أهداف إضافية
-                              </option>
-                            );
-                          }
-
-                          // Sort by memorization position for consistent ordering
-                          const sortedSurahs = availableSurahs.sort((a, b) =>
-                            getMemorizationPosition(a.id) - getMemorizationPosition(b.id)
-                          );
-
-                          return sortedSurahs.map((surah, index) => (
-                            <option key={surah.id} value={surah.id}>
-                                {getMemorizationPosition(surah.id)}. {surah.name}
-                              {student.target_surah_id && surah.id == student.target_surah_id ? ' (الهدف الحالي)' : ''}
-                            </option>
-                          ));
-                        })()}
+                        <option value="">اختر السورة المستهدفة</option>
+                        {QURAN_SURAHS.map(surah => (
+                          <option key={surah.id} value={String(surah.id)}>
+                            {surah.id}. {surah.name}
+                          </option>
+                        ))}
                       </select>
-                      {student.memorized_surah_id ? (
-                        <p className="text-xs text-gray-600 mt-1">
-                          * يجب أن يكون الهدف قبل الموضع الحالي (ترتيب {getMemorizationPosition(student.memorized_surah_id)}) في ترتيب الحفظ
-                        </p>
-                      ) : (
-                        <p className="text-xs text-blue-600 mt-1">
-                          💡 يمكنك اختيار أي سورة كهدف. ننصح بالبدء بهدف قريب مثل سور الجزء الثلاثين
-                        </p>
-                      )}
-
-                      {/* Show count of available targets */}
-                      {(() => {
-                        const availableCount = QURAN_SURAHS.filter(surah => {
-                          if (!student.memorized_surah_id) {
-                            return getMemorizationPosition(surah.id) <= 110;
-                          }
-                          const currentPosition = getMemorizationPosition(student.memorized_surah_id);
-                          const surahPosition = getMemorizationPosition(surah.id);
-                          return surahPosition < currentPosition;
-                        }).length;
-
-                        if (availableCount > 0) {
-                          return (
-                            <p className="text-xs text-green-600 mt-1">
-                              ✅ {availableCount} سورة متاحة كأهداف
-                            </p>
-                          );
-                        } else if (student.memorized_surah_id) {
-                          return (
-                            <p className="text-xs text-orange-600 mt-1">
-                              🏆 تم إكمال جميع الأهداف الممكنة - أنت في المقدمة!
-                            </p>
-                          );
-                        }
-                        return null;
-                      })()}
+                      <p className="text-xs text-blue-600 mt-1">
+                        💡 يمكنك اختيار أي سورة كهدف من القرآن الكريم
+                      </p>
                     </div>
 
                     <div>
                       <label className="block text-sm font-medium mb-2">الآية المستهدفة</label>
                       <select
-                        value={student.target_ayah_number || ""}
-                        onChange={(e) => onStudentChange({...student, target_ayah_number: e.target.value})}
+                        value={selectedAyahNumber}
+                        onChange={(e) => {
+                          const newAyahNumber = e.target.value;
+                          setSelectedAyahNumber(newAyahNumber);
+
+                          if (onStudentChange && typeof onStudentChange === 'function') {
+                            onStudentChange({
+                              ...student,
+                              target_ayah_number: newAyahNumber
+                            });
+                          }
+                        }}
                         className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        disabled={!student.target_surah_id}
+                        disabled={!selectedSurahId}
                       >
                         <option value="">اختر الآية</option>
-                        {generateAyahOptions(student.target_surah_id).map(ayahNum => (
+                        {generateAyahOptions(selectedSurahId).map(ayahNum => (
                           <option key={ayahNum} value={ayahNum}>الآية {ayahNum}</option>
                         ))}
                       </select>
                     </div>
 
-                    {student.target_surah_id && student.target_ayah_number && (
-                      <div className="p-3 bg-blue-100 rounded-lg text-sm">
-                        <strong>الهدف المحدد:</strong> سورة {QURAN_SURAHS.find(s => s.id == student.target_surah_id)?.name} حتى الآية {student.target_ayah_number}
-                        <div className="mt-2 text-xs text-blue-700">
-                          📍 ترتيب الحفظ: {getMemorizationPosition(student.target_surah_id)} من 114
+                    {/* Dynamic Goal Display - Updates immediately when dropdowns change */}
+                    {(selectedSurahId || student.target_surah_id) && (selectedAyahNumber || student.target_ayah_number) && (
+                      <div className="p-4 bg-blue-100 rounded-lg border border-blue-300">
+                        <div className="text-sm font-medium text-blue-800 mb-2">
+                          <strong>الهدف المحدد:</strong> سورة {QURAN_SURAHS.find(s => s.id == (selectedSurahId || student.target_surah_id))?.name} حتى الآية {selectedAyahNumber || student.target_ayah_number}
                         </div>
+                        {(() => {
+                          // Calculate pages using current local state values for dynamic updates
+                          const currentSurahId = selectedMemorizedSurahId || student.memorized_surah_id;
+                          const currentAyahNumber = selectedMemorizedAyahNumber || student.memorized_ayah_number;
+                          const targetSurahId = selectedSurahId || student.target_surah_id;
+                          const targetAyahNumber = selectedAyahNumber || student.target_ayah_number;
+
+                          if (currentSurahId && currentAyahNumber && targetSurahId && targetAyahNumber) {
+                            const currentProgress = calculateQuranProgress(currentSurahId, currentAyahNumber);
+                            const targetProgress = calculateQuranProgress(targetSurahId, targetAyahNumber);
+                            const currentPages = currentProgress.memorizedPages;
+                            const targetPages = targetProgress.memorizedPages;
+                            const pagesToGoal = Math.max(0, targetPages - currentPages);
+
+                            if (pagesToGoal > 0) {
+                              return (
+                                <div className="mt-3 p-3 bg-white rounded-lg border border-blue-200">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-2xl">📖</span>
+                                    <div>
+                                      <div className="text-lg font-bold text-blue-700">
+                                        عدد الصفحات للهدف: {pagesToGoal.toFixed(1)} صفحة
+                                      </div>
+                                      <div className="text-xs text-blue-600 mt-1">
+                                        يتم التحديث تلقائياً عند تغيير الاختيار
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            } else if (pagesToGoal === 0) {
+                              return (
+                                <div className="mt-3 p-3 bg-green-50 rounded-lg border border-green-200">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-2xl">🎉</span>
+                                    <div className="text-lg font-bold text-green-700">
+                                      تم تحقيق الهدف!
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            }
+                          }
+                          return null;
+                        })()}
                       </div>
                     )}
 
-                    {/* Goal Progress Information */}
-                    {student.memorized_surah_id && student.target_surah_id && (
-                      <div className="p-3 bg-yellow-50 rounded-lg text-sm border border-yellow-200">
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="text-yellow-600">🎯</span>
-                          <strong className="text-yellow-800">مسافة الهدف:</strong>
-                        </div>
-                        <div className="text-xs space-y-1">
-                          <div>من: ترتيب {getMemorizationPosition(student.memorized_surah_id)} ({QURAN_SURAHS.find(s => s.id == student.memorized_surah_id)?.name})</div>
-                          <div>إلى: ترتيب {getMemorizationPosition(student.target_surah_id)} ({QURAN_SURAHS.find(s => s.id == student.target_surah_id)?.name})</div>
-                          <div className="font-medium text-yellow-700">
-                            المسافة: {getMemorizationPosition(student.memorized_surah_id) - getMemorizationPosition(student.target_surah_id)} موضع في ترتيب الحفظ
-                          </div>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>

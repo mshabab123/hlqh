@@ -85,8 +85,17 @@ router.get('/student/:studentId', auth, async (req, res) => {
     }
     
     let query = `
-      SELECT 
-        dp.*,
+      SELECT
+        dp.id,
+        dp.student_id,
+        dp.teacher_id,
+        dp.class_id,
+        dp.semester_id,
+        TO_CHAR(dp.points_date, 'YYYY-MM-DD') as points_date,
+        dp.points_given,
+        dp.notes,
+        dp.created_at,
+        dp.updated_at,
         u.first_name || ' ' || u.last_name as teacher_name,
         c.name as class_name,
         s.display_name as semester_name,
@@ -186,11 +195,11 @@ router.get('/class/:classId', auth, async (req, res) => {
     }
     
     let query = `
-      SELECT 
+      SELECT
         dp.id,
         dp.student_id,
         dp.points_given,
-        dp.points_date,
+        TO_CHAR(dp.points_date, 'YYYY-MM-DD') as points_date,
         dp.notes,
         dp.created_at,
         su.first_name || ' ' || su.last_name as student_name,
@@ -470,9 +479,10 @@ router.get('/teacher/my-classes', auth, async (req, res) => {
     if (userRole === 'teacher') {
       // Teachers see only their assigned classes
       query = `
-        SELECT 
+        SELECT
           c.id,
           c.name,
+          c.school_id,
           s.name as school_name,
           COUNT(se.student_id) as student_count
         FROM teacher_class_assignments tca
@@ -480,16 +490,17 @@ router.get('/teacher/my-classes', auth, async (req, res) => {
         JOIN schools s ON c.school_id = s.id
         LEFT JOIN student_enrollments se ON c.id = se.class_id AND se.status = 'enrolled'
         WHERE tca.teacher_id = $1 AND tca.is_active = true AND c.is_active = true
-        GROUP BY c.id, c.name, s.name
+        GROUP BY c.id, c.name, c.school_id, s.name
         ORDER BY s.name, c.name
       `;
       params = [userId];
     } else if (userRole === 'administrator') {
       // Administrators see classes in their school
       query = `
-        SELECT 
+        SELECT
           c.id,
           c.name,
+          c.school_id,
           s.name as school_name,
           COUNT(se.student_id) as student_count
         FROM classes c
@@ -497,16 +508,17 @@ router.get('/teacher/my-classes', auth, async (req, res) => {
         JOIN administrators a ON s.id = a.school_id
         LEFT JOIN student_enrollments se ON c.id = se.class_id AND se.status = 'enrolled'
         WHERE a.id = $1 AND c.is_active = true
-        GROUP BY c.id, c.name, s.name
+        GROUP BY c.id, c.name, c.school_id, s.name
         ORDER BY s.name, c.name
       `;
       params = [userId];
     } else if (userRole === 'supervisor') {
       // Supervisors see classes in their school
       query = `
-        SELECT 
+        SELECT
           c.id,
           c.name,
+          c.school_id,
           s.name as school_name,
           COUNT(se.student_id) as student_count
         FROM classes c
@@ -514,23 +526,24 @@ router.get('/teacher/my-classes', auth, async (req, res) => {
         JOIN supervisors sup ON s.id = sup.school_id
         LEFT JOIN student_enrollments se ON c.id = se.class_id AND se.status = 'enrolled'
         WHERE sup.id = $1 AND c.is_active = true
-        GROUP BY c.id, c.name, s.name
+        GROUP BY c.id, c.name, c.school_id, s.name
         ORDER BY s.name, c.name
       `;
       params = [userId];
     } else if (userRole === 'admin') {
       // Admins see all classes
       query = `
-        SELECT 
+        SELECT
           c.id,
           c.name,
+          c.school_id,
           s.name as school_name,
           COUNT(se.student_id) as student_count
         FROM classes c
         JOIN schools s ON c.school_id = s.id
         LEFT JOIN student_enrollments se ON c.id = se.class_id AND se.status = 'enrolled'
         WHERE c.is_active = true
-        GROUP BY c.id, c.name, s.name
+        GROUP BY c.id, c.name, c.school_id, s.name
         ORDER BY s.name, c.name
       `;
       params = [];
@@ -543,6 +556,106 @@ router.get('/teacher/my-classes', auth, async (req, res) => {
   } catch (error) {
     console.error('Error fetching classes:', error);
     res.status(500).json({ error: 'فشل في جلب الصفوف' });
+  }
+});
+
+// GET /api/points/reports/students-summary - Get students points summary for date range
+router.get('/reports/students-summary', auth, async (req, res) => {
+  try {
+    const { date_from, date_to, school_id, class_id } = req.query;
+    const userId = req.user.id;
+    const userRole = req.user?.role;
+
+    const allowedRoles = ['admin', 'administrator', 'supervisor', 'teacher'];
+    if (!allowedRoles.includes(userRole)) {
+      return res.status(403).json({ error: 'غير مصرح لك بالوصول لهذه البيانات' });
+    }
+
+    // Validate required parameters
+    if (!date_from || !date_to) {
+      return res.status(400).json({ error: 'تاريخ البداية والنهاية مطلوبان' });
+    }
+
+    let query = `
+      SELECT
+        s.id,
+        s.first_name,
+        s.last_name,
+        sch.name as school_name,
+        sch.id as school_id,
+        c.name as class_name,
+        c.id as class_id,
+        COALESCE(SUM(dp.points_given), 0) as total_points,
+        COUNT(dp.id) as points_count
+      FROM users s
+      LEFT JOIN student_enrollments se ON s.id = se.student_id AND se.status = 'enrolled'
+      LEFT JOIN classes c ON se.class_id = c.id
+      LEFT JOIN schools sch ON c.school_id = sch.id
+      LEFT JOIN daily_points dp ON s.id = dp.student_id
+        AND dp.points_date >= $1
+        AND dp.points_date <= $2
+      WHERE s.role = 'student' AND s.is_active = true
+    `;
+
+    const params = [date_from, date_to];
+    let paramIndex = 3;
+
+    // Apply role-based filtering
+    if (userRole === 'teacher') {
+      query += ` AND se.class_id IN (
+        SELECT class_id FROM teacher_class_assignments
+        WHERE teacher_id = $${paramIndex} AND is_active = true
+      )`;
+      params.push(userId);
+      paramIndex++;
+    } else if (userRole === 'administrator') {
+      query += ` AND sch.id IN (
+        SELECT school_id FROM administrators WHERE id = $${paramIndex}
+      )`;
+      params.push(userId);
+      paramIndex++;
+    } else if (userRole === 'supervisor') {
+      query += ` AND sch.id IN (
+        SELECT school_id FROM supervisors WHERE id = $${paramIndex}
+      )`;
+      params.push(userId);
+      paramIndex++;
+    }
+
+    // Apply additional filters
+    if (school_id) {
+      query += ` AND sch.id = $${paramIndex}`;
+      params.push(school_id);
+      paramIndex++;
+    }
+
+    if (class_id) {
+      query += ` AND c.id = $${paramIndex}`;
+      params.push(class_id);
+      paramIndex++;
+    }
+
+    query += `
+      GROUP BY s.id, s.first_name, s.last_name, sch.name, sch.id, c.name, c.id, se.class_id
+      HAVING se.class_id IS NOT NULL
+      ORDER BY total_points DESC, s.first_name, s.last_name
+    `;
+
+    const result = await db.query(query, params);
+
+    res.json({
+      students: result.rows,
+      summary: {
+        total_students: result.rows.length,
+        total_points: result.rows.reduce((sum, student) => sum + parseFloat(student.total_points), 0),
+        date_from,
+        date_to
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching students points summary:', error);
+    res.status(500).json({ error: 'فشل في جلب تقرير النقاط' });
   }
 });
 

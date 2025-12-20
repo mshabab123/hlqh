@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AiOutlineExclamationCircle } from "react-icons/ai";
-import { FaChalkboardTeacher, FaSchool, FaUsers, FaUserGraduate, FaUserTie, FaClipboardCheck, FaTrophy, FaChartBar, FaChild, FaUserFriends, FaCog, FaDatabase, FaUserShield } from "react-icons/fa";
+import { FaChalkboardTeacher, FaSchool, FaUsers, FaUserGraduate, FaUserTie, FaClipboardCheck, FaTrophy, FaChartBar, FaChild, FaUserFriends, FaCog, FaDatabase, FaUserShield, FaStar } from "react-icons/fa";
 import { MdAssignment, MdDashboard, MdSettings } from "react-icons/md";
 import AuthNavbar from "../components/AuthNavbar";
 import Layout from "../components/Layout";
@@ -118,12 +118,20 @@ export default function Home() {
       roles: ["admin", "administrator", "teacher"]
     },
     {
-      title: "نظام النقاط",
-      description: "إدارة نقاط التميز والمكافآت للطلاب",
-      icon: FaTrophy,
-      path: "/points",
-      color: "bg-amber-500",
-      roles: ["admin", "administrator", "teacher"]
+      title: "إدارة النقاط",
+      description: "نظام شامل لإدارة نقاط التميز والمكافآت للطلاب مع عرض تقويمي",
+      icon: FaStar,
+      path: "/points-management",
+      color: "bg-yellow-500",
+      roles: ["admin", "administrator", "supervisor", "teacher"]
+    },
+     {
+      title: "تقارير النقاط وبرنامج فارس",
+      description: "عرض الدرجات والتقييمات",
+      icon: "🎯",
+      path: "/points-reports",
+      color: "bg-sky-500",
+     roles: ["admin", "administrator", "supervisor", "teacher" ]
     },
     {
       title: "الإحصائيات والتقارير",
@@ -189,7 +197,8 @@ export default function Home() {
       color: "bg-lime-500",
       roles: ["student"]
     },
-    {
+   
+     {
       title: "درجاتي",
       description: "عرض الدرجات والتقييمات",
       icon: "🎯",

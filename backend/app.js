@@ -38,7 +38,6 @@ app.use('/api/profile', require('./routes/profile')); // User profile management
 app.use('/api/children', require('./routes/children')); // Children management
 app.use('/api/parent-students', require('./routes/parentStudents')); // Parent-student information
 app.use('/api/forgot-password', require('./routes/forgotPassword')); // Password reset
-app.use('/api/attendance-system', require('./routes/attendanceSystem')); // Attendance system
 app.use('/api/daily-reports', require('./routes/dailyReports')); // Daily reports system
 app.use('/api/points', require('./routes/points')); // Points system
 app.use('/api/privileges', require('./routes/privileges')); // Privileges management

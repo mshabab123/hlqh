@@ -65,10 +65,7 @@ const CircularProgressChart = ({
     }
   };
 
-  // Debug logging for chart sections (only show if no sections)
-  if (!chartData.sections || chartData.sections.length === 0) {
-    console.log('CircularProgressChart - No sections found. chartData:', chartData);
-  }
+
 
   // Use predefined positioning from calculation
   const sectionsWithPositions = chartData.sections.map((section, index) => {
@@ -76,7 +73,6 @@ const CircularProgressChart = ({
     const startPercentage = section.startPercentage || 0;
     const endPercentage = section.endPercentage || section.percentage;
 
-    console.log(`Section ${index}:`, section.color, section.percentage + '%', section.pages + 'pages');
 
     return {
       ...section,

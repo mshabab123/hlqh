@@ -125,12 +125,6 @@ const Sidebar = () => {
           roles: ["admin", "administrator", "teacher"]
         },
         {
-          title: "نظام الحضور",
-          path: "/attendance-system",
-          icon: "✅",
-          roles: ["admin", "administrator", "teacher"]
-        },
-        {
           title: "مقررات الحلقات",
           path: "/class-courses",
           icon: "📚",

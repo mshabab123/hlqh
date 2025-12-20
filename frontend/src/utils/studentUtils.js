@@ -10,9 +10,13 @@ const calculatePagesForAyah = (surahId, ayahNumber) => {
     return surah.totalPages;
   }
 
-  // Calculate precise pages based on ayah progress within the surah
+  // For partial surah memorization, calculate based on actual page span
+  // Instead of simple proportion, calculate actual page progression
   const ayahProgress = ayahNumber / surah.ayahCount;
-  return parseFloat((ayahProgress * surah.totalPages).toFixed(1)); // Round to 1 decimal place
+  const pageSpan = surah.endPage - surah.startPage + 1;
+  const pagesMemorized = ayahProgress * pageSpan;
+
+  return parseFloat(pagesMemorized.toFixed(1)); // Round to 1 decimal place
 };
 
 // Calculate the exact page number for a specific surah and ayah

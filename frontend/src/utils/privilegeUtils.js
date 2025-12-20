@@ -142,8 +142,7 @@ export const hasRouteAccess = async (user, routePath) => {
     '/students': { category: 'users', action: 'view' },
     '/parents': { category: 'users', action: 'view' },
     '/grading': { category: 'academic', action: 'edit' },
-    '/attendance': { category: 'attendance', action: 'view' },
-    '/attendance-system': { category: 'attendance', action: 'manage' },
+    '/attendance': { category: 'attendance', action: 'manage' },
     '/points-management': { category: 'academic', action: 'edit' },
     '/daily-reports': { category: 'reports', action: 'view' }
   };
@@ -165,19 +164,19 @@ const checkRoleAccess = (userRole, routePath) => {
       '/schools', '/administrators', '/admin-roots', '/user-management', 
       '/privilege-management', '/database', '/password-management',
       '/classes', '/semesters', '/class-courses', '/teachers', '/students', 
-      '/parents', '/grading', '/attendance', '/attendance-system',
+      '/parents', '/grading', '/attendance',
       '/points-management', '/daily-reports'
     ],
     administrator: [
       '/classes', '/semesters', '/class-courses', '/password-management',
-      '/grading', '/attendance', '/attendance-system', '/points-management',
+      '/grading', '/attendance', '/points-management',
       '/daily-reports'
     ],
     supervisor: [
       '/teachers', '/parents', '/students', '/points-management', '/daily-reports'
     ],
     teacher: [
-      '/students', '/grading', '/attendance', '/attendance-system', '/points-management'
+      '/students', '/grading', '/attendance', '/points-management'
     ],
     parent: ['/my-students', '/children'],
     student: ['/student-points']

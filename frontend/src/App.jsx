@@ -17,7 +17,7 @@ import SemesterManagement from "./pages/SemesterManagement";
 import StudentGrading from "./pages/StudentGrading";
 import ComprehensiveGrading from "./pages/ComprehensiveGrading";
 import AttendanceManagement from "./pages/AttendanceManagement";
-import AttendanceSystem from "./pages/AttendanceSystem";
+import StudentAttendanceGrid from "./pages/StudentAttendanceGrid";
 import ClassCourseManagement from "./pages/ClassCourseManagement";
 import DatabaseManagement from "./pages/DatabaseManagement";
 import DatabaseTableDetails from "./pages/DatabaseTableDetails";
@@ -32,6 +32,7 @@ import About from "./pages/About";
 import Home from "./pages/home";
 import DailyReports from "./pages/DailyReports";
 import PointsManagement from "./pages/PointsManagement";
+import PointsReports from "./pages/PointsReports";
 import StudentPoints from "./pages/StudentPoints";
 import Children from "./pages/Children";
 import PrivilegeManagement from "./pages/PrivilegeManagement";
@@ -203,11 +204,11 @@ export default function App() {
             }
           />
           <Route
-            path="/attendance-system"
+            path="/student/:studentId/attendance"
             element={
               <ProtectedRoute requiredRole={["admin", "administrator", "teacher"]}>
                 <ConditionalLayout>
-                  <AttendanceSystem />
+                  <StudentAttendanceGrid />
                 </ConditionalLayout>
               </ProtectedRoute>
             }
@@ -298,6 +299,16 @@ export default function App() {
               <ProtectedRoute requiredRole={["admin", "administrator", "supervisor", "teacher"]}>
                 <ConditionalLayout>
                   <PointsManagement />
+                </ConditionalLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/points-reports"
+            element={
+              <ProtectedRoute requiredRole={["admin", "administrator", "supervisor", "teacher"]}>
+                <ConditionalLayout>
+                  <PointsReports />
                 </ConditionalLayout>
               </ProtectedRoute>
             }
