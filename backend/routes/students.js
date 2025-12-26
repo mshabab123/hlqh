@@ -183,14 +183,22 @@ router.get('/', auth, async (req, res) => {
         CASE WHEN u.is_active = true THEN 'active' ELSE 'inactive' END as status,
         s.school_level, s.enrollment_date, s.graduation_date, s.notes,
         s.memorized_surah_id, s.memorized_ayah_number, s.target_surah_id, s.target_ayah_number,
-        sc.name as school_name, sc.id as school_id,
+        sc.name as school_name, COALESCE(c.school_id, school_info.school_id) as school_id,
         c.name as class_name, c.id as class_id, c.semester_id,
         sem.display_name as semester_name
       FROM users u
       JOIN students s ON u.id = s.id
       LEFT JOIN student_enrollments se ON s.id = se.student_id AND se.status = 'enrolled'
       LEFT JOIN classes c ON se.class_id = c.id
-      LEFT JOIN schools sc ON c.school_id = sc.id
+      LEFT JOIN LATERAL (
+        SELECT c2.school_id
+        FROM student_enrollments se2
+        JOIN classes c2 ON se2.class_id = c2.id
+        WHERE se2.student_id = s.id
+        ORDER BY CASE WHEN se2.status = 'enrolled' THEN 0 ELSE 1 END, se2.enrollment_date DESC NULLS LAST
+        LIMIT 1
+      ) school_info ON true
+      LEFT JOIN schools sc ON COALESCE(c.school_id, school_info.school_id) = sc.id
       LEFT JOIN semesters sem ON c.semester_id = sem.id
       WHERE 1=1
     `;
@@ -386,47 +394,49 @@ router.post('/manage', auth, [
         target_surah_id || null, target_ayah_number || null
       ]);
 
-      // Add student to class or school if provided
-      if (class_id) {
-        const enrollmentQuery = `
-          INSERT INTO student_enrollments (student_id, class_id, status)
-          VALUES ($1, $2, 'enrolled')
-          ON CONFLICT (student_id, class_id) DO NOTHING
-        `;
-        await client.query(enrollmentQuery, [id, class_id]);
-      } else if (school_id) {
-        // If no specific class but school is assigned, create a general enrollment
-        // First, find or create a general class for this school
-        let generalClassResult;
-        try {
-          const generalClassQuery = `
-            INSERT INTO classes (name, school_id, school_level, is_active)
-            VALUES ('عام - ' || (SELECT name FROM schools WHERE id = $1), $1, $2, true)
-            RETURNING id
-          `;
-          generalClassResult = await client.query(generalClassQuery, [school_id, school_level]);
-        } catch (err) {
-          // If INSERT fails (likely due to duplicate), find the existing class
-          if (err.code === '23505') {
-            const findGeneralClassQuery = `
-              SELECT id FROM classes 
-              WHERE school_id = $1 AND name LIKE 'عام -%' AND school_level = $2 AND is_active = true
-              LIMIT 1
-            `;
-            generalClassResult = await client.query(findGeneralClassQuery, [school_id, school_level]);
-          } else {
-            throw err;
-          }
-        }
-        
-        if (generalClassResult.rows.length > 0) {
-          const generalClassId = generalClassResult.rows[0].id;
+      // Add student to class or school if provided (only for active students)
+      if (status === 'active') {
+        if (class_id) {
           const enrollmentQuery = `
             INSERT INTO student_enrollments (student_id, class_id, status)
             VALUES ($1, $2, 'enrolled')
             ON CONFLICT (student_id, class_id) DO NOTHING
           `;
-          await client.query(enrollmentQuery, [id, generalClassId]);
+          await client.query(enrollmentQuery, [id, class_id]);
+        } else if (school_id) {
+          // If no specific class but school is assigned, create a general enrollment
+          // First, find or create a general class for this school
+          let generalClassResult;
+          try {
+            const generalClassQuery = `
+              INSERT INTO classes (name, school_id, school_level, is_active)
+              VALUES ('عام - ' || (SELECT name FROM schools WHERE id = $1), $1, $2, true)
+              RETURNING id
+            `;
+            generalClassResult = await client.query(generalClassQuery, [school_id, school_level]);
+          } catch (err) {
+            // If INSERT fails (likely due to duplicate), find the existing class
+            if (err.code === '23505') {
+              const findGeneralClassQuery = `
+                SELECT id FROM classes 
+                WHERE school_id = $1 AND name LIKE 'O1OñU. -%' AND school_level = $2 AND is_active = true
+                LIMIT 1
+              `;
+              generalClassResult = await client.query(findGeneralClassQuery, [school_id, school_level]);
+            } else {
+              throw err;
+            }
+          }
+          
+          if (generalClassResult.rows.length > 0) {
+            const generalClassId = generalClassResult.rows[0].id;
+            const enrollmentQuery = `
+              INSERT INTO student_enrollments (student_id, class_id, status)
+              VALUES ($1, $2, 'enrolled')
+              ON CONFLICT (student_id, class_id) DO NOTHING
+            `;
+            await client.query(enrollmentQuery, [id, generalClassId]);
+          }
         }
       }
 
@@ -463,31 +473,26 @@ router.put('/:id', auth, async (req, res) => {
 
     const { id } = req.params;
     
-    // Check if trying to activate student without school assignment
+    // Check if trying to activate student without class assignment
     if (req.body.status === 'active') {
-      // If we're also assigning a school/class in this request, allow activation
-      const isAssigningSchool = req.body.school_id || req.body.class_id;
-      
-      if (!isAssigningSchool) {
-        // Only check current assignment if we're not assigning in this request
+      const isAssigningClass = req.body.class_id;
+
+      if (!isAssigningClass) {
         const studentCheck = await db.query(`
-          SELECT s.id, se.class_id, c.school_id 
-          FROM students s
-          LEFT JOIN student_enrollments se ON s.id = se.student_id AND se.status = 'enrolled'
-          LEFT JOIN classes c ON se.class_id = c.id
-          WHERE s.id = $1
+          SELECT se.class_id
+          FROM student_enrollments se
+          WHERE se.student_id = $1 AND se.status = 'enrolled'
+          LIMIT 1
         `, [id]);
 
-        if (studentCheck.rows.length > 0) {
-          const studentData = studentCheck.rows[0];
-          if (!studentData.school_id) {
-            return res.status(400).json({ 
-              error: 'لا يمكن تفعيل الطالب بدون تعيينه إلى مدرسة. يرجى تحديد المدرسة أولاً.' 
-            });
-          }
+        if (studentCheck.rows.length === 0 || !studentCheck.rows[0].class_id) {
+          return res.status(400).json({
+            error: 'يجب تعيين الطالب إلى فصل قبل تفعيله، اذهب الى تعديل ومن ثم اختر الحلقة للطالب.'
+          });
         }
       }
     }
+
     
     const {
       first_name, second_name, third_name, last_name,
@@ -515,6 +520,8 @@ router.put('/:id', auth, async (req, res) => {
       }
       
       const currentData = existingStudent.rows[0];
+
+      const statusIsInactive = status !== undefined && status !== 'active';
 
       // Update user record (only update fields that are provided)
       const userFields = [];
@@ -618,7 +625,13 @@ router.put('/:id', auth, async (req, res) => {
       }
 
       // Handle class/school assignment changes
-      if (class_id !== undefined || school_id !== undefined) {
+      if (status !== undefined && status !== 'active') {
+        // Deactivated/suspended students should not be enrolled in any class
+        await client.query(
+          "UPDATE student_enrollments SET status = 'dropped' WHERE student_id = $1 AND status = $2",
+          [id, 'enrolled']
+        );
+      } else if (class_id !== undefined || school_id !== undefined) {
         // Remove student from current enrollments
         await client.query('DELETE FROM student_enrollments WHERE student_id = $1 AND status = $2', [id, 'enrolled']);
 

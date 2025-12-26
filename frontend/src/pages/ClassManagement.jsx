@@ -453,7 +453,9 @@ export default function ClassManagement() {
                   {/* Students */}
                   <div className="bg-gray-50 p-3 rounded-lg">
                     <div className="text-xs text-gray-500 mb-1">🎓 الطلاب</div>
-                    <div className="text-sm font-medium">حتى {classItem.max_students} طالب</div>
+                    <div className="text-sm font-medium">
+                      {classItem.current_students || 0} / {classItem.max_students} طالب
+                    </div>
                   </div>
                 </div>
                 
@@ -793,7 +795,7 @@ const CourseManagementModal = ({ classItem, courses, semesters, onClose, onRefre
                     {courses.length} مقرر
                   </div>
                   <div className="text-xs text-gray-500">
-                    {courses.reduce((sum, course) => sum + (course.percentage || 0), 0)}% مجموع النسب
+                    {courses.reduce((sum, course) => sum + (parseFloat(course.percentage) || 0), 0)}% مجموع النسب
                   </div>
                 </div>
               </div>
@@ -917,7 +919,7 @@ const CourseManagementModal = ({ classItem, courses, semesters, onClose, onRefre
             </h4>
             {selectedSemesterId && courses.length > 0 && (
               <div className="text-sm text-gray-600">
-                مجموع النسب: {courses.reduce((sum, course) => sum + (course.percentage || 0), 0)}%
+                مجموع النسب: {courses.reduce((sum, course) => sum + (parseFloat(course.percentage) || 0), 0)}%
               </div>
             )}
           </div>
@@ -1015,7 +1017,7 @@ const CourseManagementModal = ({ classItem, courses, semesters, onClose, onRefre
               </div>
               <div>
                 <div className="text-2xl font-bold text-green-600">
-                  {courses.reduce((sum, course) => sum + (course.percentage || 0), 0)}%
+                  {courses.reduce((sum, course) => sum + (parseFloat(course.percentage) || 0), 0)}%
                 </div>
                 <div className="text-sm text-gray-600">مجموع النسب المئوية</div>
               </div>

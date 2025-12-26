@@ -69,7 +69,7 @@ router.post('/login', async (req, res) => {
         account_status: 'pending_activation'
       };
 
-      const token = jwt.sign(inactivePayload, JWT_SECRET, { expiresIn: '1d' });
+      const token = jwt.sign(inactivePayload, JWT_SECRET, { expiresIn: '4d' });
 
       // Create session record
       await db.query(`
@@ -80,7 +80,7 @@ router.post('/login', async (req, res) => {
         require('crypto').createHash('sha256').update(token).digest('hex'),
         req.headers['user-agent'] || 'Unknown',
         req.ip || req.connection.remoteAddress,
-        new Date(Date.now() + 24 * 60 * 60 * 1000)
+        new Date(Date.now() + 4 * 24 * 60 * 60 * 1000)
       ]);
 
       return res.json({
@@ -155,7 +155,7 @@ router.post('/login', async (req, res) => {
     };
 
     // 6. Sign JWT (1 day expiry)
-    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '1d' });
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '4d' });
 
     // 7. Create session record for security
     await db.query(`
@@ -166,7 +166,7 @@ router.post('/login', async (req, res) => {
       require('crypto').createHash('sha256').update(token).digest('hex'),
       req.headers['user-agent'] || 'Unknown',
       req.ip || req.connection.remoteAddress,
-      new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
+      new Date(Date.now() + 4 * 24 * 60 * 60 * 1000) // 4 days
     ]);
 
     // 8. Respond with JWT

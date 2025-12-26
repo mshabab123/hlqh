@@ -1,4 +1,4 @@
-import { Routes, Route, useLocation } from "react-router-dom";
+import { Routes, Route, useLocation, Navigate } from "react-router-dom";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Login from "./pages/login";
 import Registration from "./pages/registration";
@@ -46,7 +46,7 @@ export default function App() {
   const isLoggedIn = !!localStorage.getItem("token");
   
   // Routes that shouldn't show navbar
-  const noNavbarRoutes = ["/Login", "/forgot-password", "/reset-password"];
+  const noNavbarRoutes = ["/login", "/Login", "/forgot-password", "/reset-password"];
   const showNavbar = !noNavbarRoutes.includes(location.pathname);
 
   return (
@@ -56,8 +56,18 @@ export default function App() {
         {showNavbar && (isLoggedIn ? <AuthNavbar /> : <Navbar />)}
 
         <Routes>
-          <Route path="/" element={<Login />} />
-          <Route path="/Login" element={<Login />} />
+          <Route
+            path="/"
+            element={isLoggedIn ? <Navigate to="/home" replace /> : <Login />}
+          />
+          <Route
+            path="/login"
+            element={isLoggedIn ? <Navigate to="/home" replace /> : <Login />}
+          />
+          <Route
+            path="/Login"
+            element={isLoggedIn ? <Navigate to="/home" replace /> : <Login />}
+          />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/registration" element={<Registration />} />

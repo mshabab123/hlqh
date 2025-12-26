@@ -22,6 +22,7 @@ export default function StudentManagement() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [schoolFilter, setSchoolFilter] = useState("all");
+  const [classFilter, setClassFilter] = useState("all");
   
   const [currentStudent, setCurrentStudent] = useState({
     id: "",
@@ -110,6 +111,16 @@ export default function StudentManagement() {
         }
       }
     }
+    if (editingStudent && editingStudent.status === 'inactive') {
+      const classChanged = currentStudent.class_id && currentStudent.class_id !== editingStudent.class_id;
+      if (classChanged) {
+        const shouldActivate = window.confirm("هل تريد تفعيل الطالب لتغيير الفصل؟");
+        if (shouldActivate) {
+          finalStudentData.status = 'active';
+        }
+      }
+    }
+
     
     try {
       // Prepare clean data using finalStudentData
@@ -321,12 +332,12 @@ export default function StudentManagement() {
     try {
       const newStatus = student.status === 'active' ? 'suspended' : 'active';
       
-      // Check if trying to activate student without school assignment
-      if (newStatus === 'active' && !student.school_id) {
-        alert("يجب أولاً تسجيل الطالب في مدرسة قبل تفعيل حسابه. يرجى تعديل بيانات الطالب وتحديد المدرسة.");
+      // Check if trying to activate student without class assignment
+      if (newStatus === 'active' && !student.class_id) {
+        alert("يجب تعيين الطالب إلى فصل قبل تفعيله، اذهب الى تعديل الملف ومن ثم اختر الحلقة للطالب.");
         return;
       }
-      
+
       // Confirm deactivation
       if (newStatus === 'suspended') {
         const confirmed = window.confirm(
@@ -352,6 +363,7 @@ export default function StudentManagement() {
       if (student.address && student.address.trim()) updateData.address = student.address;
       if (student.date_of_birth) updateData.date_of_birth = student.date_of_birth;
       if (student.notes && student.notes.trim()) updateData.notes = student.notes;
+      if (student.school_id) updateData.school_id = student.school_id;
       if (student.class_id) updateData.class_id = student.class_id;
       
       await axios.put(`${API_BASE}/api/students/${student.id}`, 
@@ -401,8 +413,9 @@ export default function StudentManagement() {
                          student.id?.includes(searchTerm);
     const matchesStatus = statusFilter === "all" || student.status === statusFilter;
     const matchesSchool = schoolFilter === "all" || student.school_id == schoolFilter;
+    const matchesClass = classFilter === "all" || student.class_id == classFilter;
     
-    return matchesSearch && matchesStatus && matchesSchool;
+    return matchesSearch && matchesStatus && matchesSchool && matchesClass;
   });
 
   if (loading) {
@@ -429,7 +442,7 @@ export default function StudentManagement() {
         )}
 
         <div className="bg-white p-6 rounded-xl shadow-lg mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div>
               <label className="block text-sm font-medium mb-1">البحث</label>
               <input
@@ -464,6 +477,20 @@ export default function StudentManagement() {
                 <option value="all">جميع مجمعات الحلقات</option>
                 {schools && schools.map(school => (
                   <option key={school.id} value={school.id}>{school.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">الفصل</label>
+              <select
+                value={classFilter}
+                onChange={(e) => setClassFilter(e.target.value)}
+                className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="all">كل الفصول</option>
+                {classes && classes.map(cls => (
+                  <option key={cls.id} value={cls.id}>{cls.name}</option>
                 ))}
               </select>
             </div>

@@ -234,7 +234,19 @@ router.get('/:id/classes/:classId/courses', auth, async (req, res) => {
     const { id: semesterId, classId } = req.params;
     
     const result = await pool.query(
-      'SELECT * FROM semester_courses WHERE semester_id = $1 AND class_id = $2 ORDER BY name',
+      `
+      SELECT DISTINCT ON (name) *
+      FROM semester_courses
+      WHERE semester_id = $1
+        AND (
+          class_id = $2
+          OR (
+            class_id IS NULL
+            AND school_id = (SELECT school_id FROM classes WHERE id = $2)
+          )
+        )
+      ORDER BY name, CASE WHEN class_id = $2 THEN 0 ELSE 1 END
+      `,
       [semesterId, classId]
     );
     

@@ -105,6 +105,7 @@ router.get('/', requireAuth, async (req, res) => {
         c.is_active, c.created_at, c.school_id, c.semester_id,
         s.name as school_name,
         sem.display_name as semester_name,
+        COALESCE(se_counts.current_students, 0) as current_students,
         CASE WHEN u.id IS NOT NULL THEN CONCAT(u.first_name, ' ', u.last_name) ELSE NULL END as teacher_name,
         COALESCE(
           ARRAY_AGG(DISTINCT tca.teacher_id) FILTER (WHERE tca.teacher_id IS NOT NULL),
@@ -122,6 +123,12 @@ router.get('/', requireAuth, async (req, res) => {
       FROM classes c
       LEFT JOIN schools s ON c.school_id = s.id
       LEFT JOIN semesters sem ON c.semester_id = sem.id
+      LEFT JOIN (
+        SELECT class_id, COUNT(*)::int as current_students
+        FROM student_enrollments
+        WHERE status = 'enrolled'
+        GROUP BY class_id
+      ) se_counts ON c.id = se_counts.class_id
       LEFT JOIN users u ON c.room_number = u.id
       LEFT JOIN teacher_class_assignments tca ON c.id = tca.class_id AND tca.is_active = TRUE
       LEFT JOIN users tu ON tca.teacher_id = tu.id
@@ -159,7 +166,7 @@ router.get('/', requireAuth, async (req, res) => {
       paramIndex++;
     }
 
-    query += ` GROUP BY c.id, c.name, c.max_students, c.room_number, c.school_level, c.is_active, c.created_at, c.school_id, c.semester_id, s.name, sem.display_name, u.id, u.first_name, u.last_name`;
+    query += ` GROUP BY c.id, c.name, c.max_students, c.room_number, c.school_level, c.is_active, c.created_at, c.school_id, c.semester_id, s.name, sem.display_name, se_counts.current_students, u.id, u.first_name, u.last_name`;
     query += ` ORDER BY c.created_at DESC`;
 
     const result = await db.query(query, params);
@@ -188,6 +195,8 @@ router.get('/:id', requireAuth, async (req, res) => {
     `, [id]);
 
     if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'الحلقة غير موجودة' });
     }
 
@@ -325,6 +334,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
     );
     
     if (parseInt(enrollmentCheck.rows[0].count) > 0) {
+      await client.query('ROLLBACK');
       return res.status(400).json({ 
         error: 'لا يمكن حذف الحلقة لأنها تحتوي على طلاب مسجلين' 
       });
@@ -336,6 +346,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
     `, [id]);
 
     if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'الحلقة غير موجودة' });
     }
 
