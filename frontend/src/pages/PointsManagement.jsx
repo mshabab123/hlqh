@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import {
   AiOutlineStar,
@@ -26,6 +26,11 @@ const PointsManagement = () => {
   // Selection states
   const [selectedClass, setSelectedClass] = useState("");
   const [selectedSemester, setSelectedSemester] = useState("");
+  const [lockedClassId, setLockedClassId] = useState("");
+  const [studentQuery, setStudentQuery] = useState("");
+  const [filterStartDate, setFilterStartDate] = useState("");
+  const [filterEndDate, setFilterEndDate] = useState("");
+  const [showOnlyWithPoints, setShowOnlyWithPoints] = useState(false);
 
   // Edit mode
   const [editingCell, setEditingCell] = useState(null);
@@ -114,19 +119,51 @@ const PointsManagement = () => {
 
       setSemesters(semestersData);
 
-      // Auto-select first available options
-      if (classesRes.data.classes.length > 0) {
-        setSelectedClass(classesRes.data.classes[0].id);
-      }
-      if (semestersData.length > 0) {
-        const currentDate = new Date();
-        const currentSemester = semestersData.find(semester => {
-          const startDate = new Date(semester.start_date);
-          const endDate = new Date(semester.end_date);
-          return currentDate >= startDate && currentDate <= endDate;
-        });
+      // Auto-select options with URL override
+      const urlParams = new URLSearchParams(window.location.search);
+      const initialClassId = urlParams.get('class_id');
+      const initialSemesterId = urlParams.get('semester_id');
 
-        setSelectedSemester(currentSemester ? currentSemester.id : semestersData[0].id);
+      const lockedId = initialClassId && classesRes.data.classes.some(cls => String(cls.id) === String(initialClassId))
+        ? initialClassId
+        : "";
+      setLockedClassId(lockedId);
+
+      let classIdToUse = "";
+      if (lockedId) {
+        classIdToUse = lockedId;
+      } else if (classesRes.data.classes.length > 0) {
+        classIdToUse = classesRes.data.classes[0].id;
+      }
+
+      if (classIdToUse) {
+        setSelectedClass(classIdToUse);
+      }
+
+      if (semestersData.length > 0) {
+        let semesterIdToUse = "";
+        if (initialSemesterId && semestersData.some(sem => String(sem.id) === String(initialSemesterId))) {
+          semesterIdToUse = initialSemesterId;
+        } else if (classIdToUse) {
+          const selectedClassItem = classesRes.data.classes.find(cls => String(cls.id) === String(classIdToUse));
+          if (selectedClassItem && semestersData.some(sem => String(sem.id) === String(selectedClassItem.semester_id))) {
+            semesterIdToUse = selectedClassItem.semester_id;
+          }
+        }
+
+        if (!semesterIdToUse) {
+          const currentDate = new Date();
+          const currentSemester = semestersData.find(semester => {
+            const startDate = new Date(semester.start_date);
+            const endDate = new Date(semester.end_date);
+            return currentDate >= startDate && currentDate <= endDate;
+          });
+          semesterIdToUse = currentSemester ? currentSemester.id : semestersData[0].id;
+        }
+
+        if (semesterIdToUse) {
+          setSelectedSemester(semesterIdToUse);
+        }
       }
 
     } catch (err) {
@@ -155,26 +192,67 @@ const PointsManagement = () => {
       const pointsRes = await axios.get(`${API_BASE}/api/points/class/${selectedClass}?semester_id=${selectedSemester}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-
-      // Generate working days for the semester (last 30 days)
-      const endDate = new Date();
-      const startDate = new Date();
-      startDate.setDate(endDate.getDate() - 30); // Last 30 days
+      const semester = semesters.find(s => s.id == selectedSemester) || null;
+      const parseDateOnly = (value) => {
+        if (!value) return null;
+        const [datePart] = String(value).split('T');
+        const parts = datePart.split('-').map(Number);
+        if (parts.length !== 3) return null;
+        const [year, month, day] = parts;
+        if (!year || !month || !day) return null;
+        return new Date(year, month - 1, day);
+      };
+      const startDate = parseDateOnly(semester?.start_date);
+      const endDate = parseDateOnly(semester?.end_date);
+      const weekendDays = Array.isArray(semester?.weekend_days)
+        ? semester.weekend_days
+        : (() => {
+            try {
+              return semester?.weekend_days ? JSON.parse(semester.weekend_days) : [5, 6];
+            } catch (error) {
+              return [5, 6];
+            }
+          })();
+      const vacationDays = Array.isArray(semester?.vacation_days)
+        ? semester.vacation_days
+        : (() => {
+            try {
+              return semester?.vacation_days ? JSON.parse(semester.vacation_days) : [];
+            } catch (error) {
+              return [];
+            }
+          })();
+      const vacationSet = new Set(vacationDays);
 
       const workingDays = [];
-      const currentDate = new Date(startDate);
-
-      while (currentDate <= endDate) {
-        const dayOfWeek = currentDate.getDay();
-        // Skip Fridays (5) and Saturdays (6)
-        if (dayOfWeek !== 5 && dayOfWeek !== 6) {
-          // Use local date formatting to avoid timezone issues
+      if (startDate && endDate) {
+        const currentDate = new Date(startDate);
+        while (currentDate <= endDate) {
+          const dayOfWeek = currentDate.getDay();
           const year = currentDate.getFullYear();
           const month = String(currentDate.getMonth() + 1).padStart(2, '0');
           const day = String(currentDate.getDate()).padStart(2, '0');
-          workingDays.push(`${year}-${month}-${day}`);
+          const dateKey = `${year}-${month}-${day}`;
+          if (!weekendDays.includes(dayOfWeek) && !vacationSet.has(dateKey)) {
+            workingDays.push(dateKey);
+          }
+          currentDate.setDate(currentDate.getDate() + 1);
         }
-        currentDate.setDate(currentDate.getDate() + 1);
+      } else {
+        const fallbackEnd = new Date();
+        const fallbackStart = new Date();
+        fallbackStart.setDate(fallbackEnd.getDate() - 30);
+        const currentDate = new Date(fallbackStart);
+        while (currentDate <= fallbackEnd) {
+          const dayOfWeek = currentDate.getDay();
+          const year = currentDate.getFullYear();
+          const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+          const day = String(currentDate.getDate()).padStart(2, '0');
+          if (!weekendDays.includes(dayOfWeek)) {
+            workingDays.push(`${year}-${month}-${day}`);
+          }
+          currentDate.setDate(currentDate.getDate() + 1);
+        }
       }
 
       // Process data similar to attendance
@@ -226,15 +304,12 @@ const PointsManagement = () => {
         };
       });
 
-      // Find semester info from the semester list
-      const semester = semesters.find(s => s.id == selectedSemester) || { display_name: 'الفصل الدراسي', name: 'الفصل الدراسي' };
-
       // Always set the data, even if there are no students or points
       console.log('Setting points data with', students.length, 'students');
       console.log('Working days generated:', workingDays);
       console.log('Points from backend:', pointsRes.data.points);
       setPointsData({
-        semester: semester,
+        semester: semester || { display_name: 'Semester', name: 'Semester' },
         working_days: workingDays.map(date => {
           // Create date object using UTC to avoid timezone issues
           const dateParts = date.split('-');
@@ -416,6 +491,51 @@ const PointsManagement = () => {
     }
   };
 
+
+  const visibleClasses = lockedClassId
+    ? classes.filter(cls => String(cls.id) === String(lockedClassId))
+    : classes;
+
+  const filteredPointsData = useMemo(() => {
+    if (!pointsData) return null;
+    const dateSet = new Set(
+      pointsData.working_days
+        .map(d => d.date)
+        .filter(date => {
+          if (filterStartDate && date < filterStartDate) return false;
+          if (filterEndDate && date > filterEndDate) return false;
+          return true;
+        })
+    );
+
+    const workingDays = pointsData.working_days.filter(day => dateSet.has(day.date));
+    const students = pointsData.students
+      .filter(student => {
+        if (!studentQuery) return true;
+        return student.name.toLowerCase().includes(studentQuery.toLowerCase());
+      })
+      .map(student => {
+        const filteredPoints = student.points.filter(point => dateSet.has(point.date));
+        const totalDays = workingDays.length;
+        const daysWithPoints = filteredPoints.filter(day => day.points !== null).length;
+        const totalPoints = filteredPoints.reduce((sum, day) => sum + (parseFloat(day.points) || 0), 0);
+        const averagePoints = daysWithPoints > 0 ? parseFloat((totalPoints / daysWithPoints).toFixed(1)) : 0;
+        return {
+          ...student,
+          points: filteredPoints,
+          statistics: {
+            total_days: totalDays,
+            days_with_points: daysWithPoints,
+            total_points: totalPoints,
+            average_points: averagePoints
+          }
+        };
+      })
+      .filter(student => (showOnlyWithPoints ? student.statistics.days_with_points > 0 : true));
+
+    return { ...pointsData, working_days: workingDays, students };
+  }, [pointsData, filterStartDate, filterEndDate, studentQuery, showOnlyWithPoints]);
+
   if (loading && !pointsData) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -445,12 +565,12 @@ const PointsManagement = () => {
                 value={selectedClass}
                 onChange={(e) => setSelectedClass(e.target.value)}
                 className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                disabled={classes.length === 0}
+                disabled={classes.length === 0 || !!lockedClassId}
               >
                 <option value="">
                   {classes.length === 0 ? "لا توجد حلقات متاحة" : "اختر الحلقة"}
                 </option>
-                {classes.map((cls) => (
+                {visibleClasses.map((cls) => (
                   <option key={cls.id} value={cls.id}>
                     {cls.name} - {cls.school_name} ({cls.student_count} طالب)
                   </option>
@@ -489,6 +609,48 @@ const PointsManagement = () => {
               </button>
             </div>
           </div>
+
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">Student search</label>
+              <input
+                type="text"
+                value={studentQuery}
+                onChange={(e) => setStudentQuery(e.target.value)}
+                className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Search by name"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">From date</label>
+              <input
+                type="date"
+                value={filterStartDate}
+                onChange={(e) => setFilterStartDate(e.target.value)}
+                className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">To date</label>
+              <input
+                type="date"
+                value={filterEndDate}
+                onChange={(e) => setFilterEndDate(e.target.value)}
+                className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div className="flex items-end">
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={showOnlyWithPoints}
+                  onChange={(e) => setShowOnlyWithPoints(e.target.checked)}
+                  className="h-4 w-4"
+                />
+                إظهار الطلاب الذين لديهم نقاط فقط
+              </label>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -506,14 +668,16 @@ const PointsManagement = () => {
       )}
 
       {/* Points Table */}
-      {pointsData && (
+      {filteredPointsData && (
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           <div className="p-4 border-b bg-gray-50">
             <h2 className="text-xl font-bold text-gray-800">
-              جدول النقاط - {pointsData.semester.display_name || pointsData.semester.name}
+              جدول النقاط - {filteredPointsData.semester.display_name || filteredPointsData.semester.name}
             </h2>
             <p className="text-sm text-gray-600 mt-1">
-              آخر 30 يوم عمل
+              {filterStartDate || filterEndDate
+                ? `Showing ${filterStartDate || 'start'} to ${filterEndDate || 'end'}`
+                : 'Showing full semester'}
             </p>
           </div>
 
@@ -527,7 +691,7 @@ const PointsManagement = () => {
                   <th className="px-2 py-3 text-center font-medium border-l min-w-[80px]">
                     المجموع
                   </th>
-                  {pointsData.working_days.map((dayInfo) => (
+                  {filteredPointsData.working_days.map((dayInfo) => (
                     <th key={dayInfo.date} className="px-2 py-3 text-center font-medium border-l min-w-[80px] text-xs">
                       <div className="flex flex-col">
                         <span className="font-bold text-blue-700">{dayInfo.day_name}</span>
@@ -538,7 +702,7 @@ const PointsManagement = () => {
                 </tr>
               </thead>
               <tbody>
-                {pointsData.students.map((student) => (
+                {filteredPointsData.students.map((student) => (
                   <tr key={student.student_id} className="border-b hover:bg-gray-50">
                     <td className="sticky right-0 bg-white px-4 py-3 border-l">
                       <div className="flex items-center gap-2">
@@ -615,30 +779,30 @@ const PointsManagement = () => {
           </div>
 
           {/* Summary */}
-          {pointsData.students.length > 0 && (
+          {filteredPointsData.students.length > 0 && (
             <div className="p-4 bg-gray-50 border-t">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
                 <div>
                   <div className="text-2xl font-bold text-blue-600">
-                    {pointsData.students.length}
+                    {filteredPointsData.students.length}
                   </div>
                   <div className="text-sm text-gray-600">إجمالي الطلاب</div>
                 </div>
                 <div>
                   <div className="text-2xl font-bold text-green-600">
-                    {(pointsData.students.reduce((sum, s) => sum + s.statistics.total_points, 0) / pointsData.students.length).toFixed(1)}
+                    {(filteredPointsData.students.reduce((sum, s) => sum + s.statistics.total_points, 0) / filteredPointsData.students.length).toFixed(1)}
                   </div>
                   <div className="text-sm text-gray-600">متوسط المجموع</div>
                 </div>
                 <div>
                   <div className="text-2xl font-bold text-orange-600">
-                    {pointsData.working_days.length}
+                    {filteredPointsData.working_days.length}
                   </div>
                   <div className="text-sm text-gray-600">أيام العمل</div>
                 </div>
                 <div>
                   <div className="text-2xl font-bold text-purple-600">
-                    {pointsData.students.reduce((sum, s) => sum + s.statistics.total_points, 0)}
+                    {filteredPointsData.students.reduce((sum, s) => sum + s.statistics.total_points, 0)}
                   </div>
                   <div className="text-sm text-gray-600">إجمالي النقاط</div>
                 </div>

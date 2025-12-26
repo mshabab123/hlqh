@@ -503,10 +503,10 @@ router.get('/:id/grading', requireAuth, async (req, res) => {
     
     // Get students in the class
     const students = await db.query(`
-      SELECT 
+      SELECT
         s.id,
         u.first_name,
-        u.second_name, 
+        u.second_name,
         u.third_name,
         u.last_name,
         s.school_level,
@@ -515,7 +515,7 @@ router.get('/:id/grading', requireAuth, async (req, res) => {
       FROM students s
       JOIN student_enrollments se ON s.id = se.student_id
       JOIN users u ON s.id = u.id
-      WHERE se.class_id = $1 AND (se.status = 'enrolled' OR se.status IS NULL) AND sc.status = 'active'
+      WHERE se.class_id = $1 AND (se.status = 'enrolled' OR se.status IS NULL)
       ORDER BY u.first_name, u.last_name
     `, [classId]);
     

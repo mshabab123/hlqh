@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { AiOutlinePlus, AiOutlineEdit, AiOutlineDelete, AiOutlineUser, AiOutlineBook, AiOutlineReload } from "react-icons/ai";
+import { AiOutlinePlus, AiOutlineEdit, AiOutlineDelete, AiOutlineUser, AiOutlineBook, AiOutlineReload, AiOutlineStar } from "react-icons/ai";
 import ClassForm from "../components/ClassForm";
 import StudentListModal from "../components/StudentListModal";
 import { 
@@ -500,6 +500,17 @@ export default function ClassManagement() {
                       className="flex items-center gap-1 px-3 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors flex-1 justify-center"
                     >
                       <AiOutlineBook /> المقررات
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        const semesterParam = classItem.semester_id ? `&semester_id=${classItem.semester_id}` : "";
+                        window.location.href = `/points-management?class_id=${classItem.id}${semesterParam}`;
+                      }}
+                      className="flex items-center gap-1 px-3 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors flex-1 justify-center"
+                      title="إدارة النقاط"
+                    >
+                      <AiOutlineStar /> النقاط
                     </button>
                   </div>
                   

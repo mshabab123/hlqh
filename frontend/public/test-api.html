@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Test - No Cache</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+</head>
+<body>
+    <h1>API Endpoint Test</h1>
+    <button onclick="testAPI()">Test API Endpoints</button>
+    <pre id="result"></pre>
+
+    <script>
+        async function testAPI() {
+            const token = localStorage.getItem('token');
+            const result = document.getElementById('result');
+            result.textContent = 'Testing...\n\n';
+
+            const tests = [
+                '/api/semesters/current',
+                '/api/points/student/1166920940',
+                '/api/attendance/semester/1/class/test-id'
+            ];
+
+            for (const endpoint of tests) {
+                try {
+                    const response = await fetch(endpoint, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Cache-Control': 'no-cache'
+                        }
+                    });
+                    const data = await response.json();
+                    result.textContent += `${endpoint}\n`;
+                    result.textContent += `Status: ${response.status} ${response.statusText}\n`;
+                    result.textContent += `Response: ${JSON.stringify(data, null, 2)}\n\n`;
+                } catch (error) {
+                    result.textContent += `${endpoint}\n`;
+                    result.textContent += `Error: ${error.message}\n\n`;
+                }
+            }
+        }
+    </script>
+</body>
+</html>

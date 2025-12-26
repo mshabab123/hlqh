@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
+import axios from "../utils/axiosConfig";
 import { AiOutlineStar, AiOutlineUserAdd, AiOutlineSave, AiOutlineClose, AiOutlineEdit, AiOutlineDelete, AiOutlineTable, AiOutlineCalendar, AiOutlineCheck } from "react-icons/ai";
 import { BsFillGridFill } from "react-icons/bs";
 import { QURAN_SURAHS, TOTAL_QURAN_PAGES } from "../utils/quranData";
@@ -67,6 +67,7 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [semesterNotice, setSemesterNotice] = useState("");
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [userRole, setUserRole] = useState(null);
   
@@ -187,9 +188,60 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
     setGoalProgress(progress);
   };
 
+  const getViewSemesterId = async () => {
+    if (classItem?.semester_id) {
+      return classItem.semester_id;
+    }
+
+    try {
+      const semesterResponse = await axios.get(`${API_BASE}/api/semesters/current`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+
+      return semesterResponse.data.semester?.id || null;
+    } catch (error) {
+      if (error.response?.status === 404) {
+        setSemesterNotice('انتهى الفصل الدراسي الحالي، لا يمكن عرض البيانات.');
+        return null;
+      }
+      console.error('Error fetching current semester:', error);
+      return null;
+    }
+  };
+
+  const getCurrentSemesterIdForWrite = async (endedMessage, mismatchMessage) => {
+    try {
+      const semesterResponse = await axios.get(`${API_BASE}/api/semesters/current`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+
+      const currentSemester = semesterResponse.data.semester;
+      if (!currentSemester) {
+        setSemesterNotice(endedMessage);
+        return null;
+      }
+
+      if (classItem?.semester_id && currentSemester.id !== classItem.semester_id) {
+        setSemesterNotice(mismatchMessage);
+        return null;
+      }
+
+      return currentSemester.id;
+    } catch (error) {
+      if (error.response?.status === 404) {
+        setSemesterNotice(endedMessage);
+        return null;
+      }
+      console.error('Error fetching current semester:', error);
+      return null;
+    }
+  };
+
+
   const fetchStudentProfile = async () => {
     try {
       setLoading(true);
+      setSemesterNotice("");
       const response = await axios.get(`${API_BASE}/api/classes/${classItem.id}/student/${student.id}/profile`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token')}`
@@ -214,18 +266,13 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
 
   const fetchPointsData = async () => {
     try {
-      // Get current semester
-      const semesterResponse = await axios.get(`${API_BASE}/api/semesters/current`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
-      
-      const currentSemester = semesterResponse.data.semester;
-      if (!currentSemester) return;
+      const semesterId = await getViewSemesterId();
+      if (!semesterId) return;
 
       // Fetch student points data
       const pointsResponse = await axios.get(`${API_BASE}/api/points/student/${student.id}`, {
         params: {
-          semester_id: currentSemester.id
+          semester_id: semesterId
         },
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
@@ -246,16 +293,11 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
 
   const fetchAttendanceData = async () => {
     try {
-      // Get current semester
-      const semesterResponse = await axios.get(`${API_BASE}/api/semesters/current`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
-      
-      const currentSemester = semesterResponse.data.semester;
-      if (!currentSemester) return;
+      const semesterId = await getViewSemesterId();
+      if (!semesterId) return;
 
       // Fetch attendance data
-      const attendanceResponse = await axios.get(`${API_BASE}/api/attendance/semester/${currentSemester.id}/class/${classItem.id}`, {
+      const attendanceResponse = await axios.get(`${API_BASE}/api/attendance/semester/${semesterId}/class/${classItem.id}`, {
         params: {
           student_id: student.id
         },
@@ -503,20 +545,12 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
     }
 
     try {
-      // Get current semester
-      const semesterResponse = await axios.get(`${API_BASE}/api/semesters/current`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
-
-      const currentSemester = semesterResponse.data.semester;
-      if (!currentSemester) {
-        setError('لا يوجد فصل دراسي حالي');
-        return;
-      }
+      const semesterId = await getViewSemesterId();
+      if (!semesterId) return;
 
       // Update attendance
       await axios.post(`${API_BASE}/api/attendance/mark`, {
-        semester_id: currentSemester.id,
+        semester_id: semesterId,
         class_id: classItem.id,
         student_id: student.id,
         attendance_date: editingAttendanceData.date,
@@ -699,16 +733,11 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
 
   const fetchAttendanceRecords = async () => {
     try {
-      // Get current semester
-      const semesterResponse = await axios.get(`${API_BASE}/api/semesters/current`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
-
-      const currentSemester = semesterResponse.data.semester;
-      if (!currentSemester) return;
+      const semesterId = await getViewSemesterId();
+      if (!semesterId) return;
 
       // Fetch all attendance records for this student
-      const response = await axios.get(`${API_BASE}/api/attendance/semester/${currentSemester.id}/class/${classItem.id}`, {
+      const response = await axios.get(`${API_BASE}/api/attendance/semester/${semesterId}/class/${classItem.id}`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
 
@@ -737,20 +766,12 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
   // Add function to handle attendance editing by teachers
   const handleAttendanceEdit = async (record, isPresent) => {
     try {
-      // Get current semester
-      const semesterResponse = await axios.get(`${API_BASE}/api/semesters/current`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
-
-      const currentSemester = semesterResponse.data.semester;
-      if (!currentSemester) {
-        setError('لم يتم العثور على الفصل الدراسي الحالي');
-        return;
-      }
+      const semesterId = await getViewSemesterId();
+      if (!semesterId) return;
 
       // Update attendance
       await axios.post(`${API_BASE}/api/attendance/mark`, {
-        semester_id: currentSemester.id,
+        semester_id: semesterId,
         class_id: classItem.id,
         student_id: student.id,
         attendance_date: record.date || record.attendance_date,
@@ -776,18 +797,13 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
 
   const fetchPointsRecords = async () => {
     try {
-      // Get current semester
-      const semesterResponse = await axios.get(`${API_BASE}/api/semesters/current`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
-
-      const currentSemester = semesterResponse.data.semester;
-      if (!currentSemester) return;
+      const semesterId = await getViewSemesterId();
+      if (!semesterId) return;
 
       // Fetch detailed points records
       const response = await axios.get(`${API_BASE}/api/points/student/${student.id}`, {
         params: {
-          semester_id: currentSemester.id
+          semester_id: semesterId
         },
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
@@ -822,15 +838,16 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
   const handleGivePoints = async (e) => {
     e.preventDefault();
     try {
-      // Get current semester
-      const semesterResponse = await axios.get(`${API_BASE}/api/semesters/current`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
+      const semesterId = await getCurrentSemesterIdForWrite(
+        'انتهى الفصل الدراسي الحالي، لا يمكن إضافة نقاط.',
+        'لا يمكن إضافة نقاط لفصل دراسي سابق.'
+      );
+      if (!semesterId) return;
 
       await axios.post(`${API_BASE}/api/points`, {
         student_id: student.id,
         class_id: classItem.id,
-        semester_id: semesterResponse.data.semester.id,
+        semester_id: semesterId,
         points_date: pointsForm.date,
         points_given: parseFloat(pointsForm.points),
         notes: pointsForm.notes
@@ -915,14 +932,14 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
   const handleMarkAttendance = async (e) => {
     e.preventDefault();
     try {
-      
-      // Get current semester
-      const semesterResponse = await axios.get(`${API_BASE}/api/semesters/current`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
-      
+      const semesterId = await getCurrentSemesterIdForWrite(
+        'انتهى الفصل الدراسي الحالي، لا يمكن تسجيل الحضور.',
+        'لا يمكن تسجيل الحضور لفصل دراسي سابق.'
+      );
+      if (!semesterId) return;
+
       await axios.post(`${API_BASE}/api/attendance/mark`, {
-        semester_id: semesterResponse.data.semester.id,
+        semester_id: semesterId,
         class_id: classItem.id,
         student_id: student.id,
         attendance_date: attendanceDate,
@@ -981,6 +998,12 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
         {error && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
             {error}
+          </div>
+        )}
+
+        {semesterNotice && (
+          <div className="bg-amber-100 border border-amber-400 text-amber-800 px-4 py-3 rounded mb-4">
+            {semesterNotice}
           </div>
         )}
         

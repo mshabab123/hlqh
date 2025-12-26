@@ -19,7 +19,16 @@
       "Bash(timeout 30s npm run build)",
       "Bash(PGPASSWORD=123456 psql -h localhost -U postgres -d hlaqh -c \"\\dt\")",
       "Bash(PGPASSWORD=123456 psql -h localhost -U postgres -d hlaqh)",
-      "Bash(PGPASSWORD=123456 psql -h localhost -U postgres -d hlaqh -c \"SELECT id, target_surah_id, target_ayah_number, memorized_surah_id, memorized_ayah_number FROM students WHERE id = ''1166920940'';\")"
+      "Bash(PGPASSWORD=123456 psql -h localhost -U postgres -d hlaqh -c \"SELECT id, target_surah_id, target_ayah_number, memorized_surah_id, memorized_ayah_number FROM students WHERE id = ''1166920940'';\")",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(Get-Process)",
+      "Bash(Where-Object {$_ProcessName -like \"*node*\"})",
+      "Bash(Select-Object Id,ProcessName,Path)",
+      "Bash(Format-Table)",
+      "Bash(tasklist:*)",
+      "Bash(taskkill:*)",
+      "Bash(taskkill //F //PID 17980)"
     ],
     "deny": [],
     "ask": [],
