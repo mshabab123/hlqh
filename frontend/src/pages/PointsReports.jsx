@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import axios from "axios";
 import {
   AiOutlineStar,
@@ -24,6 +25,7 @@ const PointsReports = () => {
   const [schools, setSchools] = useState([]);
   const [classes, setClasses] = useState([]);
   const [studentsPoints, setStudentsPoints] = useState([]);
+  const [currentClass, setCurrentClass] = useState(null);
 
   // Filter states
   const [selectedSchool, setSelectedSchool] = useState("");
@@ -53,9 +55,12 @@ const PointsReports = () => {
 
   const userRole = getUserRole();
 
+  const location = useLocation();
+  const classIdFromQuery = new URLSearchParams(location.search).get("class_id");
+
   useEffect(() => {
     fetchInitialData();
-  }, []);
+  }, [classIdFromQuery]);
 
   const fetchInitialData = async () => {
     try {
@@ -89,6 +94,23 @@ const PointsReports = () => {
         return;
       }
 
+      if (classIdFromQuery) {
+        const matchedClass = allClasses.find(
+          (cls) => String(cls.id) === String(classIdFromQuery)
+        );
+        if (!matchedClass) {
+          setError("?? ???? ???? ?????? ???? ??????.");
+          setClasses([]);
+          setCurrentClass(null);
+        } else {
+          setClasses([matchedClass]);
+          setSelectedClass(String(matchedClass.id));
+          setSelectedSchool(String(matchedClass.school_id || ""));
+          setCurrentClass(matchedClass);
+        }
+        return;
+      }
+
       const uniqueSchools = [];
       const seenSchoolIds = new Set();
 
@@ -113,13 +135,9 @@ const PointsReports = () => {
       setSchools(uniqueSchools);
       console.log("Unique schools found:", uniqueSchools);
 
-      // Set default date range (last 30 days)
-      const today = new Date();
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(today.getDate() - 30);
-
-      setDateTo(today.toISOString().split('T')[0]);
-      setDateFrom(thirtyDaysAgo.toISOString().split('T')[0]);
+      // Leave date range empty by default; user must choose.
+      setDateTo("");
+      setDateFrom("");
 
     } catch (err) {
       console.error("Error loading initial data:", err);
@@ -131,6 +149,7 @@ const PointsReports = () => {
   };
 
   const fetchClasses = async (schoolId) => {
+    if (classIdFromQuery) return;
     if (!schoolId) {
       setClasses([]);
       return;
@@ -164,10 +183,12 @@ const PointsReports = () => {
 
       let url = `${API_BASE}/api/points/reports/students-summary?date_from=${dateFrom}&date_to=${dateTo}`;
 
-      if (selectedSchool) {
+      if (classIdFromQuery) {
+        url += `&class_id=${classIdFromQuery}`;
+      } else if (selectedSchool) {
         url += `&school_id=${selectedSchool}`;
       }
-      if (selectedClass) {
+      if (!classIdFromQuery && selectedClass) {
         url += `&class_id=${selectedClass}`;
       }
 
@@ -321,6 +342,8 @@ const PointsReports = () => {
               />
             </div>
 
+            {!classIdFromQuery && (
+              <>
             {/* School Filter */}
             <div>
               <label className="block text-sm font-medium mb-2">مجمع الحلقات:</label>
@@ -333,7 +356,7 @@ const PointsReports = () => {
                 }}
                 className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="">جميع المدارس</option>
+                <option value="">جميع مجمعات الحلقات</option>
                 {schools.map((school) => (
                   <option key={school.id} value={school.id}>
                     {school.name}
@@ -359,6 +382,17 @@ const PointsReports = () => {
                 ))}
               </select>
             </div>
+
+              </>
+            )}
+
+            {classIdFromQuery && currentClass && (
+              <div className="col-span-1 md:col-span-2 lg:col-span-2 flex items-end">
+                <div className="w-full p-3 border rounded-lg bg-gray-50 text-sm text-gray-700">
+                  {currentClass.name}
+                </div>
+              </div>
+            )}
 
             {/* Search Button */}
             <div className="flex items-end">

@@ -173,7 +173,7 @@ const NavigationSidebar = ({ isOpen, setIsOpen, className = "" }) => {
           path: "/schools",
           icon: FaSchool,
           roles: ["admin"],
-          description: "إدارة المجمعات والمدارس"
+          description: "إدارة مجمعات الحلقات والحلقات التابعة لها"
         },
         {
           title: "إدارة المديرين",

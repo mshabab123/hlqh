@@ -413,7 +413,7 @@ const DailyReports = () => {
                   onChange={(e) => setSelectedSchool(e.target.value)}
                   className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="">جميع المدارس</option>
+                  <option value="">جميع مجمعات الحلقات</option>
                   {Array.isArray(schools) && schools.map(school => (
                     <option key={school.id} value={school.id}>{school.name}</option>
                   ))}

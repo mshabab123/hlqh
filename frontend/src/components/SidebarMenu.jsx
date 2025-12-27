@@ -46,7 +46,7 @@ const SidebarMenu = () => {
     {
       section: "الإدارة",
       items: [
-        { title: "المدارس", path: "/schools", icon: <FaSchool />, roles: ["admin"] },
+        { title: "مجمع الحلقات", path: "/schools", icon: <FaSchool />, roles: ["admin"] },
         { title: "الحلقات", path: "/classes", icon: <FaUsers />, roles: ["admin", "administrator"] },
         { title: "المعلمين", path: "/teachers", icon: <FaChalkboardTeacher />, roles: ["admin", "supervisor", "administrator"] },
         { title: "الطلاب", path: "/students", icon: <FaUserGraduate />, roles: ["admin", "supervisor", "administrator", "teacher"] },

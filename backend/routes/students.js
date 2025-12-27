@@ -210,7 +210,9 @@ router.get('/', auth, async (req, res) => {
     if (userRole === 'teacher') {
       query += ` AND c.id IN (
         SELECT class_id FROM teacher_class_assignments 
-        WHERE teacher_id = $${paramIndex} AND is_active = true
+        WHERE teacher_id = $${paramIndex}
+          AND teacher_role = 'primary'
+          AND is_active = true
       )`;
       params.push(req.user.id);
       paramIndex++;

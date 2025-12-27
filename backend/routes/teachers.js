@@ -178,6 +178,111 @@ router.post('/', registerLimiter, teacherValidationRules, async (req, res) => {
   }
 });
 
+// GET /api/teachers/my-classes - Get classes for authenticated teacher
+router.get('/my-classes', authenticateToken, async (req, res) => {
+  try {
+    const teacherId = req.user.id;
+    const userRole = req.user.role;
+    
+    // Check if user is a teacher
+    if (userRole !== 'teacher' && userRole !== 'administrator' && userRole !== 'supervisor' && userRole !== 'admin') {
+      return res.status(403).json({ error: 'غير مسموح - هذه الصفحة للمعلمين فقط' });
+    }
+    
+    const result = await db.query(`
+      SELECT 
+        c.id, 
+        c.name, 
+        c.max_students, 
+        c.school_level,
+        c.room_number,
+        c.is_active,
+        s.name as school_name,
+        s.id as school_id,
+        sem.display_name as semester_name,
+        sem.id as semester_id,
+        tca.teacher_role,
+        COALESCE(CONCAT(ptu.first_name, ' ', ptu.last_name), '-') as teacher_name,
+        (SELECT COUNT(*) FROM student_enrollments se WHERE se.class_id = c.id AND se.status = 'enrolled') as student_count
+      FROM teacher_class_assignments tca
+      JOIN classes c ON tca.class_id = c.id
+      JOIN schools s ON c.school_id = s.id
+      LEFT JOIN semesters sem ON c.semester_id = sem.id
+      LEFT JOIN teacher_class_assignments tca_primary ON c.id = tca_primary.class_id
+        AND tca_primary.teacher_role = 'primary' AND tca_primary.is_active = TRUE
+      LEFT JOIN users ptu ON tca_primary.teacher_id = ptu.id
+      WHERE tca.teacher_id = $1 AND tca.is_active = TRUE AND c.is_active = TRUE
+      ORDER BY s.name, c.name
+    `, [teacherId]);
+
+    res.json({ 
+      success: true,
+      classes: result.rows,
+      teacherId: teacherId,
+      totalClasses: result.rows.length
+    });
+
+  } catch (err) {
+    console.error('Get teacher classes error:', err);
+    res.status(500).json({ error: 'حدث خطأ أثناء جلب الحلقات الخاصة بك' });
+  }
+});
+
+// GET /api/teachers/my-classes/:classId/students - Get students in a class for authenticated teacher
+router.get('/my-classes/:classId/students', authenticateToken, async (req, res) => {
+  try {
+    const teacherId = req.user.id;
+    const { classId } = req.params;
+    
+    // Verify teacher is assigned to this class
+    const classCheck = await db.query(`
+      SELECT c.id, c.name 
+      FROM teacher_class_assignments tca
+      JOIN classes c ON tca.class_id = c.id
+      WHERE tca.teacher_id = $1 AND tca.class_id = $2 AND tca.is_active = TRUE
+    `, [teacherId, classId]);
+    
+    if (classCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'غير مسموح - لست مسؤولاً عن هذه الحلقة' });
+    }
+    
+    // Get students in the class
+    const studentsResult = await db.query(`
+      SELECT 
+        u.id,
+        u.first_name,
+        u.second_name,
+        u.third_name,
+        u.last_name,
+        u.phone,
+        u.email,
+        s.school_level,
+        s.memorized_surah_id,
+        s.memorized_ayah_number,
+        s.target_surah_id,
+        s.target_ayah_number,
+        se.enrollment_date,
+        se.final_grade
+      FROM student_enrollments se
+      JOIN students s ON se.student_id = s.id
+      JOIN users u ON s.id = u.id
+      WHERE se.class_id = $1 AND se.status = 'enrolled'
+      ORDER BY u.first_name, u.last_name
+    `, [classId]);
+    
+    res.json({
+      success: true,
+      className: classCheck.rows[0].name,
+      students: studentsResult.rows,
+      totalStudents: studentsResult.rows.length
+    });
+    
+  } catch (err) {
+    console.error('Get class students error:', err);
+    res.status(500).json({ error: 'حدث خطأ أثناء جلب طلاب الحلقة' });
+  }
+});
+
 // GET /api/teachers/:id - Get user details (teacher, admin, administrator, supervisor)
 router.get('/:id', async (req, res) => {
   try {
@@ -551,106 +656,6 @@ router.post('/:id/classes', async (req, res) => {
     res.status(500).json({ error: 'حدث خطأ أثناء تعيين الحلقات للمعلم' });
   } finally {
     client.release();
-  }
-});
-
-// GET /api/teachers/my-classes - Get classes for authenticated teacher
-router.get('/my-classes', authenticateToken, async (req, res) => {
-  try {
-    const teacherId = req.user.id;
-    const userRole = req.user.role;
-    
-    // Check if user is a teacher
-    if (userRole !== 'teacher' && userRole !== 'administrator' && userRole !== 'supervisor' && userRole !== 'admin') {
-      return res.status(403).json({ error: 'غير مسموح - هذه الصفحة للمعلمين فقط' });
-    }
-    
-    const result = await db.query(`
-      SELECT 
-        c.id, 
-        c.name, 
-        c.max_students, 
-        c.school_level,
-        c.room_number,
-        c.is_active,
-        s.name as school_name,
-        s.id as school_id,
-        sem.display_name as semester_name,
-        sem.id as semester_id,
-        (SELECT COUNT(*) FROM student_enrollments se WHERE se.class_id = c.id AND se.status = 'enrolled') as enrolled_students
-      FROM teacher_class_assignments tca
-      JOIN classes c ON tca.class_id = c.id
-      JOIN schools s ON c.school_id = s.id
-      LEFT JOIN semesters sem ON c.semester_id = sem.id
-      WHERE tca.teacher_id = $1 AND tca.is_active = TRUE AND c.is_active = TRUE
-      ORDER BY s.name, c.name
-    `, [teacherId]);
-
-    res.json({ 
-      success: true,
-      classes: result.rows,
-      teacherId: teacherId,
-      totalClasses: result.rows.length
-    });
-
-  } catch (err) {
-    console.error('Get teacher classes error:', err);
-    res.status(500).json({ error: 'حدث خطأ أثناء جلب الحلقات الخاصة بك' });
-  }
-});
-
-// GET /api/teachers/my-classes/:classId/students - Get students in a class for authenticated teacher
-router.get('/my-classes/:classId/students', authenticateToken, async (req, res) => {
-  try {
-    const teacherId = req.user.id;
-    const { classId } = req.params;
-    
-    // Verify teacher is assigned to this class
-    const classCheck = await db.query(`
-      SELECT c.id, c.name 
-      FROM teacher_class_assignments tca
-      JOIN classes c ON tca.class_id = c.id
-      WHERE tca.teacher_id = $1 AND tca.class_id = $2 AND tca.is_active = TRUE
-    `, [teacherId, classId]);
-    
-    if (classCheck.rows.length === 0) {
-      return res.status(403).json({ error: 'غير مسموح - لست مسؤولاً عن هذه الحلقة' });
-    }
-    
-    // Get students in the class
-    const studentsResult = await db.query(`
-      SELECT 
-        u.id,
-        u.first_name,
-        u.second_name,
-        u.third_name,
-        u.last_name,
-        u.phone,
-        u.email,
-        s.school_level,
-        s.memorized_surah_id,
-        s.memorized_ayah_number,
-        s.target_surah_id,
-        s.target_ayah_number,
-        se.enrollment_date,
-        se.final_grade
-      FROM student_enrollments se
-      JOIN students s ON se.student_id = s.id
-      JOIN users u ON s.id = u.id
-      WHERE se.class_id = $1 AND se.status = 'enrolled'
-      ORDER BY u.first_name, u.last_name
-    `, [classId]);
-    
-    res.json({
-      success: true,
-      className: classCheck.rows[0].name,
-      students: studentsResult.rows,
-      totalStudents: studentsResult.rows.length
-    });
-    
-  } catch (err) {
-    console.error('Get class students error:', err);
-    res.status(500).json({ error: 'حدث خطأ أثناء جلب طلاب الحلقة' });
   }
 });
 

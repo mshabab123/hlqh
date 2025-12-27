@@ -75,8 +75,11 @@ router.get('/student/:studentId', auth, async (req, res) => {
         SELECT DISTINCT se.student_id 
         FROM student_enrollments se
         JOIN teacher_class_assignments tca ON se.class_id = tca.class_id
-        WHERE tca.teacher_id = $1 AND tca.is_active = true 
-        AND se.student_id = $2 AND se.status = 'enrolled'
+        WHERE tca.teacher_id = $1
+          AND tca.teacher_role = 'primary'
+          AND tca.is_active = true
+          AND se.student_id = $2
+          AND se.status = 'enrolled'
       `, [userId, studentId]);
       
       if (teacherClassCheck.rows.length === 0) {
@@ -184,7 +187,10 @@ router.get('/class/:classId', auth, async (req, res) => {
     if (userRole === 'teacher') {
       const teacherCheck = await db.query(`
         SELECT id FROM teacher_class_assignments 
-        WHERE teacher_id = $1 AND class_id = $2 AND is_active = true
+        WHERE teacher_id = $1
+          AND class_id = $2
+          AND teacher_role = 'primary'
+          AND is_active = true
       `, [userId, classId]);
       
       if (teacherCheck.rows.length === 0) {
@@ -202,7 +208,8 @@ router.get('/class/:classId', auth, async (req, res) => {
         TO_CHAR(dp.points_date, 'YYYY-MM-DD') as points_date,
         dp.notes,
         dp.created_at,
-        su.first_name || ' ' || su.last_name as student_name,
+        CONCAT_WS(' ', su.first_name, su.second_name, su.third_name, su.last_name) as student_name,
+        CONCAT_WS(' ', su.first_name, su.second_name, su.third_name, su.last_name) as student_full_name,
         u.first_name || ' ' || u.last_name as teacher_name
       FROM daily_points dp
       JOIN users su ON dp.student_id = su.id AND su.role = 'student'
@@ -289,7 +296,10 @@ router.post('/', auth, async (req, res) => {
       // Teachers can only give points to students in classes they teach
       const teacherClassCheck = await db.query(`
         SELECT id FROM teacher_class_assignments 
-        WHERE teacher_id = $1 AND class_id = $2 AND is_active = true
+        WHERE teacher_id = $1
+          AND class_id = $2
+          AND teacher_role = 'primary'
+          AND is_active = true
       `, [teacher_id, class_id]);
       
       if (teacherClassCheck.rows.length === 0) {
@@ -501,7 +511,10 @@ router.get('/teacher/my-classes', auth, async (req, res) => {
         JOIN classes c ON tca.class_id = c.id
         JOIN schools s ON c.school_id = s.id
         LEFT JOIN student_enrollments se ON c.id = se.class_id AND se.status = 'enrolled'
-        WHERE tca.teacher_id = $1 AND tca.is_active = true AND c.is_active = true
+        WHERE tca.teacher_id = $1
+          AND tca.teacher_role = 'primary'
+          AND tca.is_active = true
+          AND c.is_active = true
         GROUP BY c.id, c.name, c.school_id, s.name
         ORDER BY s.name, c.name
       `;
@@ -616,7 +629,9 @@ router.get('/reports/students-summary', auth, async (req, res) => {
     if (userRole === 'teacher') {
       query += ` AND se.class_id IN (
         SELECT class_id FROM teacher_class_assignments
-        WHERE teacher_id = $${paramIndex} AND is_active = true
+        WHERE teacher_id = $${paramIndex}
+          AND teacher_role = 'primary'
+          AND is_active = true
       )`;
       params.push(userId);
       paramIndex++;

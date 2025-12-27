@@ -99,6 +99,8 @@ const getAttendanceCourseWeight = (courses) => {
 router.get('/school/:schoolId/semester/:semesterId', auth, async (req, res) => {
   try {
     const { schoolId, semesterId } = req.params;
+    const userId = req.user.id;
+    const userRole = req.user.role;
     const semesterResult = await db.query(
       'SELECT start_date, end_date, weekend_days, vacation_days FROM semesters WHERE id = $1',
       [semesterId]
@@ -114,7 +116,7 @@ router.get('/school/:schoolId/semester/:semesterId', auth, async (req, res) => {
     const totalWorkDays = workingDays.filter((day) => day < today).length;
 
     // Get all classes in this school/semester
-    const classesResult = await db.query(`
+    let classesQuery = `
       SELECT 
         c.id,
         c.school_id,
@@ -132,9 +134,25 @@ router.get('/school/:schoolId/semester/:semesterId', auth, async (req, res) => {
       LEFT JOIN users ptu ON tca.teacher_id = ptu.id
       LEFT JOIN users u ON c.room_number = u.id
       WHERE c.school_id = $1 AND c.semester_id = $2 AND c.is_active = true
+    `;
+    const classesParams = [schoolId, semesterId];
+    if (userRole === 'teacher') {
+      classesQuery += `
+        AND c.id IN (
+          SELECT class_id FROM teacher_class_assignments
+          WHERE teacher_id = $3
+            AND teacher_role = 'primary'
+            AND is_active = true
+        )
+      `;
+      classesParams.push(userId);
+    }
+    classesQuery += `
       GROUP BY c.id, c.school_id, c.name, c.school_level, c.max_students, ptu.first_name, ptu.last_name, u.first_name, u.last_name
       ORDER BY c.name
-    `, [schoolId, semesterId]);
+    `;
+
+    const classesResult = await db.query(classesQuery, classesParams);
 
     const classes = classesResult.rows;
 
@@ -463,7 +481,9 @@ router.get('/teacher/my-classes', auth, async (req, res) => {
         AND tca_primary.teacher_role = 'primary' AND tca_primary.is_active = TRUE
       LEFT JOIN users ptu ON tca_primary.teacher_id = ptu.id
       LEFT JOIN student_enrollments se ON c.id = se.class_id AND se.status = 'enrolled'
-      WHERE tca.teacher_id = $1 AND c.is_active = true
+      WHERE tca.teacher_id = $1
+        AND tca.teacher_role = 'primary'
+        AND c.is_active = true
       AND s.is_active = true
       GROUP BY c.id, c.school_id, c.name, c.school_level, c.max_students, c.semester_id, 
                s.display_name, sch.name, tca.teacher_role, ptu.first_name, ptu.last_name

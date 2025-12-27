@@ -148,11 +148,17 @@ export default function ClassManagement() {
       setTeacherLoading(true);
       setTeacherError("");
       const token = localStorage.getItem("token");
-      const response = await axios.get(`${API_BASE}/api/grading/teacher/my-classes`, {
+      const response = await axios.get(`${API_BASE}/api/teachers/my-classes`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const list = response.data?.classes || [];
-      setTeacherClasses(Array.isArray(list) ? list : []);
+      const normalized = Array.isArray(list)
+        ? list.map((item) => ({
+            ...item,
+            student_count: item.student_count ?? item.enrolled_students ?? 0,
+          }))
+        : [];
+      setTeacherClasses(normalized);
     } catch (err) {
       setTeacherError(err.response?.data?.error || "فشل في تحميل الحلقات للمعلم");
     } finally {
@@ -1756,7 +1762,7 @@ const ClassGradesModal = ({ classItem, onClose }) => {
       acc[key].total_points += Number(record.points_given || 0);
       return acc;
     }, {})
-  ).sort((a, b) => a.student_name.localeCompare(b.student_name, "ar"));
+  ).sort((a, b) => b.total_points - a.total_points);
 
   const handleExportToExcel = () => {
     const escapeHtml = (value) =>
@@ -1871,10 +1877,10 @@ const ClassGradesModal = ({ classItem, onClose }) => {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    ??????
+                    الطالب
                   </th>
                   <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    ?????? ??????
+                    إجمالي النقاط
                   </th>
                 </tr>
               </thead>
@@ -1890,7 +1896,7 @@ const ClassGradesModal = ({ classItem, onClose }) => {
                 {groupedPoints.length === 0 && (
                   <tr>
                     <td colSpan="2" className="px-4 py-6 text-center text-gray-500">
-                      ?? ???? ???? ?? ??? ??????.
+                      لا توجد نقاط في هذا النطاق.
                     </td>
                   </tr>
                 )}

@@ -206,15 +206,7 @@ export default function Home() {
       color: "bg-sky-500",
       roles: ["student", "parent"]
     },
-    {
-      title: "جدولي",
-      description: "عرض الجدول الدراسي والمواعيد",
-      icon: "📅",
-      path: "/my-schedule",
-      color: "bg-fuchsia-500",
-      roles: ["student", "teacher", "parent"]
-    }
-  ];
+];
 
   const hasAccess = (cardRoles) => {
     if (!user || !user.role) return false;

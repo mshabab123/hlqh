@@ -300,7 +300,7 @@ router.get('/roles', authenticateToken, requireRole(ROLES.ADMIN), async (req, re
         level: 5,
         description: 'صلاحية كاملة على النظام',
         permissions: [
-          'إدارة جميع المدارس',
+          'إدارة جميع مجمع الحلقات',
           'إدارة جميع المستخدمين', 
           'تغيير الصلاحيات',
           'عرض جميع التقارير',

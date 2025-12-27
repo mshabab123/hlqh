@@ -49,7 +49,10 @@ router.get('/semester/:semesterId/class/:classId', auth, async (req, res) => {
     if (userRole === 'teacher') {
       const teacherCheck = await pool.query(`
         SELECT 1 FROM teacher_class_assignments
-        WHERE teacher_id = $1 AND class_id = $2 AND is_active = true
+        WHERE teacher_id = $1
+          AND class_id = $2
+          AND teacher_role = 'primary'
+          AND is_active = true
       `, [userId, classId]);
 
       if (teacherCheck.rows.length === 0) {
@@ -239,7 +242,10 @@ router.post('/mark', auth, async (req, res) => {
     if (userRole === 'teacher') {
       const teacherCheck = await pool.query(`
         SELECT 1 FROM teacher_class_assignments
-        WHERE teacher_id = $1 AND class_id = $2 AND is_active = true
+        WHERE teacher_id = $1
+          AND class_id = $2
+          AND teacher_role = 'primary'
+          AND is_active = true
       `, [userId, class_id]);
 
       if (teacherCheck.rows.length === 0) {
@@ -317,7 +323,9 @@ router.get('/classes', auth, async (req, res) => {
       case 'teacher':
         whereClause = ` WHERE c.id IN (
           SELECT class_id FROM teacher_class_assignments
-          WHERE teacher_id = $1 AND is_active = true
+          WHERE teacher_id = $1
+            AND teacher_role = 'primary'
+            AND is_active = true
         )`;
         params = [userId];
         break;
