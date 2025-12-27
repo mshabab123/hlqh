@@ -186,7 +186,7 @@ const DailyReports = () => {
     e.preventDefault();
     
     if (!formData.school_id || !formData.report_date) {
-      setError("المدرسة والتاريخ مطلوبان");
+      setError("مجمع الحلقات والتاريخ مطلوبان");
       return;
     }
 
@@ -266,7 +266,7 @@ const DailyReports = () => {
 
   const autoFillAttendanceData = async () => {
     if (!formData.school_id || !formData.report_date) {
-      setError("يجب اختيار المدرسة والتاريخ أولاً");
+      setError("يجب اختيار مجمع الحلقات والتاريخ أولاً");
       setTimeout(() => setError(""), 3000);
       return;
     }
@@ -407,7 +407,7 @@ const DailyReports = () => {
             <h3 className="text-lg font-semibold text-gray-700 mb-3">الفلاتر</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">المدرسة</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">مجمع الحلقات</label>
                 <select
                   value={selectedSchool}
                   onChange={(e) => setSelectedSchool(e.target.value)}
@@ -483,7 +483,7 @@ const DailyReports = () => {
                   <thead className="bg-gray-50 sticky top-0">
                     <tr>
                       <th className="p-3 text-right text-sm font-medium text-gray-700 border-b">التاريخ</th>
-                      <th className="p-3 text-right text-sm font-medium text-gray-700 border-b">المدرسة</th>
+                      <th className="p-3 text-right text-sm font-medium text-gray-700 border-b">مجمع الحلقات</th>
                       <th className="p-3 text-center text-sm font-medium text-gray-700 border-b">الحلقات</th>
                       <th className="p-3 text-center text-sm font-medium text-gray-700 border-b">الحضور</th>
                       <th className="p-3 text-center text-sm font-medium text-gray-700 border-b">الغياب</th>
@@ -565,7 +565,7 @@ const DailyReports = () => {
                 {/* Basic Information */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">المدرسة *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">مجمع الحلقات *</label>
                     <select
                       value={formData.school_id}
                       onChange={(e) => {
@@ -577,7 +577,7 @@ const DailyReports = () => {
                       className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
                       required
                     >
-                      <option value="">اختر المدرسة</option>
+                      <option value="">اختر مجمع الحلقات</option>
                       {Array.isArray(schools) && schools.map(school => (
                         <option key={school.id} value={school.id}>{school.name}</option>
                       ))}
@@ -612,7 +612,7 @@ const DailyReports = () => {
                       </div>
                       <div className="ml-3">
                         <p className="text-sm text-yellow-800 font-medium">يوجد تقرير سابق</p>
-                        <p className="text-sm text-yellow-700 mt-1">يوجد تقرير مسجل مسبقاً لهذه المدرسة في التاريخ المحدد</p>
+                        <p className="text-sm text-yellow-700 mt-1">يوجد تقرير مسجل مسبقاً لهذا المجمع في التاريخ المحدد</p>
                       </div>
                     </div>
                   </div>
@@ -666,7 +666,7 @@ const DailyReports = () => {
                         <div className="text-sm">
                           <div className="font-medium text-blue-800 mb-1">💡 نصيحة: استخدم التعبئة التلقائية</div>
                           <div className="text-blue-700">
-                            اختر المدرسة والتاريخ، ثم انقر على "تعبئة تلقائية" لتحميل بيانات الحضور والغياب من النظام تلقائياً
+                            اختر مجمع الحلقات والتاريخ، ثم انقر على "تعبئة تلقائية" لتحميل بيانات الحضور والغياب من النظام تلقائياً
                           </div>
                         </div>
                       </div>

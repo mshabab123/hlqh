@@ -253,7 +253,7 @@ export default function StudentRegistration() {
               } rounded-lg focus:border-accent focus:outline-none transition-colors bg-white`}
             >
               <option value="">اختر المرحلة الدراسية</option>
-              <option value="لم يدخل المدرسة">لم يدخل المدرسة</option>
+              <option value=" لم يدخل المدرسة">لم يدخل المدرسة</option>
               <option value="روضة">روضة</option>
               <option value="الأول الابتدائي">الأول الابتدائي</option>
               <option value="الثاني الابتدائي">الثاني الابتدائي</option>

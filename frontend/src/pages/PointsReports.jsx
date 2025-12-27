@@ -323,7 +323,7 @@ const PointsReports = () => {
 
             {/* School Filter */}
             <div>
-              <label className="block text-sm font-medium mb-2">المدرسة:</label>
+              <label className="block text-sm font-medium mb-2">مجمع الحلقات:</label>
               <select
                 value={selectedSchool}
                 onChange={(e) => {
@@ -415,7 +415,7 @@ const PointsReports = () => {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-right font-medium border-b">اسم الطالب</th>
-                  <th className="px-6 py-3 text-center font-medium border-b">المدرسة</th>
+                  <th className="px-6 py-3 text-center font-medium border-b">مجمع الحلقات</th>
                   <th className="px-6 py-3 text-center font-medium border-b">الحلقة</th>
                   <th className="px-6 py-3 text-center font-medium border-b">إجمالي النقاط</th>
                   <th className="px-6 py-3 text-center font-medium border-b">عدد الأيام</th>

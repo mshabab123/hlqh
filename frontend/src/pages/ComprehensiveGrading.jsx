@@ -249,6 +249,26 @@ const ComprehensiveGrading = () => {
     return "text-red-600 bg-red-100";
   };
 
+  const getRatingLabel = (value) => {
+    if (value == null) return "-";
+    if (value >= 90) return "?????";
+    if (value >= 80) return "??? ???";
+    if (value >= 70) return "???";
+    if (value >= 60) return "?????";
+    return "????";
+  };
+
+  const getAttendanceWeight = (coursePercentages) => {
+    if (!coursePercentages) return 0;
+    if (coursePercentages["????????"] !== undefined) {
+      return Number(coursePercentages["????????"]) || 0;
+    }
+    if (coursePercentages["??????"] !== undefined) {
+      return Number(coursePercentages["??????"]) || 0;
+    }
+    return 0;
+  };
+
   // Filter students based on search term
   const getFilteredStudents = (students) => {
     if (!searchTerm) return students;
@@ -256,6 +276,135 @@ const ComprehensiveGrading = () => {
       student.fullName.toLowerCase().includes(searchTerm.toLowerCase())
     );
   };
+
+  const getCourseNamesForClass = (classItem) => {
+    if (!classItem) return [];
+    const names = new Set();
+    const coursePercentages = classItem.course_percentages || {};
+    Object.keys(coursePercentages).forEach((name) => names.add(name));
+    (classItem.students || []).forEach((student) => {
+      const grades = student.courseGrades || {};
+      Object.keys(grades).forEach((name) => names.add(name));
+    });
+    return Array.from(names);
+  };
+
+  const selectedSchoolName = schools.find(
+    (school) => String(school.id) === String(selectedSchool)
+  )?.name || "-";
+
+  const handleExportToExcel = () => {
+    if (!classes[activeTab]) return;
+    const activeClass = classes[activeTab];
+
+    const escapeHtml = (value) =>
+      String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+
+    const students = getFilteredStudents(activeClass.students || []);
+    const courseNames = getCourseNamesForClass(activeClass);
+    const attendanceWeight = getAttendanceWeight(activeClass.course_percentages || {});
+    const tableHeaders = [
+      "??????",
+      ...courseNames,
+      ...courseNames.map((course) => `${course} ?????`),
+      "???????? ???????",
+      "???????",
+      "???? ??????",
+      "???? ??????",
+      "??????",
+    ];
+
+    const rows = students.map((student) => {
+      const courseCells = courseNames.map((course) => {
+        const values = student.courseGrades?.[course] || [];
+        if (!values.length) {
+          return course === "السلوك" ? "100.0" : "-";
+        }
+        const avg = values.reduce((sum, value) => sum + value, 0) / values.length;
+        return avg.toFixed(1);
+      });
+      const weightedCells = courseNames.map((course) => {
+        const values = student.courseGrades?.[course] || [];
+        const avg = values.length
+          ? values.reduce((sum, value) => sum + value, 0) / values.length
+          : course === "السلوك"
+            ? 100
+            : null;
+        if (avg === null) return "-";
+        const weight = Number(activeClass.course_percentages?.[course]) || 0;
+        const weighted = (avg * weight) / 100;
+        return weighted.toFixed(1);
+      });
+      const weightedTotal = courseNames.reduce((sum, course) => {
+        const values = student.courseGrades?.[course] || [];
+        const avg = values.length
+          ? values.reduce((sum, value) => sum + value, 0) / values.length
+          : course === "السلوك"
+            ? 100
+            : null;
+        if (avg === null) return sum;
+        const weight = Number(activeClass.course_percentages?.[course]) || 0;
+        return sum + (avg * weight) / 100;
+      }, 0);
+      const weightedTotalWithAttendance = Number.isFinite(student.attendanceRate)
+        ? weightedTotal + (student.attendanceRate * attendanceWeight) / 100
+        : weightedTotal;
+      return [
+        student.fullName,
+        ...courseCells,
+        ...weightedCells,
+        weightedTotalWithAttendance ? weightedTotalWithAttendance.toFixed(1) : "-",
+        getRatingLabel(weightedTotalWithAttendance || null),
+        Number.isFinite(student.attendanceRate) ? student.attendanceRate.toFixed(1) : "-",
+        `${student.absentDays ?? 0} / ${student.totalDays ?? 0}`,
+        student.totalPoints ?? 0,
+      ];
+    });
+    const headerRows = [
+      ["???? ???????", selectedSchoolName],
+      ["??????", activeClass.name],
+      ["??????", activeClass.teacher_name || "-"],
+      [],
+    ];
+
+    const allRows = [...headerRows, tableHeaders, ...rows];
+
+    const tableHtml = `
+      <table border="1">
+        ${allRows
+          .map(
+            (row) =>
+              `<tr>${row
+                .map((cell) => `<td>${escapeHtml(cell)}</td>`)
+                .join("")}</tr>`
+          )
+          .join("")}
+      </table>
+    `;
+
+    const blob = new Blob([tableHtml], {
+      type: "application/vnd.ms-excel;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "comprehensive-grading.xls";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const activeClass = classes[activeTab] || null;
+  const filteredStudents = getFilteredStudents(activeClass?.students || []);
+  const activeCourseNames = getCourseNamesForClass(activeClass);
+  const attendanceWeight = getAttendanceWeight(activeClass?.course_percentages || {});
+  const activeCoursePercentages = activeClass?.course_percentages || {};
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -346,14 +495,28 @@ const ComprehensiveGrading = () => {
               {/* Active Tab Content */}
               {classes[activeTab] && (
                 <div>
-                  <div className="mb-4 p-4 bg-blue-50 rounded-lg">
-                    <h2 className="text-xl font-bold text-blue-800 mb-2">
-                      {classes[activeTab].name}
-                    </h2>
-                    <p className="text-blue-700">
-                      المستوى: {classes[activeTab].school_level} | 
-                      عدد الطلاب: {classes[activeTab].student_count} / {classes[activeTab].max_students}
-                    </p>
+                  <div className="mb-4 p-4 bg-blue-50 rounded-lg flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <h2 className="text-xl font-bold text-blue-800 mb-1">
+                        درجات الحلقة
+                      </h2>
+                      <div className="text-blue-700 text-sm">
+                        الحلقة: {classes[activeTab].name}
+                      </div>
+                      <div className="text-blue-700 text-sm">
+                        مجمع الحلقات: {selectedSchoolName} | المعلم: {classes[activeTab].teacher_name || "-"}
+                      </div>
+                      <div className="text-blue-700 text-sm">
+                        المستوى: {classes[activeTab].school_level} | عدد الطلاب: {classes[activeTab].student_count} / {classes[activeTab].max_students}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleExportToExcel}
+                      className="bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium px-4 py-2 rounded-lg shadow self-start md:self-auto"
+                    >
+                      تصدير إكسل
+                    </button>
                   </div>
 
                   {/* Students Table */}
@@ -364,8 +527,27 @@ const ComprehensiveGrading = () => {
                           <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                             الطالب
                           </th>
+                          {activeCourseNames.map((course) => (
+                            <th
+                              key={course}
+                              className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"
+                            >
+                              {course}
+                            </th>
+                          ))}
+                          {activeCourseNames.map((course) => (
+                            <th
+                              key={`${course}-weighted`}
+                              className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"
+                            >
+                              {course} موزون
+                            </th>
+                          ))}
                           <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            متوسط الدرجات
+                            الإجمالي الموزون
+                          </th>
+                          <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            التقدير
                           </th>
                           <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                             نسبة الحضور
@@ -377,12 +559,12 @@ const ComprehensiveGrading = () => {
                             النقاط
                           </th>
                           <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            الإجراءات
+                            عرض الدرجات
                           </th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
-                        {getFilteredStudents(classes[activeTab].students).map((student, idx) => (
+                        {filteredStudents.map((student, idx) => (
                           <tr key={student.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="flex items-center">
@@ -395,19 +577,84 @@ const ComprehensiveGrading = () => {
                                   <div className="text-sm font-medium text-gray-900">
                                     {student.fullName}
                                   </div>
-                                  <div className="text-sm text-gray-500">
-                                    رقم الهوية: {student.id}
-                                  </div>
                                 </div>
                               </div>
                             </td>
+                            {activeCourseNames.map((course) => {
+                              const values = student.courseGrades?.[course] || [];
+                              const avg = values.length
+                                ? values.reduce((sum, value) => sum + value, 0) / values.length
+                                : course === "السلوك"
+                                  ? 100
+                                  : null;
+                              const weight = Number(activeCoursePercentages[course]) || 0;
+                              const weighted = avg !== null ? (avg * weight) / 100 : null;
+                              return (
+                                <td key={course} className="px-6 py-4 whitespace-nowrap text-center">
+                                  {avg !== null ? (
+                                    <span
+                                      className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getGradeColor(avg)}`}
+                                    >
+                                      {avg.toFixed(1)}%
+                                    </span>
+                                  ) : (
+                                    "-"
+                                  )}
+                                </td>
+                              );
+                            })}
+                            {activeCourseNames.map((course) => {
+                              const values = student.courseGrades?.[course] || [];
+                              const avg = values.length
+                                ? values.reduce((sum, value) => sum + value, 0) / values.length
+                                : course === "السلوك"
+                                  ? 100
+                                  : null;
+                              const weight = Number(activeCoursePercentages[course]) || 0;
+                              const weighted = avg !== null ? (avg * weight) / 100 : null;
+                              return (
+                                <td key={`${course}-weighted`} className="px-6 py-4 whitespace-nowrap text-center">
+                                  {weighted !== null ? weighted.toFixed(1) : "-"}
+                                </td>
+                              );
+                            })}
                             <td className="px-6 py-4 whitespace-nowrap text-center">
-                              <button
-                                onClick={() => handleStudentGradeClick(student, classes[activeTab].id)}
-                                className={`inline-flex items-center px-3 py-2 rounded-full text-xs font-medium cursor-pointer hover:opacity-80 ${getGradeColor(student.averageGrade)}`}
-                              >
-                                {student.averageGrade.toFixed(1)}%
-                              </button>
+                              {(() => {
+                                const total = activeCourseNames.reduce((sum, course) => {
+                                  const values = student.courseGrades?.[course] || [];
+                                  const avg = values.length
+                                    ? values.reduce((sum, value) => sum + value, 0) / values.length
+                                    : course === "??????"
+                                      ? 100
+                                      : null;
+                                  if (avg === null) return sum;
+                                  const weight = Number(activeCoursePercentages[course]) || 0;
+                                  return sum + (avg * weight) / 100;
+                                }, 0);
+                                const withAttendance = Number.isFinite(student.attendanceRate)
+                                  ? total + (student.attendanceRate * attendanceWeight) / 100
+                                  : total;
+                                return withAttendance.toFixed(1);
+                              })()}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-center">
+                              {(() => {
+                                const total = activeCourseNames.reduce((sum, course) => {
+                                  const values = student.courseGrades?.[course] || [];
+                                  const avg = values.length
+                                    ? values.reduce((sum, value) => sum + value, 0) / values.length
+                                    : course === "??????"
+                                      ? 100
+                                      : null;
+                                  if (avg === null) return sum;
+                                  const weight = Number(activeCoursePercentages[course]) || 0;
+                                  return sum + (avg * weight) / 100;
+                                }, 0);
+                                const withAttendance = Number.isFinite(student.attendanceRate)
+                                  ? total + (student.attendanceRate * attendanceWeight) / 100
+                                  : total;
+                                return getRatingLabel(withAttendance);
+                              })()}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-center">
                               <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getAttendanceColor(student.attendanceRate)}`}>
@@ -438,7 +685,7 @@ const ComprehensiveGrading = () => {
                     </table>
                   </div>
 
-                  {getFilteredStudents(classes[activeTab].students).length === 0 && (
+                  {filteredStudents.length === 0 && (
                     <div className="text-center py-8 text-gray-500">
                       {searchTerm ? 'لا توجد نتائج للبحث' : 'لا يوجد طلاب في هذه الحلقة'}
                     </div>

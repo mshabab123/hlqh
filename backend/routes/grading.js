@@ -3,21 +3,120 @@ const router = express.Router();
 const db = require('../config/database');
 const { authenticateToken: auth } = require('../middleware/auth');
 
+const normalizeIntArray = (value, fallback = []) => {
+  if (Array.isArray(value)) {
+    return value.map((item) => Number(item)).filter((item) => !Number.isNaN(item));
+  }
+  if (!value) {
+    return fallback;
+  }
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return parsed.map((item) => Number(item)).filter((item) => !Number.isNaN(item));
+      }
+    } catch (error) {
+      // Fallback to Postgres array string parsing.
+    }
+    if (value.startsWith('{') && value.endsWith('}')) {
+      return value
+        .slice(1, -1)
+        .split(',')
+        .map((item) => Number(item))
+        .filter((item) => !Number.isNaN(item));
+    }
+  }
+  return fallback;
+};
+
+const normalizeStringArray = (value, fallback = []) => {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item));
+  }
+  if (!value) {
+    return fallback;
+  }
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return parsed.map((item) => String(item));
+      }
+    } catch (error) {
+      // Fallback to Postgres array string parsing.
+    }
+    if (value.startsWith('{') && value.endsWith('}')) {
+      return value
+        .slice(1, -1)
+        .split(',')
+        .filter(Boolean)
+        .map((item) => item.trim());
+    }
+  }
+  return fallback;
+};
+
+const getWorkingDays = (startDate, endDate, weekendDays = [4, 5, 6], vacationDays = []) => {
+  const workingDays = [];
+  const startDateStr = startDate instanceof Date ? startDate.toISOString().split('T')[0] : startDate.split('T')[0];
+  const endDateStr = endDate instanceof Date ? endDate.toISOString().split('T')[0] : endDate.split('T')[0];
+  const currentDate = new Date(startDateStr + 'T12:00:00.000Z');
+  const end = new Date(endDateStr + 'T12:00:00.000Z');
+
+  while (currentDate <= end) {
+    const dayOfWeek = currentDate.getDay();
+    const dateStr = currentDate.toISOString().split('T')[0];
+    const isWeekend = weekendDays.includes(dayOfWeek);
+    const isVacation = vacationDays.includes(dateStr);
+
+    if (!isWeekend && !isVacation) {
+      workingDays.push(dateStr);
+    }
+    currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+  }
+
+  return workingDays;
+};
+
 // GET /api/grading/school/:schoolId/semester/:semesterId
 // Get comprehensive grading data for all classes in a school/semester
 router.get('/school/:schoolId/semester/:semesterId', auth, async (req, res) => {
   try {
     const { schoolId, semesterId } = req.params;
+    const semesterResult = await db.query(
+      'SELECT start_date, end_date, weekend_days, vacation_days FROM semesters WHERE id = $1',
+      [semesterId]
+    );
+    const semester = semesterResult.rows[0];
+    const normalizedWeekendDays = normalizeIntArray(semester?.weekend_days, [4, 5, 6]);
+    const normalizedVacationDays = normalizeStringArray(semester?.vacation_days, []);
+    const workingDays = semester
+      ? getWorkingDays(semester.start_date, semester.end_date, normalizedWeekendDays, normalizedVacationDays)
+      : [];
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const totalWorkDays = workingDays.filter((day) => day < today).length;
 
     // Get all classes in this school/semester
     const classesResult = await db.query(`
       SELECT 
-        c.id, c.name, c.school_level, c.max_students,
-        COUNT(DISTINCT se.student_id) as student_count
+        c.id,
+        c.name,
+        c.school_level,
+        c.max_students,
+        COUNT(DISTINCT se.student_id) as student_count,
+        COALESCE(
+          CONCAT(ptu.first_name, ' ', ptu.last_name),
+          CONCAT(u.first_name, ' ', u.last_name)
+        ) as teacher_name
       FROM classes c
       LEFT JOIN student_enrollments se ON c.id = se.class_id AND se.status = 'enrolled'
+      LEFT JOIN teacher_class_assignments tca ON c.id = tca.class_id AND tca.teacher_role = 'primary' AND tca.is_active = TRUE
+      LEFT JOIN users ptu ON tca.teacher_id = ptu.id
+      LEFT JOIN users u ON c.room_number = u.id
       WHERE c.school_id = $1 AND c.semester_id = $2 AND c.is_active = true
-      GROUP BY c.id, c.name, c.school_level, c.max_students
+      GROUP BY c.id, c.name, c.school_level, c.max_students, ptu.first_name, ptu.last_name, u.first_name, u.last_name
       ORDER BY c.name
     `, [schoolId, semesterId]);
 
@@ -40,6 +139,7 @@ router.get('/school/:schoolId/semester/:semesterId', auth, async (req, res) => {
       `, [classInfo.id]);
 
       const students = [];
+      const coursePercentages = {};
       
       for (const student of studentsResult.rows) {
         // Get student's average grade
@@ -65,6 +165,10 @@ router.get('/school/:schoolId/semester/:semesterId', auth, async (req, res) => {
             courseGrades[grade.course_name] = [];
           }
           courseGrades[grade.course_name].push(percentage);
+
+          if (coursePercentages[grade.course_name] === undefined) {
+            coursePercentages[grade.course_name] = weight;
+          }
           
           totalWeightedGrade += percentage * (weight / 100);
           totalWeight += weight / 100;
@@ -75,15 +179,15 @@ router.get('/school/:schoolId/semester/:semesterId', auth, async (req, res) => {
         // Get attendance data (present days vs total days)
         const attendanceResult = await db.query(`
           SELECT 
-            COUNT(*) as total_days,
             SUM(CASE WHEN is_present = true THEN 1 ELSE 0 END) as present_days
           FROM semester_attendance sa
           WHERE sa.student_id = $1 AND sa.class_id = $2 AND sa.semester_id = $3
         `, [student.id, classInfo.id, semesterId]);
 
-        const attendance = attendanceResult.rows[0] || { total_days: 0, present_days: 0 };
-        const attendanceRate = attendance.total_days > 0 ? 
-          (attendance.present_days / attendance.total_days) * 100 : 100;
+        const attendance = attendanceResult.rows[0] || { present_days: 0 };
+        const presentDays = Number(attendance.present_days) || 0;
+        const attendanceRate = totalWorkDays > 0 ? 
+          (presentDays / totalWorkDays) * 100 : 100;
 
         // Get points data
         const pointsResult = await db.query(`
@@ -105,9 +209,9 @@ router.get('/school/:schoolId/semester/:semesterId', auth, async (req, res) => {
           fullName: `${student.first_name} ${student.second_name} ${student.third_name} ${student.last_name}`,
           averageGrade: Math.round(averageGrade * 10) / 10,
           attendanceRate: Math.round(attendanceRate * 10) / 10,
-          presentDays: attendance.present_days,
-          totalDays: attendance.total_days,
-          absentDays: attendance.total_days - attendance.present_days,
+          presentDays,
+          totalDays: totalWorkDays,
+          absentDays: Math.max(totalWorkDays - presentDays, 0),
           totalPoints: points.total_points || 0,
           pointsCount: points.points_count || 0,
           courseGrades
@@ -116,7 +220,8 @@ router.get('/school/:schoolId/semester/:semesterId', auth, async (req, res) => {
 
       classesData.push({
         ...classInfo,
-        students
+        students,
+        course_percentages: coursePercentages
       });
     }
 
@@ -375,15 +480,15 @@ router.get('/teacher/my-classes', auth, async (req, res) => {
         // Get attendance data
         const attendanceResult = await db.query(`
           SELECT 
-            COUNT(*) as total_days,
             SUM(CASE WHEN is_present = true THEN 1 ELSE 0 END) as present_days
           FROM semester_attendance sa
           WHERE sa.student_id = $1 AND sa.class_id = $2 AND sa.semester_id = $3
         `, [student.id, classInfo.id, classInfo.semester_id]);
 
-        const attendance = attendanceResult.rows[0] || { total_days: 0, present_days: 0 };
-        const attendanceRate = attendance.total_days > 0 ? 
-          (attendance.present_days / attendance.total_days) * 100 : 100;
+        const attendance = attendanceResult.rows[0] || { present_days: 0 };
+        const presentDays = Number(attendance.present_days) || 0;
+        const attendanceRate = totalWorkDays > 0 ? 
+          (presentDays / totalWorkDays) * 100 : 100;
 
         // Get points data
         const pointsResult = await db.query(`
@@ -400,9 +505,9 @@ router.get('/teacher/my-classes', auth, async (req, res) => {
           fullName: `${student.first_name} ${student.second_name} ${student.third_name} ${student.last_name}`,
           averageGrade: Math.round(averageGrade * 10) / 10,
           attendanceRate: Math.round(attendanceRate * 10) / 10,
-          presentDays: attendance.present_days,
-          totalDays: attendance.total_days,
-          absentDays: attendance.total_days - attendance.present_days,
+          presentDays,
+          totalDays: totalWorkDays,
+          absentDays: Math.max(totalWorkDays - presentDays, 0),
           totalPoints: points.total_points || 0,
           pointsCount: points.points_count || 0,
           courseGrades

@@ -539,7 +539,7 @@ export default function TeacherManagement() {
                   return (
                     <div className="mt-3 p-2 bg-green-50 rounded-lg border border-green-200">
                       <p className="font-medium text-green-800 text-xs mb-2">
-                        الحلقات المدرسة ({teacherClasses.length}):
+                        حلقات مجمع الحلقات ({teacherClasses.length}):
                       </p>
                       <div className="flex flex-wrap gap-1">
                         {teacherClasses.map(cls => (

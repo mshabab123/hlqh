@@ -162,7 +162,7 @@ router.post('/', auth, checkReportPermission, async (req, res) => {
     } = req.body;
     
     if (!school_id || !report_date) {
-      return res.status(400).json({ error: 'معرف المدرسة وتاريخ التقرير مطلوبان' });
+      return res.status(400).json({ error: 'معرف مجمع الحلقات وتاريخ التقرير مطلوبان' });
     }
     
     const client = await db.connect();
@@ -379,7 +379,7 @@ router.get('/auto-fill/:schoolId/:date', auth, checkReportPermission, async (req
     const { schoolId, date } = req.params;
     
     if (!schoolId || !date) {
-      return res.status(400).json({ error: 'معرف المدرسة والتاريخ مطلوبان' });
+      return res.status(400).json({ error: 'معرف مجمع الحلقات والتاريخ مطلوبان' });
     }
     
     // Get current semester (you might need to adjust this logic based on your semester structure)

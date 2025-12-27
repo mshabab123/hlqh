@@ -311,19 +311,19 @@ router.get('/roles', authenticateToken, requireRole(ROLES.ADMIN), async (req, re
         name: 'administrator',
         displayName: 'مدير مدرسة',
         level: 4,
-        description: 'صلاحية إدارة المدرسة المخصصة له',
+        description: 'صلاحية إدارة مجمع الحلقات المخصص له',
         permissions: [
           'إدارة مدرسة واحدة',
           'إدارة المشرفين والمعلمين في مدرسته',
           'إدارة الطلاب والفصول',
-          'عرض تقارير المدرسة'
+          'عرض تقارير مجمع الحلقات'
         ]
       },
       {
         name: 'supervisor',
         displayName: 'مشرف',
         level: 3,
-        description: 'صلاحية إشرافية في المدرسة',
+        description: 'صلاحية إشرافية في مجمع الحلقات',
         permissions: [
           'إدارة المعلمين في مدرسته',
           'إدارة الطلاب والفصول',

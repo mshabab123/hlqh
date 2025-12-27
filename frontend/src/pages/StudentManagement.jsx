@@ -103,7 +103,7 @@ export default function StudentManagement() {
       
       if (wasNotAssigned && isBeingAssigned) {
         const shouldActivate = window.confirm(
-          `هل تريد تفعيل الطالب ${currentStudent.first_name} ${currentStudent.last_name} بعد تعيينه إلى المدرسة؟\n\nإذا اخترت "موافق" سيتم تفعيل الطالب، وإذا اخترت "إلغاء" سيبقى غير مفعل.`
+          `هل تريد تفعيل الطالب ${currentStudent.first_name} ${currentStudent.last_name} بعد تعيينه إلى مجمع الحلقات؟\n\nإذا اخترت "موافق" سيتم تفعيل الطالب، وإذا اخترت "إلغاء" سيبقى غير مفعل.`
         );
         
         if (shouldActivate) {

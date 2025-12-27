@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 import axios from "axios";
-import { AiOutlinePlus, AiOutlineEdit, AiOutlineDelete, AiOutlineUser, AiOutlineBook, AiOutlineReload, AiOutlineStar } from "react-icons/ai";
+import { AiOutlinePlus, AiOutlineEdit, AiOutlineDelete, AiOutlineUser, AiOutlineBook, AiOutlineReload, AiOutlineStar, AiOutlineFileText } from "react-icons/ai";
 import ClassForm from "../components/ClassForm";
 import StudentListModal from "../components/StudentListModal";
 import { 
@@ -25,6 +25,8 @@ export default function ClassManagement() {
   const [selectedClassForStudents, setSelectedClassForStudents] = useState(null);
   const [selectedClassForCourses, setSelectedClassForCourses] = useState(null);
   const [showCoursesModal, setShowCoursesModal] = useState(false);
+  const [selectedClassForGrades, setSelectedClassForGrades] = useState(null);
+  const [showGradesModal, setShowGradesModal] = useState(false);
   const [userRole, setUserRole] = useState("admin"); // TODO: Get from auth context
   const [userSchoolId, setUserSchoolId] = useState(null); // TODO: Get from auth context
   
@@ -489,7 +491,7 @@ export default function ClassManagement() {
                 {/* Action Buttons */}
                 <div className="space-y-2">
                   {/* Primary Actions */}
-                  <div className="flex gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     <button
                       onClick={() => setSelectedClassForStudents(classItem)}
                       className="flex items-center gap-1 px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex-1 justify-center"
@@ -502,6 +504,16 @@ export default function ClassManagement() {
                       className="flex items-center gap-1 px-3 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors flex-1 justify-center"
                     >
                       <AiOutlineBook /> المقررات
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setSelectedClassForGrades(classItem);
+                        setShowGradesModal(true);
+                      }}
+                      className="flex items-center gap-1 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex-1 justify-center"
+                    >
+                      <AiOutlineFileText /> {"الدرجات"}
                     </button>
 
                     <button
@@ -626,6 +638,16 @@ export default function ClassManagement() {
               setCourses([]); // Clear courses first
               fetchCourses(semesterIdToUse, selectedClassForCourses.id);
             }
+          }}
+        />
+      )}
+
+      {showGradesModal && selectedClassForGrades && (
+        <ClassGradesModal
+          classItem={selectedClassForGrades}
+          onClose={() => {
+            setShowGradesModal(false);
+            setSelectedClassForGrades(null);
           }}
         />
       )}
@@ -1027,6 +1049,392 @@ const CourseManagementModal = ({ classItem, courses, semesters, onClose, onRefre
                 </div>
                 <div className="text-sm text-gray-600">مقررات تتطلب حفظ</div>
               </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const ClassGradesModal = ({ classItem, onClose }) => {
+  const [grades, setGrades] = useState([]);
+  const [classInfo, setClassInfo] = useState(null);
+  const [courses, setCourses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const fetchGrades = async () => {
+      try {
+        setLoading(true);
+        setError("");
+        const token = localStorage.getItem("token");
+        const [classRes, gradesRes] = await Promise.all([
+          axios.get(`${API_BASE}/api/classes/${classItem.id}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          axios.get(`${API_BASE}/api/classes/${classItem.id}/grades-summary`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
+        setClassInfo(classRes.data || null);
+        setGrades(Array.isArray(gradesRes.data) ? gradesRes.data : []);
+
+        const semesterId = classRes.data?.semester_id;
+        if (semesterId) {
+          const coursesRes = await axios.get(
+            `${API_BASE}/api/semesters/${semesterId}/classes/${classItem.id}/courses`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          setCourses(Array.isArray(coursesRes.data) ? coursesRes.data : []);
+        } else {
+          setCourses([]);
+        }
+      } catch (err) {
+        console.error("Error loading class grades:", err);
+        setError("حدث خطأ في تحميل الدرجات.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchGrades();
+  }, [classItem.id]);
+
+  const courseNames = courses.length
+    ? courses.map((course) => course.name)
+    : Array.from(new Set(grades.map((row) => row.course_name)));
+  const coursePercentages = new Map();
+  courses.forEach((course) => {
+    coursePercentages.set(course.name, Number(course.percentage) || 0);
+  });
+  const studentMap = new Map();
+  const courseTotals = new Map();
+  const attendanceCourseName = "المواظبة";
+  const getColumnClass = (index) => (index % 2 === 0 ? "bg-slate-50/70" : "bg-white");
+  const getRatingLabel = (value) => {
+    if (value === null || value === undefined) return "-";
+    if (value >= 90) return "ممتاز";
+    if (value >= 80) return "جيد جدا";
+    if (value >= 70) return "جيد";
+    if (value >= 60) return "مقبول";
+    return "ضعيف";
+  };
+
+  grades.forEach((row) => {
+    const studentId = row.student_id;
+    const name = `${row.first_name} ${row.second_name || ""} ${row.third_name || ""} ${row.last_name}`.replace(/\s+/g, " ").trim();
+    if (!studentMap.has(studentId)) {
+      studentMap.set(studentId, { name, courses: {}, presentCount: null, totalDays: null, absentCount: null });
+    }
+    const entry = studentMap.get(studentId);
+    const key = row.course_name;
+    if (!coursePercentages.has(key) && row.course_percentage !== undefined && row.course_percentage !== null) {
+      coursePercentages.set(key, Number(row.course_percentage) || 0);
+    }
+    if (!entry.courses[key]) {
+      entry.courses[key] = { sum: 0, count: 0, values: [] };
+    }
+    if (!courseTotals.has(key)) {
+      courseTotals.set(key, { sum: 0, count: 0 });
+    }
+    if (row.percentage_score !== null && row.percentage_score !== undefined) {
+      const value = Number(row.percentage_score);
+      entry.courses[key].sum += value;
+      entry.courses[key].count += 1;
+      entry.courses[key].values.push(value);
+      courseTotals.get(key).sum += value;
+      courseTotals.get(key).count += 1;
+    }
+    if (entry.presentCount === null && row.present_count !== undefined && row.present_count !== null) {
+      entry.presentCount = Number(row.present_count);
+    }
+    if (entry.totalDays === null && row.total_days !== undefined && row.total_days !== null) {
+      entry.totalDays = Number(row.total_days);
+    }
+    if (entry.absentCount === null && row.absent_count !== undefined && row.absent_count !== null) {
+      entry.absentCount = Number(row.absent_count);
+    }
+  });
+
+  const students = Array.from(studentMap.entries()).map(([studentId, data]) => {
+    const attendancePct =
+      data.totalDays && data.totalDays > 0 && data.presentCount !== null
+        ? (data.presentCount / data.totalDays) * 100
+        : null;
+    const averages = courseNames.map((course) => {
+      if (course === attendanceCourseName) {
+        return attendancePct;
+      }
+      const stats = data.courses[course];
+      if (!stats || stats.count === 0) {
+        return course === "السلوك" ? 100 : null;
+      }
+      return stats.sum / stats.count;
+    });
+    const valid = averages.filter((v) => v !== null);
+    const weightedTotal = courseNames.reduce((sum, course, idx) => {
+      const avg = averages[idx];
+      const weight = coursePercentages.get(course) || 0;
+      if (avg === null) return sum;
+      return sum + (avg * weight) / 100;
+    }, 0);
+    const totalSum = valid.length ? weightedTotal : null;
+    return { studentId, name: data.name, averages, totalSum, attendancePct, absentCount: data.absentCount };
+  });
+
+  const sortedStudents = [...students].sort((a, b) => {
+    if (a.totalSum === null && b.totalSum === null) return 0;
+    if (a.totalSum === null) return 1;
+    if (b.totalSum === null) return -1;
+    return b.totalSum - a.totalSum;
+  });
+
+  const courseAverages = courseNames.map((course) => {
+    if (course === attendanceCourseName) {
+      const values = students
+        .map((student) => student.attendancePct)
+        .filter((value) => value !== null);
+      if (!values.length) {
+        return null;
+      }
+      const total = values.reduce((sum, value) => sum + value, 0);
+      return total / values.length;
+    }
+    const stats = courseTotals.get(course);
+    if (!stats || stats.count === 0) {
+      return course === "السلوك" ? 100 : null;
+    }
+    return stats.sum / stats.count;
+  });
+
+  const handleExportToExcel = () => {
+    const escapeHtml = (value) =>
+      String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+
+    const tableHeaders = [
+      "الطالب",
+      ...courseNames.flatMap((course) => {
+        const percentage = coursePercentages.get(course) || 0;
+        const percentageLabel = Number.isInteger(percentage)
+          ? percentage
+          : percentage.toFixed(1);
+        return [course, `${course} موزون (${percentageLabel})`];
+      }),
+      "أيام الغياب",
+      "الإجمالي",
+      "التقدير",
+    ];
+
+    const rows = sortedStudents.map((student) => {
+      const courseCells = courseNames.flatMap((course, idx) => {
+        const avg = student.averages[idx];
+        const weight = coursePercentages.get(course) || 0;
+        const weighted = avg !== null ? (avg * weight) / 100 : null;
+        return [
+          avg !== null ? avg.toFixed(1) : "-",
+          weighted !== null ? weighted.toFixed(1) : "-",
+        ];
+      });
+      return [
+        student.name,
+        ...courseCells,
+        student.absentCount !== null ? student.absentCount : "-",
+        student.totalSum !== null ? student.totalSum.toFixed(1) : "-",
+        getRatingLabel(student.totalSum),
+      ];
+    });
+
+    const headerRows = [
+      ["مجمع الحلقات", classInfo?.school_name || "-"],
+      ["المعلم", classInfo?.teacher_name || "-"],
+      ["الحلقة", classInfo?.name || classItem.name],
+      [],
+    ];
+
+    const allRows = [...headerRows, tableHeaders, ...rows];
+    const tableHtml = `
+      <table border="1">
+        ${allRows
+          .map(
+            (row) =>
+              `<tr>${row
+                .map((cell) => `<td>${escapeHtml(cell)}</td>`)
+                .join("")}</tr>`
+          )
+          .join("")}
+      </table>
+    `;
+
+    const blob = new Blob([tableHtml], {
+      type: "application/vnd.ms-excel;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "class-grades.xls";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+      <div className="bg-white p-6 rounded-xl shadow-2xl max-w-6xl w-full m-4 max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center mb-6 bg-gradient-to-r from-slate-800 to-slate-700 text-white px-4 py-3 rounded-lg">
+          <div>
+            <h3 className="text-xl font-bold mb-1">{"درجات الحلقة"}</h3>
+            <div className="text-sm text-slate-200">
+              {classInfo?.name || classItem.name}
+            </div>
+            <div className="text-xs text-slate-300 mt-1">
+              {"مجمع الحلقات: "} {classInfo?.school_name || "-"} {" | "}
+              {"المعلم: "} {classInfo?.teacher_name || "-"}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleExportToExcel}
+            className="bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium px-3 py-1.5 rounded-lg shadow mr-3"
+          >
+            {"تصدير إكسل"}
+          </button>
+          <button
+            onClick={onClose}
+            className="text-slate-200 hover:text-white text-2xl"
+          >
+            ✕
+          </button>
+        </div>
+
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
+            {error}
+          </div>
+        )}
+
+        {loading ? (
+          <div className="text-center py-8 text-gray-600">
+            {"جاري تحميل الدرجات..."}
+          </div>
+        ) : courseNames.length === 0 ? (
+          <div className="text-center py-8 text-gray-600">
+            {"لا توجد درجات بعد."}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm text-right border">
+              <thead className="bg-slate-50">
+                <tr className="border-b">
+                  <th className={`py-3 px-3 text-gray-700 ${getColumnClass(0)}`}>
+                    {"الطالب"}
+                  </th>
+                  {courseNames.map((course, courseIndex) => (
+                    <Fragment key={course}>
+                      <th className={`py-3 px-3 text-gray-700 ${getColumnClass(1 + courseIndex * 2)}`}>
+                        {course}
+                      </th>
+                      <th className={`py-3 px-3 text-gray-700 ${getColumnClass(1 + courseIndex * 2 + 1)}`}>
+                        {course} {"موزون"}
+                        {coursePercentages.has(course) && (
+                          <span className="text-xs text-gray-500">
+                            {" ("}
+                            {Number.isInteger(coursePercentages.get(course))
+                              ? coursePercentages.get(course)
+                              : (coursePercentages.get(course) || 0).toFixed(1)}
+                            {")"}
+                          </span>
+                        )}
+                      </th>
+                    </Fragment>
+                  ))}
+                  <th className={`py-3 px-3 text-gray-700 ${getColumnClass(1 + courseNames.length * 2)}`}>
+                    {"أيام الغياب"}
+                  </th>
+                  <th className={`py-3 px-3 text-gray-700 ${getColumnClass(2 + courseNames.length * 2)}`}>
+                    {"الإجمالي"}
+                  </th>
+                  <th className={`py-3 px-3 text-gray-700 ${getColumnClass(3 + courseNames.length * 2)}`}>
+                    {"التقدير"}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedStudents.map((student) => (
+                  <tr key={student.studentId} className="border-b last:border-0">
+                    <td className={`py-2 px-3 font-medium text-slate-800 ${getColumnClass(0)}`}>
+                      {student.name}
+                    </td>
+                    {courseNames.map((course, idx) => {
+                      const stats = studentMap.get(student.studentId)?.courses[course];
+                      const avg =
+                        course === attendanceCourseName
+                          ? student.attendancePct
+                          : stats && stats.count > 0
+                            ? (stats.sum / stats.count)
+                            : course === "السلوك"
+                              ? 100
+                              : null;
+                      const weight = coursePercentages.get(course) || 0;
+                      const weighted = avg !== null ? (avg * weight) / 100 : null;
+                      return (
+                        <Fragment key={course}>
+                          <td className={`py-2 px-3 text-gray-700 ${getColumnClass(1 + idx * 2)}`}>
+                            {avg !== null ? avg.toFixed(1) : "-"}
+                          </td>
+                          <td className={`py-2 px-3 text-gray-700 ${getColumnClass(1 + idx * 2 + 1)}`}>
+                            {weighted !== null ? weighted.toFixed(1) : "-"}
+                          </td>
+                        </Fragment>
+                      );
+                    })}
+                    <td className={`py-2 px-3 text-slate-700 text-center ${getColumnClass(1 + courseNames.length * 2)}`}>
+                      {student.absentCount !== null ? student.absentCount : "-"}
+                    </td>
+                    <td className={`py-2 px-3 text-slate-700 font-semibold ${getColumnClass(2 + courseNames.length * 2)}`}>
+                      {student.totalSum !== null ? student.totalSum.toFixed(1) : "-"}
+                    </td>
+                    <td className={`py-2 px-3 text-slate-700 font-semibold ${getColumnClass(3 + courseNames.length * 2)}`}>
+                      {getRatingLabel(student.totalSum)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t bg-slate-50">
+                  <td className={`py-2 px-3 font-semibold text-slate-700 ${getColumnClass(0)}`}>
+                    {"متوسط المقرر"}
+                  </td>
+                  {courseAverages.map((avg, idx) => {
+                    const course = courseNames[idx];
+                    const weight = coursePercentages.get(course) || 0;
+                    const weightedAvg = avg !== null ? (avg * weight) / 100 : null;
+                    return (
+                      <Fragment key={course}>
+                        <td className={`py-2 px-3 text-slate-700 ${getColumnClass(1 + idx * 2)}`}>
+                          {avg !== null ? avg.toFixed(1) : "-"}
+                        </td>
+                        <td className={`py-2 px-3 text-slate-700 ${getColumnClass(1 + idx * 2 + 1)}`}>
+                          {weightedAvg !== null ? weightedAvg.toFixed(1) : "-"}
+                        </td>
+                      </Fragment>
+                    );
+                  })}
+                  <td className={`py-2 px-3 text-gray-500 ${getColumnClass(1 + courseNames.length * 2)}`}>-</td>
+                  <td className={`py-2 px-3 text-gray-500 ${getColumnClass(2 + courseNames.length * 2)}`}>-</td>
+                  <td className={`py-2 px-3 text-gray-500 ${getColumnClass(3 + courseNames.length * 2)}`}>-</td>
+                </tr>
+              </tfoot>
+            </table>
+            <div className="mt-3 text-xs text-gray-500">
+              {"تم حساب المتوسط باعتبار جميع الدرجات المسجلة لكل مقرر."}
             </div>
           </div>
         )}

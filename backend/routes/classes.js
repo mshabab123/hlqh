@@ -9,6 +9,87 @@ const { authenticateToken: requireAuth } = require('../middleware/auth');
 
 // Helper functions are now imported from QuranData.js
 
+const normalizeIntArray = (value, fallback = []) => {
+  if (Array.isArray(value)) {
+    return value.map((item) => Number(item)).filter((item) => !Number.isNaN(item));
+  }
+  if (!value) {
+    return fallback;
+  }
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return parsed.map((item) => Number(item)).filter((item) => !Number.isNaN(item));
+      }
+    } catch (error) {
+      // Fallback to Postgres array string parsing.
+    }
+    if (value.startsWith('{') && value.endsWith('}')) {
+      return value
+        .slice(1, -1)
+        .split(',')
+        .map((item) => Number(item))
+        .filter((item) => !Number.isNaN(item));
+    }
+  }
+  return fallback;
+};
+
+const normalizeStringArray = (value, fallback = []) => {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item));
+  }
+  if (!value) {
+    return fallback;
+  }
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return parsed.map((item) => String(item));
+      }
+    } catch (error) {
+      // Fallback to Postgres array string parsing.
+    }
+    if (value.startsWith('{') && value.endsWith('}')) {
+      return value
+        .slice(1, -1)
+        .split(',')
+        .filter(Boolean)
+        .map((item) => item.trim());
+    }
+  }
+  return fallback;
+};
+
+// Helper function to get working days for a semester (mirrors attendance.js)
+const getWorkingDays = (startDate, endDate, weekendDays = [4, 5, 6], vacationDays = []) => {
+  const workingDays = [];
+
+  const startDateStr = startDate instanceof Date ? startDate.toISOString().split('T')[0] : startDate.split('T')[0];
+  const endDateStr = endDate instanceof Date ? endDate.toISOString().split('T')[0] : endDate.split('T')[0];
+
+  const currentDate = new Date(startDateStr + 'T12:00:00.000Z');
+  const end = new Date(endDateStr + 'T12:00:00.000Z');
+
+  while (currentDate <= end) {
+    const dayOfWeek = currentDate.getDay();
+    const dateStr = currentDate.toISOString().split('T')[0];
+
+    const isWeekend = weekendDays.includes(dayOfWeek);
+    const isVacation = vacationDays.includes(dateStr);
+
+    if (!isWeekend && !isVacation) {
+      workingDays.push(dateStr);
+    }
+
+    currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+  }
+
+  return workingDays;
+};
+
 // Function to update student's overall memorization progress
 const updateStudentMemorizationProgress = async (studentId) => {
   try {
@@ -184,12 +265,22 @@ router.get('/:id', requireAuth, async (req, res) => {
     
     const result = await db.query(`
       SELECT 
-        c.id, c.name, c.school_id, c.max_students, c.room_number as teacher_id,
-        c.is_active, c.created_at,
+        c.id,
+        c.name,
+        c.school_id,
+        c.max_students,
+        c.room_number as teacher_id,
+        c.is_active,
+        c.created_at,
         s.name as school_name,
-        CASE WHEN u.id IS NOT NULL THEN CONCAT(u.first_name, ' ', u.last_name) ELSE NULL END as teacher_name
+        COALESCE(
+          CONCAT(ptu.first_name, ' ', ptu.last_name),
+          CASE WHEN u.id IS NOT NULL THEN CONCAT(u.first_name, ' ', u.last_name) ELSE NULL END
+        ) as teacher_name
       FROM classes c
       LEFT JOIN schools s ON c.school_id = s.id
+      LEFT JOIN teacher_class_assignments tca ON c.id = tca.class_id AND tca.teacher_role = 'primary' AND tca.is_active = TRUE
+      LEFT JOIN users ptu ON tca.teacher_id = ptu.id
       LEFT JOIN users u ON c.room_number = u.id
       WHERE c.id = $1
     `, [id]);
@@ -629,11 +720,42 @@ router.post('/:id/grades', requireAuth, async (req, res) => {
 router.get('/:id/grades-summary', requireAuth, async (req, res) => {
   try {
     const { id: classId } = req.params;
+
+    const classInfoResult = await db.query(`
+      SELECT c.semester_id, s.start_date, s.end_date, s.weekend_days, s.vacation_days
+      FROM classes c
+      JOIN semesters s ON s.id = c.semester_id
+      WHERE c.id = $1
+    `, [classId]);
+
+    if (classInfoResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Class not found.' });
+    }
+
+    const { start_date, end_date, weekend_days, vacation_days } = classInfoResult.rows[0];
+    const normalizedWeekendDays = normalizeIntArray(weekend_days, [4, 5, 6]);
+    const normalizedVacationDays = normalizeStringArray(vacation_days, []);
+    const workingDays = getWorkingDays(
+      start_date,
+      end_date,
+      normalizedWeekendDays,
+      normalizedVacationDays
+    );
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const totalWorkDays = workingDays.filter((day) => day < today).length;
     
     const result = await db.query(`
+      WITH class_info AS (
+        SELECT id, semester_id
+        FROM classes
+        WHERE id = $1
+      )
       SELECT 
         s.id as student_id,
         u.first_name,
+        u.second_name,
+        u.third_name,
         u.last_name,
         sc.name as course_name,
         sc.percentage as course_percentage,
@@ -643,17 +765,41 @@ router.get('/:id/grades-summary', requireAuth, async (req, res) => {
           WHEN g.grade_value IS NOT NULL AND g.max_grade > 0 
           THEN ROUND((g.grade_value::decimal / g.max_grade) * 100, 2)
           ELSE NULL
-        END as percentage_score
-      FROM students s
-      JOIN student_enrollments se ON s.id = se.student_id
+        END as percentage_score,
+        (
+          SELECT COUNT(*)::int
+          FROM semester_attendance sa
+          WHERE sa.student_id = s.id
+            AND sa.class_id = ci.id
+            AND sa.semester_id = ci.semester_id
+            AND sa.is_present = true
+        ) as present_count
+      FROM class_info ci
+      JOIN student_enrollments se ON se.class_id = ci.id AND se.status = 'enrolled'
+      JOIN students s ON s.id = se.student_id
       JOIN users u ON s.id = u.id
       CROSS JOIN semester_courses sc
-      LEFT JOIN grades g ON s.id = g.student_id AND sc.id = g.course_id AND g.class_id = $1
-      WHERE se.class_id = $1 AND se.status = 'enrolled' AND sc.class_id = $1 AND sc.is_active = true
+      LEFT JOIN grades g ON s.id = g.student_id AND sc.id = g.course_id AND g.class_id = ci.id
+      WHERE sc.is_active = true
+        AND sc.semester_id = ci.semester_id
+        AND (
+          sc.class_id = ci.id
+          OR (sc.class_id IS NULL AND sc.school_id = (SELECT school_id FROM classes WHERE id = ci.id))
+        )
       ORDER BY u.first_name, u.last_name, sc.name
     `, [classId]);
+
+    const rows = result.rows.map((row) => {
+      const presentCount = Number(row.present_count) || 0;
+      const absentCount = Math.max(totalWorkDays - presentCount, 0);
+      return {
+        ...row,
+        total_days: totalWorkDays,
+        absent_count: absentCount
+      };
+    });
     
-    res.json(result.rows);
+    res.json(rows);
     
   } catch (error) {
     console.error('Error fetching grades summary:', error);

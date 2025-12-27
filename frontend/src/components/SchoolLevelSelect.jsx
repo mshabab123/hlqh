@@ -12,7 +12,7 @@ const SchoolLevelSelect = ({
 }) => {
   // Unified Arabic format for all components
   const schoolLevels = [
-    "لم يدخل المدرسة",
+    "لم يدخل المدرسة ",
         "روضة",
     "الأول الابتدائي",
     "الثاني الابتدائي",
