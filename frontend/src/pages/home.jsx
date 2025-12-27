@@ -31,10 +31,10 @@ export default function Home() {
   const navigationCards = [
     {
       title: "حلقاتي",
-      description: "عرض الحلقات التي أدرّسها ومعلومات الطلاب",
-      icon: FaUsers,
-      path: "/my-classes",
-      color: "bg-indigo-600",
+      description: "عرض الحلقات التي أدرّسها مع تمييز الحلقات الأساسية والإضافية.",
+      icon: FaChalkboardTeacher,
+      path: "/classes",
+      color: "bg-teal-600",
       roles: ["teacher"]
     },
     {

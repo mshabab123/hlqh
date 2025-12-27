@@ -1,6 +1,6 @@
 import { useState, useEffect, Fragment } from "react";
 import axios from "axios";
-import { AiOutlinePlus, AiOutlineEdit, AiOutlineDelete, AiOutlineUser, AiOutlineBook, AiOutlineReload, AiOutlineStar, AiOutlineFileText } from "react-icons/ai";
+import { AiOutlinePlus, AiOutlineEdit, AiOutlineDelete, AiOutlineUser, AiOutlineBook, AiOutlineReload, AiOutlineStar, AiOutlineFileText, AiOutlineBarChart } from "react-icons/ai";
 import ClassForm from "../components/ClassForm";
 import StudentListModal from "../components/StudentListModal";
 import { 
@@ -14,12 +14,15 @@ const API_BASE = import.meta.env.VITE_API_BASE || "";
 
 export default function ClassManagement() {
   const [classes, setClasses] = useState([]);
+  const [teacherClasses, setTeacherClasses] = useState([]);
   const [schools, setSchools] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [semesters, setSemesters] = useState([]);
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [teacherLoading, setTeacherLoading] = useState(true);
   const [error, setError] = useState("");
+  const [teacherError, setTeacherError] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingClass, setEditingClass] = useState(null);
   const [selectedClassForStudents, setSelectedClassForStudents] = useState(null);
@@ -27,8 +30,15 @@ export default function ClassManagement() {
   const [showCoursesModal, setShowCoursesModal] = useState(false);
   const [selectedClassForGrades, setSelectedClassForGrades] = useState(null);
   const [showGradesModal, setShowGradesModal] = useState(false);
-  const [userRole, setUserRole] = useState("admin"); // TODO: Get from auth context
+  const [selectedClassForPoints, setSelectedClassForPoints] = useState(null);
+  const [showPointsModal, setShowPointsModal] = useState(false);
+  const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+  const [userRole, setUserRole] = useState(storedUser.role || storedUser.user_type || "admin");
   const [userSchoolId, setUserSchoolId] = useState(null); // TODO: Get from auth context
+  const [showExtraClasses, setShowExtraClasses] = useState(() => {
+    const stored = localStorage.getItem("teacher_extra_classes_visible");
+    return stored ? stored === "true" : true;
+  });
   
   // Filter states
   const [schoolFilter, setSchoolFilter] = useState("");
@@ -46,11 +56,20 @@ export default function ClassManagement() {
   });
 
   useEffect(() => {
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+    setUserRole(user.role || user.user_type || "admin");
+  }, []);
+
+  useEffect(() => {
+    if (userRole === "teacher") {
+      fetchTeacherClasses();
+      return;
+    }
     fetchSchools();
     fetchTeachers();
     fetchSemesters();
     fetchClasses(); // Load all classes initially
-  }, []);
+  }, [userRole]);
   
   // Reset semester filter when school changes
   useEffect(() => {
@@ -71,8 +90,14 @@ export default function ClassManagement() {
 
   // Fetch classes when school or semester filter changes
   useEffect(() => {
+    if (userRole === "teacher") return;
     fetchClasses(schoolFilter || null, semesterFilter || null);
-  }, [schoolFilter, semesterFilter]);
+  }, [schoolFilter, semesterFilter, userRole]);
+
+  useEffect(() => {
+    if (userRole !== "teacher") return;
+    localStorage.setItem("teacher_extra_classes_visible", String(showExtraClasses));
+  }, [showExtraClasses, userRole]);
 
   const fetchCourses = async (semesterId, classId) => {
     try {
@@ -115,6 +140,23 @@ export default function ClassManagement() {
       setError(err.response?.data?.error || "فشل في تحميل الحلقات");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchTeacherClasses = async () => {
+    try {
+      setTeacherLoading(true);
+      setTeacherError("");
+      const token = localStorage.getItem("token");
+      const response = await axios.get(`${API_BASE}/api/grading/teacher/my-classes`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const list = response.data?.classes || [];
+      setTeacherClasses(Array.isArray(list) ? list : []);
+    } catch (err) {
+      setTeacherError(err.response?.data?.error || "فشل في تحميل الحلقات للمعلم");
+    } finally {
+      setTeacherLoading(false);
     }
   };
 
@@ -292,6 +334,215 @@ export default function ClassManagement() {
       fetchCourses(classItem.semester_id, classItem.id);
     }
   };
+
+  if (userRole === "teacher") {
+    const primaryClasses = teacherClasses.filter((item) => item.teacher_role === "primary");
+    const extraClasses = teacherClasses.filter((item) => item.teacher_role !== "primary");
+
+    const renderTeacherClassCard = (classItem, isExtra) => (
+      <div key={classItem.id} className="bg-white rounded-xl shadow-lg border-0 hover:shadow-xl transition-shadow duration-300">
+        <div className={`bg-gradient-to-r ${isExtra ? "from-amber-500 to-orange-500" : "from-blue-500 to-purple-600"} text-white p-4 rounded-t-xl`}>
+          <div className="flex justify-between items-start">
+            <div>
+              <h3 className="text-xl font-bold mb-1">{classItem.name}</h3>
+              <p className="text-blue-100 text-sm">{classItem.school_name}</p>
+            </div>
+            {isExtra && (
+              <span className="px-2 py-1 rounded-full text-xs font-medium bg-amber-200 text-amber-800">
+                إضافية
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="p-4">
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div className="bg-gray-50 p-3 rounded-lg">
+              <div className="text-xs text-gray-500 mb-1">الفصل الدراسي</div>
+              <div className="text-sm font-medium">{classItem.semester_name || "-"}</div>
+            </div>
+            <div className="bg-gray-50 p-3 rounded-lg">
+              <div className="text-xs text-gray-500 mb-1">الطلاب</div>
+              <div className="text-sm font-medium">
+                {classItem.student_count ?? 0}{classItem.max_students ? ` / ${classItem.max_students}` : ""}
+              </div>
+            </div>
+          </div>
+          <div className="bg-gray-50 p-3 rounded-lg mb-4">
+            <div className="text-xs text-gray-500 mb-1">المعلم</div>
+            <div className="text-sm font-medium">{classItem.teacher_name || "-"}</div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setSelectedClassForStudents(classItem)}
+                className="flex items-center gap-1 px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex-1 justify-center"
+              >
+                <AiOutlineUser className="text-lg" /> الطلاب
+              </button>
+
+              {!isExtra && (
+                <>
+                  <button
+                    onClick={() => handleManageCourses(classItem)}
+                    className="flex items-center gap-1 px-3 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors flex-1 justify-center"
+                  >
+                    <AiOutlineBook className="text-lg" /> المقررات
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setSelectedClassForGrades(classItem);
+                      setShowGradesModal(true);
+                    }}
+                    className="flex items-center gap-1 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex-1 justify-center"
+                  >
+                    <AiOutlineFileText className="text-lg" /> الدرجات
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setSelectedClassForPoints(classItem);
+                      setShowPointsModal(true);
+                    }}
+                    className="flex items-center gap-1 px-3 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors flex-1 justify-center"
+                  >
+                    <AiOutlineStar className="text-lg" /> النقاط
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      const semesterParam = classItem.semester_id ? `&semester_id=${classItem.semester_id}` : "";
+                      window.location.href = `/points-management?class_id=${classItem.id}${semesterParam}`;
+                    }}
+                    className="flex items-center gap-1 px-3 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors flex-1 justify-center"
+                  >
+                    <AiOutlineStar className="text-lg" /> إدارة النقاط
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      const semesterParam = classItem.semester_id ? `&semester_id=${classItem.semester_id}` : "";
+                      window.location.href = `/points-reports?class_id=${classItem.id}${semesterParam}`;
+                    }}
+                    className="flex items-center gap-1 px-3 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors flex-1 justify-center"
+                  >
+                    <AiOutlineBarChart className="text-lg" /> تقارير النقاط
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+
+    return (
+      <div className="container mx-auto px-4 py-6" dir="rtl">
+        <div className="max-w-6xl mx-auto">
+          <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+            <h1 className="text-2xl font-bold text-gray-800 mb-2">حلقاتي</h1>
+            <p className="text-gray-600">
+             اخي المعلم،نسأل الله لك التوفيق والسداد في مهمتك العظيمة.
+            </p>
+          </div>
+
+          {teacherError && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
+              {teacherError}
+            </div>
+          )}
+
+          {teacherLoading ? (
+            <div className="text-center py-8 text-gray-600">جاري تحميل الحلقات...</div>
+          ) : (
+            <>
+              <div className="mb-8">
+                <h2 className="text-lg font-semibold text-gray-800 mb-4">الحلقات الأساسية</h2>
+                {primaryClasses.length === 0 ? (
+                  <div className="text-gray-500">لا توجد حلقات أساسية.</div>
+                ) : (
+                  <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                    {primaryClasses.map((classItem) => renderTeacherClassCard(classItem, false))}
+                  </div>
+                )}
+              </div>
+
+              <div className="mb-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold text-gray-800">الحلقات الإضافية</h2>
+                  <button
+                    type="button"
+                    onClick={() => setShowExtraClasses((prev) => !prev)}
+                    className="text-sm text-blue-600 hover:text-blue-800"
+                  >
+                    {showExtraClasses ? "إخفاء" : "إظهار"}
+                  </button>
+                </div>
+                {showExtraClasses ? (
+                  extraClasses.length === 0 ? (
+                    <div className="text-gray-500">لا توجد حلقات إضافية.</div>
+                  ) : (
+                    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                      {extraClasses.map((classItem) => renderTeacherClassCard(classItem, true))}
+                    </div>
+                  )
+                ) : null}
+              </div>
+            </>
+          )}
+
+          {selectedClassForStudents && (
+            <StudentListModal
+              classItem={selectedClassForStudents}
+              onClose={() => setSelectedClassForStudents(null)}
+            />
+          )}
+
+          {showCoursesModal && selectedClassForCourses && (
+            <CourseManagementModal
+              classItem={selectedClassForCourses}
+              courses={courses}
+              semesters={semesters}
+              readOnly
+              onClose={() => {
+                setShowCoursesModal(false);
+                setSelectedClassForCourses(null);
+                setCourses([]);
+              }}
+              onRefresh={(newSemesterId) => {
+                const semesterIdToUse = newSemesterId || selectedClassForCourses.semester_id;
+                if (semesterIdToUse && selectedClassForCourses.id) {
+                  setCourses([]);
+                  fetchCourses(semesterIdToUse, selectedClassForCourses.id);
+                }
+              }}
+            />
+          )}
+
+          {showGradesModal && selectedClassForGrades && (
+            <ClassGradesModal
+              classItem={selectedClassForGrades}
+              onClose={() => {
+                setShowGradesModal(false);
+                setSelectedClassForGrades(null);
+              }}
+            />
+          )}
+
+          {showPointsModal && selectedClassForPoints && (
+            <ClassPointsModal
+              classItem={selectedClassForPoints}
+              onClose={() => {
+                setShowPointsModal(false);
+                setSelectedClassForPoints(null);
+              }}
+            />
+          )}
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -656,7 +907,7 @@ export default function ClassManagement() {
 }
 
 // CourseManagementModal Component
-const CourseManagementModal = ({ classItem, courses, semesters, onClose, onRefresh }) => {
+const CourseManagementModal = ({ classItem, courses, semesters, readOnly = false, onClose, onRefresh }) => {
   const [showAddCourseForm, setShowAddCourseForm] = useState(false);
   const [selectedSemesterId, setSelectedSemesterId] = useState(classItem.semester_id);
   const [editingCourse, setEditingCourse] = useState(null);
@@ -786,30 +1037,32 @@ const CourseManagementModal = ({ classItem, courses, semesters, onClose, onRefre
         {/* Semester Selection & Stats */}
         <div className="mb-6 bg-gray-50 p-4 rounded-lg">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">📅 اختر الفصل الدراسي</label>
-              <select
-                value={selectedSemesterId}
-                onChange={(e) => {
-                  setSelectedSemesterId(e.target.value);
-                  onRefresh(e.target.value);
-                  setShowAddCourseForm(false);
-                  setEditingCourse(null);
-                }}
-                className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">اختر الفصل الدراسي</option>
-                {semesters
-                  .filter(semester => semester.school_id == classItem.school_id)
-                  .map(semester => (
-                  <option key={semester.id} value={semester.id}>
-                    الفصل {semester.type === 'first' ? 'الأول' : semester.type === 'second' ? 'الثاني' : 'الصيفي'} {semester.year}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {!readOnly && (
+              <div>
+                <label className="block text-sm font-medium mb-2">📅 اختر الفصل الدراسي</label>
+                <select
+                  value={selectedSemesterId}
+                  onChange={(e) => {
+                    setSelectedSemesterId(e.target.value);
+                    onRefresh(e.target.value);
+                    setShowAddCourseForm(false);
+                    setEditingCourse(null);
+                  }}
+                  className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">اختر الفصل الدراسي</option>
+                  {semesters
+                    .filter(semester => semester.school_id == classItem.school_id)
+                    .map(semester => (
+                    <option key={semester.id} value={semester.id}>
+                      الفصل {semester.type === 'first' ? 'الأول' : semester.type === 'second' ? 'الثاني' : 'الصيفي'} {semester.year}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             
-            {selectedSemesterId && (
+            {!readOnly && selectedSemesterId && (
               <div className="flex items-center">
                 <div className="bg-white p-3 rounded-lg border w-full">
                   <div className="text-sm text-gray-600">إحصائيات المقررات</div>
@@ -826,6 +1079,7 @@ const CourseManagementModal = ({ classItem, courses, semesters, onClose, onRefre
         </div>
 
         {/* Action Buttons */}
+        {!readOnly && (
         <div className="mb-6 flex flex-wrap gap-3">
           <button
             onClick={() => {
@@ -850,9 +1104,10 @@ const CourseManagementModal = ({ classItem, courses, semesters, onClose, onRefre
             </div>
           )}
         </div>
+        )}
 
         {/* Add/Edit Course Form */}
-        {showAddCourseForm && (
+        {!readOnly && showAddCourseForm && (
           <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg mb-6">
             <div className="flex justify-between items-center mb-4">
               <h4 className="text-lg font-semibold text-blue-800">
@@ -1006,22 +1261,24 @@ const CourseManagementModal = ({ classItem, courses, semesters, onClose, onRefre
                       )}
                     </div>
                     
-                    <div className="flex flex-col gap-2 ml-4">
-                      <button
-                        onClick={() => handleEditCourse(course)}
-                        className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm flex items-center gap-1"
-                        title="تعديل المقرر"
-                      >
-                        ✏️ تعديل
-                      </button>
-                      <button
-                        onClick={() => handleDeleteCourse(course.id)}
-                        className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm flex items-center gap-1"
-                        title="حذف المقرر"
-                      >
-                        🗑️ حذف
-                      </button>
-                    </div>
+                    {!readOnly && (
+                      <div className="flex flex-col gap-2 ml-4">
+                        <button
+                          onClick={() => handleEditCourse(course)}
+                          className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm flex items-center gap-1"
+                          title="تعديل المقرر"
+                        >
+                          ✏️ تعديل
+                        </button>
+                        <button
+                          onClick={() => handleDeleteCourse(course.id)}
+                          className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm flex items-center gap-1"
+                          title="حذف المقرر"
+                        >
+                          🗑️ حذف
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -1169,7 +1426,7 @@ const ClassGradesModal = ({ classItem, onClose }) => {
       }
       const stats = data.courses[course];
       if (!stats || stats.count === 0) {
-        return course === "السلوك" ? 100 : null;
+        return course === "السلوك" ? null : null;
       }
       return stats.sum / stats.count;
     });
@@ -1204,7 +1461,7 @@ const ClassGradesModal = ({ classItem, onClose }) => {
     }
     const stats = courseTotals.get(course);
     if (!stats || stats.count === 0) {
-      return course === "السلوك" ? 100 : null;
+      return course === "السلوك" ? null : null;
     }
     return stats.sum / stats.count;
   });
@@ -1380,7 +1637,7 @@ const ClassGradesModal = ({ classItem, onClose }) => {
                           : stats && stats.count > 0
                             ? (stats.sum / stats.count)
                             : course === "السلوك"
-                              ? 100
+                              ? null
                               : null;
                       const weight = coursePercentages.get(course) || 0;
                       const weighted = avg !== null ? (avg * weight) / 100 : null;
@@ -1436,6 +1693,209 @@ const ClassGradesModal = ({ classItem, onClose }) => {
             <div className="mt-3 text-xs text-gray-500">
               {"تم حساب المتوسط باعتبار جميع الدرجات المسجلة لكل مقرر."}
             </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+  const ClassPointsModal = ({ classItem, onClose }) => {
+    const [points, setPoints] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+
+  const fetchPoints = async () => {
+    try {
+      setLoading(true);
+      setError("");
+      const token = localStorage.getItem("token");
+      const params = new URLSearchParams();
+      if (classItem.semester_id) {
+        params.append("semester_id", classItem.semester_id);
+      }
+      if (dateFrom) params.append("date_from", dateFrom);
+      if (dateTo) params.append("date_to", dateTo);
+      params.append("limit", "10000");
+      const response = await axios.get(
+        `${API_BASE}/api/points/class/${classItem.id}?${params.toString()}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setPoints(response.data?.points || []);
+    } catch (err) {
+      console.error("Error loading class points:", err);
+      setError("فشل في تحميل نقاط الطلاب.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPoints();
+  }, []);
+
+  const groupedPoints = Object.values(
+    points.reduce((acc, record) => {
+      const key = record.student_id || record.student_name || "unknown";
+      if (!acc[key]) {
+        acc[key] = {
+          student_id: record.student_id,
+          student_name: record.student_name || "-",
+          total_points: 0,
+        };
+      }
+      const fullName =
+        record.student_full_name ||
+        record.student_name_full ||
+        record.student_name;
+      if (fullName) {
+        acc[key].student_name = fullName;
+      }
+      acc[key].total_points += Number(record.points_given || 0);
+      return acc;
+    }, {})
+  ).sort((a, b) => a.student_name.localeCompare(b.student_name, "ar"));
+
+  const handleExportToExcel = () => {
+    const escapeHtml = (value) =>
+      String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+
+    const rows = groupedPoints.map((record) => [
+      record.student_name,
+      record.total_points.toFixed(1),
+    ]);
+
+    const headerRows = [
+      ["الصف", classItem.name],
+      ["الفترة", dateFrom || "-", dateTo || "-"],
+      [],
+    ];
+
+    const tableHeaders = ["الطالب", "إجمالي النقاط"];
+    const allRows = [...headerRows, tableHeaders, ...rows];
+
+    const tableHtml = `
+      <table border="1">
+        ${allRows
+          .map(
+            (row) =>
+              `<tr>${row
+                .map((cell) => `<td>${escapeHtml(cell)}</td>`)
+                .join("")}</tr>`
+          )
+          .join("")}
+      </table>
+    `;
+
+    const blob = new Blob([tableHtml], {
+      type: "application/vnd.ms-excel;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "class-points.xls";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+      <div className="bg-white p-6 rounded-xl shadow-xl max-w-5xl w-full m-4 max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-xl font-bold text-[var(--color-primary-700)]">
+            نقاط الطلاب - {classItem.name}
+          </h3>
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700 text-2xl"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="bg-gray-50 p-4 rounded-lg mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium mb-2">من تاريخ</label>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="w-full p-2 border rounded-lg"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-2">إلى تاريخ</label>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="w-full p-2 border rounded-lg"
+            />
+          </div>
+          <div className="flex items-end gap-2">
+            <button
+              onClick={fetchPoints}
+              className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600"
+            >
+              تصفية
+            </button>
+            <button
+              onClick={handleExportToExcel}
+              className="bg-emerald-500 text-white px-4 py-2 rounded-lg hover:bg-emerald-600"
+            >
+              تصدير إكسل
+            </button>
+          </div>
+        </div>
+
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+            {error}
+          </div>
+        )}
+
+        {loading ? (
+          <div className="text-center py-8 text-gray-600">جاري تحميل النقاط...</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full bg-white border border-gray-200 rounded-lg">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    ??????
+                  </th>
+                  <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    ?????? ??????
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {groupedPoints.map((record) => (
+                  <tr key={record.student_id || record.student_name}>
+                    <td className="px-4 py-2 text-sm text-gray-700">{record.student_name}</td>
+                    <td className="px-4 py-2 text-sm text-center text-gray-700">
+                      {record.total_points.toFixed(1)}
+                    </td>
+                  </tr>
+                ))}
+                {groupedPoints.length === 0 && (
+                  <tr>
+                    <td colSpan="2" className="px-4 py-6 text-center text-gray-500">
+                      ?? ???? ???? ?? ??? ??????.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         )}
       </div>

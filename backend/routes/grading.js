@@ -79,6 +79,21 @@ const getWorkingDays = (startDate, endDate, weekendDays = [4, 5, 6], vacationDay
   return workingDays;
 };
 
+const getAttendanceCourseWeight = (courses) => {
+  if (!courses || courses.length === 0) return 0;
+  const exactNames = ["نسبة الحضور", "الحضور والغياب", "الحضور", "المواظبة"];
+  for (const name of exactNames) {
+    const match = courses.find((course) => course.name === name);
+    if (match) return Number(match.percentage) || 0;
+  }
+  const fuzzy = courses.find(
+    (course) =>
+      typeof course.name === "string" &&
+      (course.name.includes("الحضور") || course.name.includes("المواظبة"))
+  );
+  return fuzzy ? Number(fuzzy.percentage) || 0 : 0;
+};
+
 // GET /api/grading/school/:schoolId/semester/:semesterId
 // Get comprehensive grading data for all classes in a school/semester
 router.get('/school/:schoolId/semester/:semesterId', auth, async (req, res) => {
@@ -102,6 +117,7 @@ router.get('/school/:schoolId/semester/:semesterId', auth, async (req, res) => {
     const classesResult = await db.query(`
       SELECT 
         c.id,
+        c.school_id,
         c.name,
         c.school_level,
         c.max_students,
@@ -116,7 +132,7 @@ router.get('/school/:schoolId/semester/:semesterId', auth, async (req, res) => {
       LEFT JOIN users ptu ON tca.teacher_id = ptu.id
       LEFT JOIN users u ON c.room_number = u.id
       WHERE c.school_id = $1 AND c.semester_id = $2 AND c.is_active = true
-      GROUP BY c.id, c.name, c.school_level, c.max_students, ptu.first_name, ptu.last_name, u.first_name, u.last_name
+      GROUP BY c.id, c.school_id, c.name, c.school_level, c.max_students, ptu.first_name, ptu.last_name, u.first_name, u.last_name
       ORDER BY c.name
     `, [schoolId, semesterId]);
 
@@ -139,6 +155,15 @@ router.get('/school/:schoolId/semester/:semesterId', auth, async (req, res) => {
       `, [classInfo.id]);
 
       const students = [];
+      const coursesResult = await db.query(`
+        SELECT name, percentage
+        FROM semester_courses
+        WHERE semester_id = $1
+          AND is_active = true
+          AND (class_id = $2 OR class_id IS NULL)
+          AND (school_id = $3 OR school_id IS NULL)
+      `, [semesterId, classInfo.id, classInfo.school_id]);
+      const attendanceWeight = getAttendanceCourseWeight(coursesResult.rows);
       const coursePercentages = {};
       
       for (const student of studentsResult.rows) {
@@ -221,7 +246,9 @@ router.get('/school/:schoolId/semester/:semesterId', auth, async (req, res) => {
       classesData.push({
         ...classInfo,
         students,
-        course_percentages: coursePercentages
+        courses: coursesResult.rows,
+        course_percentages: coursePercentages,
+        attendance_weight: attendanceWeight
       });
     }
 
@@ -405,24 +432,41 @@ router.delete('/grade/:gradeId', auth, async (req, res) => {
 router.get('/teacher/my-classes', auth, async (req, res) => {
   try {
     const teacherId = req.user.id;
+
+    const semesterResult = await db.query(
+      'SELECT start_date, end_date, weekend_days, vacation_days FROM semesters WHERE is_active = true ORDER BY start_date DESC LIMIT 1'
+    );
+    const semester = semesterResult.rows[0];
+    const normalizedWeekendDays = normalizeIntArray(semester?.weekend_days, [4, 5, 6]);
+    const normalizedVacationDays = normalizeStringArray(semester?.vacation_days, []);
+    const workingDays = semester
+      ? getWorkingDays(semester.start_date, semester.end_date, normalizedWeekendDays, normalizedVacationDays)
+      : [];
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const totalWorkDays = workingDays.filter((day) => day < today).length;
     
     // Get teacher's assigned classes for current/active semester
     const classesResult = await db.query(`
       SELECT 
-        c.id, c.name, c.school_level, c.max_students, c.semester_id,
+        c.id, c.school_id, c.name, c.school_level, c.max_students, c.semester_id,
         s.display_name as semester_name,
         sch.name as school_name,
         tca.teacher_role,
+        COALESCE(CONCAT(ptu.first_name, ' ', ptu.last_name), '-') as teacher_name,
         COUNT(DISTINCT se.student_id) as student_count
       FROM teacher_class_assignments tca
       JOIN classes c ON tca.class_id = c.id
       JOIN semesters s ON c.semester_id = s.id
       JOIN schools sch ON c.school_id = sch.id
+      LEFT JOIN teacher_class_assignments tca_primary ON c.id = tca_primary.class_id
+        AND tca_primary.teacher_role = 'primary' AND tca_primary.is_active = TRUE
+      LEFT JOIN users ptu ON tca_primary.teacher_id = ptu.id
       LEFT JOIN student_enrollments se ON c.id = se.class_id AND se.status = 'enrolled'
       WHERE tca.teacher_id = $1 AND c.is_active = true
       AND s.is_active = true
-      GROUP BY c.id, c.name, c.school_level, c.max_students, c.semester_id, 
-               s.display_name, sch.name, tca.teacher_role
+      GROUP BY c.id, c.school_id, c.name, c.school_level, c.max_students, c.semester_id, 
+               s.display_name, sch.name, tca.teacher_role, ptu.first_name, ptu.last_name
       ORDER BY sch.name, c.name
     `, [teacherId]);
 
@@ -445,6 +489,15 @@ router.get('/teacher/my-classes', auth, async (req, res) => {
       `, [classInfo.id]);
 
       const students = [];
+      const coursesResult = await db.query(`
+        SELECT name, percentage
+        FROM semester_courses
+        WHERE semester_id = $1
+          AND is_active = true
+          AND (class_id = $2 OR class_id IS NULL)
+          AND (school_id = $3 OR school_id IS NULL)
+      `, [classInfo.semester_id, classInfo.id, classInfo.school_id]);
+      const attendanceWeight = getAttendanceCourseWeight(coursesResult.rows);
       
       for (const student of studentsResult.rows) {
         // Get student's average grade
@@ -516,7 +569,9 @@ router.get('/teacher/my-classes', auth, async (req, res) => {
 
       classesData.push({
         ...classInfo,
-        students
+        students,
+        courses: coursesResult.rows,
+        attendance_weight: attendanceWeight
       });
     }
 
@@ -572,6 +627,45 @@ router.post('/grade', auth, async (req, res) => {
       end_reference || null,
       date_graded || new Date().toISOString().split('T')[0]
     ]);
+
+    // Auto-fill behavior grade (السلوك) with 100 if missing for the same date
+    try {
+      const behaviorDate = date_graded || new Date().toISOString().split('T')[0];
+      const behaviorCourseResult = await db.query(`
+        SELECT id
+        FROM semester_courses
+        WHERE semester_id = $1
+          AND class_id = $2
+          AND is_active = true
+          AND name = 'السلوك'
+        LIMIT 1
+      `, [semester_id, class_id]);
+
+      const behaviorCourseId = behaviorCourseResult.rows[0]?.id;
+      if (behaviorCourseId) {
+        const existingBehavior = await db.query(`
+          SELECT 1
+          FROM grades
+          WHERE student_id = $1
+            AND class_id = $2
+            AND semester_id = $3
+            AND course_id = $4
+            AND date_graded = $5
+          LIMIT 1
+        `, [student_id, class_id, semester_id, behaviorCourseId, behaviorDate]);
+
+        if (existingBehavior.rows.length === 0) {
+          await db.query(`
+            INSERT INTO grades (
+              student_id, course_id, semester_id, class_id,
+              grade_value, max_grade, notes, grade_type, date_graded
+            ) VALUES ($1, $2, $3, $4, 100, 100, 'Auto-filled behavior grade', 'behavior', $5)
+          `, [student_id, behaviorCourseId, semester_id, class_id, behaviorDate]);
+        }
+      }
+    } catch (behaviorError) {
+      console.error('Failed to auto-fill behavior grade:', behaviorError);
+    }
 
     res.json({
       success: true,

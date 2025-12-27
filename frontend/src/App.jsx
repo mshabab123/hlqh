@@ -25,7 +25,6 @@ import PasswordManagement from "./pages/PasswordManagement";
 import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
 import MyStudentsPage from "./pages/MyStudentsPage";
-import MyClasses from "./pages/MyClasses";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import About from "./pages/About";
@@ -44,7 +43,6 @@ import ConditionalLayout from "./components/ConditionalLayout";
 export default function App() {
   const location = useLocation();
   const isLoggedIn = !!localStorage.getItem("token");
-  
   // Routes that shouldn't show navbar
   const noNavbarRoutes = ["/login", "/Login", "/forgot-password", "/reset-password"];
   const showNavbar = !noNavbarRoutes.includes(location.pathname);
@@ -106,7 +104,7 @@ export default function App() {
           <Route
             path="/classes"
             element={
-              <ProtectedRoute requiredRole={["admin", "administrator"]}>
+              <ProtectedRoute requiredRole={["admin", "administrator", "teacher"]}>
                 <ConditionalLayout>
                   <ClassManagement />
                 </ConditionalLayout>
@@ -339,16 +337,6 @@ export default function App() {
               <ProtectedRoute requiredRole={["parent", "admin", "administrator", "teacher"]}>
                 <ConditionalLayout>
                   <Children />
-                </ConditionalLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/my-classes"
-            element={
-              <ProtectedRoute requiredRole="teacher">
-                <ConditionalLayout>
-                  <MyClasses />
                 </ConditionalLayout>
               </ProtectedRoute>
             }

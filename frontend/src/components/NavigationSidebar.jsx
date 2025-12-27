@@ -227,7 +227,7 @@ const NavigationSidebar = ({ isOpen, setIsOpen, className = "" }) => {
           title: "الحلقات",
           path: "/classes",
           icon: FaUsers,
-          roles: ["admin", "administrator"],
+          roles: ["admin", "administrator", "teacher"],
           description: "إدارة الحلقات والفصول"
         },
         {

@@ -704,6 +704,45 @@ router.post('/:id/grades', requireAuth, async (req, res) => {
       console.error('❌ Failed to mark attendance from class grades:', attendanceError);
       // Don't fail the grade entry if attendance marking fails
     }
+
+    // Auto-fill behavior grade (السلوك) with 100 if missing for the same date
+    try {
+      const behaviorDate = grade_date || new Date().toISOString().split('T')[0];
+      const behaviorCourseResult = await db.query(`
+        SELECT id
+        FROM semester_courses
+        WHERE semester_id = $1
+          AND class_id = $2
+          AND is_active = true
+          AND name = 'السلوك'
+        LIMIT 1
+      `, [semesterId, classId]);
+
+      const behaviorCourseId = behaviorCourseResult.rows[0]?.id;
+      if (behaviorCourseId) {
+        const existingBehavior = await db.query(`
+          SELECT 1
+          FROM grades
+          WHERE student_id = $1
+            AND class_id = $2
+            AND semester_id = $3
+            AND course_id = $4
+            AND date_graded = $5
+          LIMIT 1
+        `, [student_id, classId, semesterId, behaviorCourseId, behaviorDate]);
+
+        if (existingBehavior.rows.length === 0) {
+          await db.query(`
+            INSERT INTO grades (
+              student_id, course_id, semester_id, class_id,
+              grade_value, max_grade, notes, grade_type, date_graded
+            ) VALUES ($1, $2, $3, $4, 100, 100, 'Auto-filled behavior grade', 'behavior', $5)
+          `, [student_id, behaviorCourseId, semesterId, classId, behaviorDate]);
+        }
+      }
+    } catch (behaviorError) {
+      console.error('Failed to auto-fill behavior grade:', behaviorError);
+    }
     
     res.json({ 
       message: 'تم حفظ الدرجة بنجاح',

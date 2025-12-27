@@ -75,7 +75,7 @@ const Sidebar = () => {
           title: "إدارة الحلقات",
           path: "/classes",
           icon: "👥",
-          roles: ["admin", "administrator"]
+          roles: ["admin", "administrator", "teacher"]
         },
         {
           title: "إدارة المعلمين",

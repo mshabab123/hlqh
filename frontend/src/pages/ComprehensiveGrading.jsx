@@ -94,7 +94,28 @@ const ComprehensiveGrading = () => {
       );
       
       if (response.data.success) {
-        setClasses(response.data.classes || []);
+        const fetchedClasses = response.data.classes || [];
+        const classesWithCourses = await Promise.all(
+          fetchedClasses.map(async (classItem) => {
+            if (Array.isArray(classItem.courses) && classItem.courses.length > 0) {
+              return classItem;
+            }
+            try {
+              const coursesRes = await axios.get(
+                `${API_BASE}/api/semesters/${selectedSemester}/classes/${classItem.id}/courses`,
+                { headers: { Authorization: `Bearer ${token}` } }
+              );
+              return {
+                ...classItem,
+                courses: Array.isArray(coursesRes.data) ? coursesRes.data : [],
+              };
+            } catch (error) {
+              console.error("Error loading class courses:", error);
+              return classItem;
+            }
+          })
+        );
+        setClasses(classesWithCourses);
         setActiveTab(0);
       }
     } catch (error) {
@@ -251,22 +272,75 @@ const ComprehensiveGrading = () => {
 
   const getRatingLabel = (value) => {
     if (value == null) return "-";
-    if (value >= 90) return "?????";
-    if (value >= 80) return "??? ???";
-    if (value >= 70) return "???";
-    if (value >= 60) return "?????";
-    return "????";
+    if (value >= 90) return "ممتاز";
+    if (value >= 80) return "جيد جدا";
+    if (value >= 70) return "جيد";
+    if (value >= 60) return "مقبول";
+    return "ضعيف";
   };
 
   const getAttendanceWeight = (coursePercentages) => {
     if (!coursePercentages) return 0;
-    if (coursePercentages["????????"] !== undefined) {
-      return Number(coursePercentages["????????"]) || 0;
+    const explicitKeys = [
+      "نسبة الحضور",
+      "الحضور والغياب",
+      "الحضور",
+      "المواظبة",
+    ];
+    for (const key of explicitKeys) {
+      if (coursePercentages[key] !== undefined) {
+        return Number(coursePercentages[key]) || 0;
+      }
     }
-    if (coursePercentages["??????"] !== undefined) {
-      return Number(coursePercentages["??????"]) || 0;
+    const fuzzyKey = Object.keys(coursePercentages).find(
+      (name) => name.includes("الحضور") || name.includes("المواظبة")
+    );
+    return fuzzyKey ? Number(coursePercentages[fuzzyKey]) || 0 : 0;
+  };
+
+  const getAttendanceWeightFromCourses = (courses) => {
+    if (!Array.isArray(courses)) return 0;
+    const explicitNames = [
+      "نسبة الحضور",
+      "الحضور والغياب",
+      "الحضور",
+      "المواظبة",
+    ];
+    for (const name of explicitNames) {
+      const match = courses.find((course) => course?.name === name);
+      if (match) return Number(match.percentage) || 0;
     }
-    return 0;
+    const fuzzy = courses.find(
+      (course) =>
+        typeof course?.name === "string" &&
+        (course.name.includes("الحضور") || course.name.includes("المواظبة"))
+    );
+    return fuzzy ? Number(fuzzy.percentage) || 0 : 0;
+  };
+
+  const resolveAttendanceWeight = (classItem) => {
+    const direct = Number(classItem?.attendance_weight);
+    if (Number.isFinite(direct) && direct > 0) return direct;
+    const fromCourses = getAttendanceWeightFromCourses(classItem?.courses);
+    if (Number.isFinite(fromCourses) && fromCourses > 0) return fromCourses;
+    return getAttendanceWeight(classItem?.course_percentages || {});
+  };
+
+  const isAttendanceCourse = (courseName) => {
+    if (!courseName) return false;
+    return courseName.includes("الحضور") || courseName.includes("المواظبة");
+  };
+
+  const getCourseWeight = (classItem, courseName) => {
+    if (!classItem || !courseName) return 0;
+    if (courseName === "المواظبة") return resolveAttendanceWeight(classItem);
+    const course = Array.isArray(classItem.courses)
+      ? classItem.courses.find((item) => item?.name === courseName)
+      : null;
+    if (course && Number.isFinite(Number(course.percentage))) {
+      return Number(course.percentage) || 0;
+    }
+    return Number(classItem.course_percentages?.[courseName]) || 0;
   };
 
   // Filter students based on search term
@@ -286,7 +360,23 @@ const ComprehensiveGrading = () => {
       const grades = student.courseGrades || {};
       Object.keys(grades).forEach((name) => names.add(name));
     });
+    const attendanceCourse = Array.isArray(classItem.courses)
+      ? classItem.courses.find((course) => isAttendanceCourse(course?.name))
+      : null;
+    if (attendanceCourse?.name || resolveAttendanceWeight(classItem) > 0) {
+      names.add("المواظبة");
+    }
+    Array.from(names).forEach((name) => {
+      if (name !== "المواظبة" && isAttendanceCourse(name)) {
+        names.delete(name);
+      }
+    });
     return Array.from(names);
+  };
+
+  const formatWeightLabel = (value) => {
+    const num = Number(value);
+    return Number.isFinite(num) ? `${num}%` : "0%";
   };
 
   const selectedSchoolName = schools.find(
@@ -307,23 +397,31 @@ const ComprehensiveGrading = () => {
 
     const students = getFilteredStudents(activeClass.students || []);
     const courseNames = getCourseNamesForClass(activeClass);
-    const attendanceWeight = getAttendanceWeight(activeClass.course_percentages || {});
+    const attendanceWeight = resolveAttendanceWeight(activeClass);
     const tableHeaders = [
-      "??????",
-      ...courseNames,
-      ...courseNames.map((course) => `${course} ?????`),
-      "???????? ???????",
-      "???????",
-      "???? ??????",
-      "???? ??????",
-      "??????",
+      "الطالب",
+      ...courseNames.map((course) => course),
+      ...courseNames.map((course) => {
+        const weight = getCourseWeight(activeClass, course);
+        return `${course} موزون (${formatWeightLabel(weight)})`;
+      }),
+      "الإجمالي الموزون",
+      "التقدير",
+      "أيام الغياب",
+      "النقاط",
     ];
 
-    const rows = students.map((student) => {
+const rows = students.map((student) => {
       const courseCells = courseNames.map((course) => {
         const values = student.courseGrades?.[course] || [];
         if (!values.length) {
-          return course === "السلوك" ? "100.0" : "-";
+          if (course === "السلوك") return "-";
+          if (isAttendanceCourse(course)) {
+            return Number.isFinite(student.attendanceRate)
+              ? student.attendanceRate.toFixed(1)
+              : "-";
+          }
+          return "-";
         }
         const avg = values.reduce((sum, value) => sum + value, 0) / values.length;
         return avg.toFixed(1);
@@ -332,21 +430,22 @@ const ComprehensiveGrading = () => {
         const values = student.courseGrades?.[course] || [];
         const avg = values.length
           ? values.reduce((sum, value) => sum + value, 0) / values.length
-          : course === "السلوك"
-            ? 100
+          : isAttendanceCourse(course)
+            ? student.attendanceRate ?? null
             : null;
         if (avg === null) return "-";
-        const weight = Number(activeClass.course_percentages?.[course]) || 0;
+        const weight = isAttendanceCourse(course)
+          ? attendanceWeight
+          : Number(activeClass.course_percentages?.[course]) || 0;
         const weighted = (avg * weight) / 100;
         return weighted.toFixed(1);
       });
       const weightedTotal = courseNames.reduce((sum, course) => {
+        if (isAttendanceCourse(course)) return sum;
         const values = student.courseGrades?.[course] || [];
         const avg = values.length
           ? values.reduce((sum, value) => sum + value, 0) / values.length
-          : course === "السلوك"
-            ? 100
-            : null;
+          : null;
         if (avg === null) return sum;
         const weight = Number(activeClass.course_percentages?.[course]) || 0;
         return sum + (avg * weight) / 100;
@@ -360,19 +459,18 @@ const ComprehensiveGrading = () => {
         ...weightedCells,
         weightedTotalWithAttendance ? weightedTotalWithAttendance.toFixed(1) : "-",
         getRatingLabel(weightedTotalWithAttendance || null),
-        Number.isFinite(student.attendanceRate) ? student.attendanceRate.toFixed(1) : "-",
-        `${student.absentDays ?? 0} / ${student.totalDays ?? 0}`,
+        student.absentDays ?? 0,
         student.totalPoints ?? 0,
       ];
     });
     const headerRows = [
-      ["???? ???????", selectedSchoolName],
-      ["??????", activeClass.name],
-      ["??????", activeClass.teacher_name || "-"],
+      ["مجمع الحلقات", selectedSchoolName],
+      ["الحلقة", activeClass.name],
+      ["المعلم", activeClass.teacher_name || "-"],
       [],
     ];
 
-    const allRows = [...headerRows, tableHeaders, ...rows];
+const allRows = [...headerRows, tableHeaders, ...rows];
 
     const tableHtml = `
       <table border="1">
@@ -403,7 +501,7 @@ const ComprehensiveGrading = () => {
   const activeClass = classes[activeTab] || null;
   const filteredStudents = getFilteredStudents(activeClass?.students || []);
   const activeCourseNames = getCourseNamesForClass(activeClass);
-  const attendanceWeight = getAttendanceWeight(activeClass?.course_percentages || {});
+  const attendanceWeight = resolveAttendanceWeight(activeClass);
   const activeCoursePercentages = activeClass?.course_percentages || {};
 
   return (
@@ -540,7 +638,7 @@ const ComprehensiveGrading = () => {
                               key={`${course}-weighted`}
                               className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"
                             >
-                              {course} موزون
+                              {course} موزون ({formatWeightLabel(getCourseWeight(activeClass, course))})
                             </th>
                           ))}
                           <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -548,9 +646,6 @@ const ComprehensiveGrading = () => {
                           </th>
                           <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                             التقدير
-                          </th>
-                          <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            نسبة الحضور
                           </th>
                           <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                             أيام الغياب
@@ -584,16 +679,17 @@ const ComprehensiveGrading = () => {
                               const values = student.courseGrades?.[course] || [];
                               const avg = values.length
                                 ? values.reduce((sum, value) => sum + value, 0) / values.length
-                                : course === "السلوك"
-                                  ? 100
-                                  : null;
-                              const weight = Number(activeCoursePercentages[course]) || 0;
-                              const weighted = avg !== null ? (avg * weight) / 100 : null;
+                                  : isAttendanceCourse(course)
+                                    ? student.attendanceRate ?? null
+                                    : null;
+                              const colorClass = isAttendanceCourse(course)
+                                ? getAttendanceColor(avg)
+                                : getGradeColor(avg);
                               return (
                                 <td key={course} className="px-6 py-4 whitespace-nowrap text-center">
                                   {avg !== null ? (
                                     <span
-                                      className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getGradeColor(avg)}`}
+                                      className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${colorClass}`}
                                     >
                                       {avg.toFixed(1)}%
                                     </span>
@@ -607,10 +703,12 @@ const ComprehensiveGrading = () => {
                               const values = student.courseGrades?.[course] || [];
                               const avg = values.length
                                 ? values.reduce((sum, value) => sum + value, 0) / values.length
-                                : course === "السلوك"
-                                  ? 100
-                                  : null;
-                              const weight = Number(activeCoursePercentages[course]) || 0;
+                                  : isAttendanceCourse(course)
+                                    ? student.attendanceRate ?? null
+                                    : null;
+                              const weight = isAttendanceCourse(course)
+                                ? attendanceWeight
+                                : Number(activeCoursePercentages[course]) || 0;
                               const weighted = avg !== null ? (avg * weight) / 100 : null;
                               return (
                                 <td key={`${course}-weighted`} className="px-6 py-4 whitespace-nowrap text-center">
@@ -621,12 +719,11 @@ const ComprehensiveGrading = () => {
                             <td className="px-6 py-4 whitespace-nowrap text-center">
                               {(() => {
                                 const total = activeCourseNames.reduce((sum, course) => {
+                                  if (isAttendanceCourse(course)) return sum;
                                   const values = student.courseGrades?.[course] || [];
                                   const avg = values.length
                                     ? values.reduce((sum, value) => sum + value, 0) / values.length
-                                    : course === "??????"
-                                      ? 100
-                                      : null;
+                                    : null;
                                   if (avg === null) return sum;
                                   const weight = Number(activeCoursePercentages[course]) || 0;
                                   return sum + (avg * weight) / 100;
@@ -640,12 +737,11 @@ const ComprehensiveGrading = () => {
                             <td className="px-6 py-4 whitespace-nowrap text-center">
                               {(() => {
                                 const total = activeCourseNames.reduce((sum, course) => {
+                                  if (isAttendanceCourse(course)) return sum;
                                   const values = student.courseGrades?.[course] || [];
                                   const avg = values.length
                                     ? values.reduce((sum, value) => sum + value, 0) / values.length
-                                    : course === "??????"
-                                      ? 100
-                                      : null;
+                                    : null;
                                   if (avg === null) return sum;
                                   const weight = Number(activeCoursePercentages[course]) || 0;
                                   return sum + (avg * weight) / 100;
@@ -657,13 +753,8 @@ const ComprehensiveGrading = () => {
                               })()}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-center">
-                              <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getAttendanceColor(student.attendanceRate)}`}>
-                                {student.attendanceRate.toFixed(1)}%
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-center">
                               <span className="text-sm text-gray-900">
-                                {student.absentDays} / {student.totalDays}
+                                {student.absentDays}
                               </span>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-center">

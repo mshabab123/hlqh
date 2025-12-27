@@ -438,4 +438,73 @@ router.post('/fix-dates', auth, async (req, res) => {
   }
 });
 
+// POST /api/attendance/fix-behavior
+// Admin-only function to auto-fill behavior grades (السلوك) for grade dates
+router.post('/fix-behavior', auth, async (req, res) => {
+  try {
+    const userRole = req.user.role;
+
+    // Only admins can run this fix
+    if (userRole !== 'admin') {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+
+    console.log('dY" Admin fixing behavior grades...');
+
+    const insertResult = await pool.query(`
+      INSERT INTO grades (
+        student_id, course_id, semester_id, class_id,
+        grade_value, max_grade, notes, grade_type, date_graded, created_at
+      )
+      SELECT DISTINCT
+        g.student_id,
+        sc.id as course_id,
+        g.semester_id,
+        g.class_id,
+        100,
+        100,
+        'Auto-filled behavior grade',
+        'behavior',
+        g.date_graded,
+        NOW()
+      FROM grades g
+      CROSS JOIN LATERAL (
+        SELECT id
+        FROM semester_courses
+        WHERE semester_id = g.semester_id
+          AND is_active = true
+          AND name ILIKE '%السلوك%'
+          AND (class_id = g.class_id OR class_id IS NULL)
+        ORDER BY (class_id IS NULL) ASC
+        LIMIT 1
+      ) sc
+      LEFT JOIN grades bg ON (
+        bg.student_id = g.student_id
+        AND bg.semester_id = g.semester_id
+        AND bg.class_id = g.class_id
+        AND bg.course_id = sc.id
+        AND bg.date_graded = g.date_graded
+      )
+      WHERE g.date_graded IS NOT NULL
+        AND bg.id IS NULL;
+    `);
+
+    const summary = {
+      createdRecords: insertResult.rowCount
+    };
+
+    console.log('Behavior grades fix completed:', summary);
+
+    res.json({
+      success: true,
+      message: 'O¦U. OOæU,OO- O¦U^OOñUSOr OU,O3U,U^UŸ O"U+OªOO-',
+      summary
+    });
+
+  } catch (error) {
+    console.error('Error fixing behavior grades:', error);
+    res.status(500).json({ error: 'Failed to fix behavior grades' });
+  }
+});
+
 module.exports = router;

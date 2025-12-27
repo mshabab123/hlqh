@@ -176,7 +176,7 @@ router.get('/student/:studentId', auth, async (req, res) => {
 router.get('/class/:classId', auth, async (req, res) => {
   try {
     const { classId } = req.params;
-    const { semester_id, points_date, page = 1, limit = 100 } = req.query;
+    const { semester_id, points_date, date_from, date_to, page = 1, limit = 100 } = req.query;
     const userRole = req.user?.role;
     const userId = req.user?.id;
     
@@ -222,6 +222,18 @@ router.get('/class/:classId', auth, async (req, res) => {
     if (points_date) {
       query += ` AND dp.points_date = $${paramIndex}`;
       params.push(points_date);
+      paramIndex++;
+    }
+
+    if (date_from) {
+      query += ` AND dp.points_date >= $${paramIndex}`;
+      params.push(date_from);
+      paramIndex++;
+    }
+
+    if (date_to) {
+      query += ` AND dp.points_date <= $${paramIndex}`;
+      params.push(date_to);
       paramIndex++;
     }
     

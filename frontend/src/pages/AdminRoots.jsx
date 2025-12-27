@@ -25,6 +25,7 @@ const AdminRoots = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [fixingAttendance, setFixingAttendance] = useState(false);
+  const [fixingBehavior, setFixingBehavior] = useState(false);
   const [editingAdmin, setEditingAdmin] = useState(null);
   const [formData, setFormData] = useState({
     first_name: "",
@@ -155,6 +156,27 @@ const AdminRoots = () => {
       setError(err.response?.data?.error || "فشل في إصلاح تواريخ الحضور");
     } finally {
       setFixingAttendance(false);
+    }
+  };
+
+  const handleFixBehaviorGrades = async () => {
+    if (!window.confirm("هل أنت متأكد من إصلاح درجات السلوك؟ سيتم إنشاء درجة 100 للسلوك في أيام وجود درجات بدون سلوك، ولن يتم تعديل الدرجات القديمة.")) return;
+
+    try {
+      setFixingBehavior(true);
+      setError("");
+      setSuccess("");
+
+      const token = localStorage.getItem("token");
+      const response = await axios.post(`${import.meta.env.VITE_API_BASE || ""}/api/attendance/fix-behavior`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      setSuccess(`تم إصلاح درجات السلوك بنجاح: تم إنشاء ${response.data.summary.createdRecords} درجة جديدة`);
+    } catch (err) {
+      setError(err.response?.data?.error || "فشل في إصلاح درجات السلوك");
+    } finally {
+      setFixingBehavior(false);
     }
   };
 
@@ -363,6 +385,41 @@ const AdminRoots = () => {
                   <>
                     <AiOutlineSetting />
                     إصلاح التواريخ
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Fix Behavior Grades Card */}
+          <div className="group">
+            <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg p-6 hover:shadow-xl transition-all duration-200 group-hover:scale-[1.02]">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="p-3 bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-xl shadow-lg">
+                  <AiOutlineCheck className="text-white text-2xl" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-800">إصلاح درجات السلوك</h3>
+                  <p className="text-gray-600 text-sm">إضافة سلوك 100 للأيام الناقصة</p>
+                </div>
+              </div>
+              <p className="text-gray-700 mb-4">
+                إنشاء درجة سلوك تلقائياً (100) لكل يوم فيه درجات بدون سلوك، مع الحفاظ على الدرجات القديمة كما هي.
+              </p>
+              <button
+                onClick={handleFixBehaviorGrades}
+                disabled={fixingBehavior}
+                className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white px-4 py-2 rounded-lg hover:from-emerald-600 hover:to-emerald-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {fixingBehavior ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    جاري الإصلاح...
+                  </>
+                ) : (
+                  <>
+                    <AiOutlineCheck />
+                    إصلاح درجات السلوك
                   </>
                 )}
               </button>
