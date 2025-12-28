@@ -280,7 +280,7 @@ router.put('/:id', async (req, res) => {
     await client.query('BEGIN');
     
     const { id } = req.params;
-    const { role, school_id, class_id, is_active } = req.body;
+    const { role, school_id, class_id, is_active, school_level } = req.body;
 
     // Update the main users table
     const updateUserQuery = `
@@ -417,8 +417,30 @@ router.put('/:id', async (req, res) => {
           break;
 
         case 'student':
+          await client.query(`
+            INSERT INTO students (
+              id, school_level, status
+            ) VALUES (
+              $1, COALESCE($2, 'other'), 'inactive'
+            )
+            ON CONFLICT (id) DO NOTHING
+          `, [id, school_level]);
+
+          if (class_id) {
+            await client.query(`
+              INSERT INTO student_enrollments (
+                student_id, class_id, status, enrollment_date
+              ) VALUES (
+                $1, $2, 'enrolled', NOW()
+              )
+              ON CONFLICT (student_id, class_id) DO UPDATE
+              SET status = 'enrolled', enrollment_date = NOW()
+            `, [id, class_id]);
+          }
+          break;
+
         case 'parent':
-          // No separate tables for these roles currently
+          // No separate tables for parent in this endpoint
           break;
       }
     } catch (roleErr) {

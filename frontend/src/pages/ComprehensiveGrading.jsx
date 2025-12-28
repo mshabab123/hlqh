@@ -98,9 +98,6 @@ const ComprehensiveGrading = () => {
         const fetchedClasses = response.data.classes || [];
         const classesWithCourses = await Promise.all(
           fetchedClasses.map(async (classItem) => {
-            if (Array.isArray(classItem.courses) && classItem.courses.length > 0) {
-              return classItem;
-            }
             try {
               const coursesRes = await axios.get(
                 `${API_BASE}/api/semesters/${selectedSemester}/classes/${classItem.id}/courses`,
@@ -355,6 +352,13 @@ const ComprehensiveGrading = () => {
   const getCourseNamesForClass = (classItem) => {
     if (!classItem) return [];
     const names = new Set();
+    if (Array.isArray(classItem.courses)) {
+      classItem.courses.forEach((course) => {
+        if (course?.name) {
+          names.add(course.name);
+        }
+      });
+    }
     const coursePercentages = classItem.course_percentages || {};
     Object.keys(coursePercentages).forEach((name) => names.add(name));
     (classItem.students || []).forEach((student) => {
