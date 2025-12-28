@@ -465,11 +465,13 @@ export default function ParentManagement() {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      // Filter only parents
-      const parentUsers = response.data.filter(user => user.role === 'parent');
+      // Show parents and teachers
+      const parentUsers = response.data.filter(
+        (user) => user.role === 'parent' || user.role === 'teacher'
+      );
       setParents(parentUsers);
     } catch (err) {
-      setError("خطأ في جلب بيانات أولياء الأمور");
+      setError("خطأ في جلب بيانات أولياء الأمور والمعلمين");
       console.error("Error fetching parents:", err);
     } finally {
       setLoading(false);
@@ -586,7 +588,7 @@ export default function ParentManagement() {
       <div className="flex justify-center items-center min-h-screen">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--color-primary-500)] mx-auto mb-4"></div>
-          <p className="text-gray-600">جاري تحميل بيانات أولياء الأمور...</p>
+          <p className="text-gray-600">جاري تحميل بيانات أولياء الأمور والمعلمين...</p>
         </div>
       </div>
     );
@@ -595,8 +597,8 @@ export default function ParentManagement() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">إدارة أولياء الأمور</h1>
-        <p className="text-gray-600">عرض وإدارة جميع أولياء الأمور المسجلين في النظام</p>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">إدارة أولياء الأمور والمعلمين</h1>
+        <p className="text-gray-600">عرض وإدارة جميع أولياء الأمور والمعلمين المسجلين في النظام</p>
       </div>
 
       {error && (
@@ -633,8 +635,8 @@ export default function ParentManagement() {
         </div>
 
         <div className="mt-4 flex items-center justify-between text-sm text-gray-600">
-          <span>عدد أولياء الأمور: {filteredParents.length}</span>
-          <span>إجمالي أولياء الأمور: {parents.length}</span>
+          <span>عدد أولياء الأمور والمعلمين: {filteredParents.length}</span>
+          <span>إجمالي أولياء الأمور والمعلمين: {parents.length}</span>
         </div>
       </div>
 
@@ -657,8 +659,8 @@ export default function ParentManagement() {
         <div className="text-center py-12">
           <div className="text-gray-400 mb-4">
             <AiOutlineUser className="mx-auto text-6xl mb-4" />
-            <h3 className="text-xl font-semibold mb-2">لا يوجد أولياء أمور</h3>
-            <p>لم يتم العثور على أولياء أمور مطابقين للبحث</p>
+            <h3 className="text-xl font-semibold mb-2">لا يوجد أولياء أمور أو معلمين</h3>
+            <p>لم يتم العثور على أولياء أمور أو معلمين مطابقين للبحث</p>
           </div>
         </div>
       )}
