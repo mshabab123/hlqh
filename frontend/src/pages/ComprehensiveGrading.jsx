@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import * as XLSX from "xlsx";
 import axios from "axios";
 import { 
   AiOutlineSearch, 
@@ -387,14 +388,6 @@ const ComprehensiveGrading = () => {
     if (!classes[activeTab]) return;
     const activeClass = classes[activeTab];
 
-    const escapeHtml = (value) =>
-      String(value)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#39;");
-
     const students = getFilteredStudents(activeClass.students || []);
     const courseNames = getCourseNamesForClass(activeClass);
     const attendanceWeight = resolveAttendanceWeight(activeClass);
@@ -411,7 +404,7 @@ const ComprehensiveGrading = () => {
       "النقاط",
     ];
 
-const rows = students.map((student) => {
+    const rows = students.map((student) => {
       const courseCells = courseNames.map((course) => {
         const values = student.courseGrades?.[course] || [];
         if (!values.length) {
@@ -470,32 +463,11 @@ const rows = students.map((student) => {
       [],
     ];
 
-const allRows = [...headerRows, tableHeaders, ...rows];
-
-    const tableHtml = `
-      <table border="1">
-        ${allRows
-          .map(
-            (row) =>
-              `<tr>${row
-                .map((cell) => `<td>${escapeHtml(cell)}</td>`)
-                .join("")}</tr>`
-          )
-          .join("")}
-      </table>
-    `;
-
-    const blob = new Blob([tableHtml], {
-      type: "application/vnd.ms-excel;charset=utf-8;",
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "comprehensive-grading.xls";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    const allRows = [...headerRows, tableHeaders, ...rows];
+    const worksheet = XLSX.utils.aoa_to_sheet(allRows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Grading");
+    XLSX.writeFile(workbook, "comprehensive-grading.xlsx");
   };
 
   const activeClass = classes[activeTab] || null;

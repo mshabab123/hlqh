@@ -1,4 +1,5 @@
 import { useState, useEffect, Fragment } from "react";
+import * as XLSX from "xlsx";
 import axios from "axios";
 import { AiOutlinePlus, AiOutlineEdit, AiOutlineDelete, AiOutlineUser, AiOutlineBook, AiOutlineReload, AiOutlineStar, AiOutlineFileText, AiOutlineBarChart } from "react-icons/ai";
 import ClassForm from "../components/ClassForm";
@@ -1473,13 +1474,6 @@ const ClassGradesModal = ({ classItem, onClose }) => {
   });
 
   const handleExportToExcel = () => {
-    const escapeHtml = (value) =>
-      String(value)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#39;");
 
     const tableHeaders = [
       "الطالب",
@@ -1522,30 +1516,10 @@ const ClassGradesModal = ({ classItem, onClose }) => {
     ];
 
     const allRows = [...headerRows, tableHeaders, ...rows];
-    const tableHtml = `
-      <table border="1">
-        ${allRows
-          .map(
-            (row) =>
-              `<tr>${row
-                .map((cell) => `<td>${escapeHtml(cell)}</td>`)
-                .join("")}</tr>`
-          )
-          .join("")}
-      </table>
-    `;
-
-    const blob = new Blob([tableHtml], {
-      type: "application/vnd.ms-excel;charset=utf-8;",
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "class-grades.xls";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    const worksheet = XLSX.utils.aoa_to_sheet(allRows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Grades");
+    XLSX.writeFile(workbook, "class-grades.xlsx");
   };
 
   return (
@@ -1765,13 +1739,6 @@ const ClassGradesModal = ({ classItem, onClose }) => {
   ).sort((a, b) => b.total_points - a.total_points);
 
   const handleExportToExcel = () => {
-    const escapeHtml = (value) =>
-      String(value)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#39;");
 
     const rows = groupedPoints.map((record) => [
       record.student_name,
@@ -1786,31 +1753,10 @@ const ClassGradesModal = ({ classItem, onClose }) => {
 
     const tableHeaders = ["الطالب", "إجمالي النقاط"];
     const allRows = [...headerRows, tableHeaders, ...rows];
-
-    const tableHtml = `
-      <table border="1">
-        ${allRows
-          .map(
-            (row) =>
-              `<tr>${row
-                .map((cell) => `<td>${escapeHtml(cell)}</td>`)
-                .join("")}</tr>`
-          )
-          .join("")}
-      </table>
-    `;
-
-    const blob = new Blob([tableHtml], {
-      type: "application/vnd.ms-excel;charset=utf-8;",
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "class-points.xls";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    const worksheet = XLSX.utils.aoa_to_sheet(allRows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Points");
+    XLSX.writeFile(workbook, "class-points.xlsx");
   };
 
   return (
