@@ -76,6 +76,7 @@ router.get('/student/:studentId', auth, async (req, res) => {
     const result = await pool.query(`
       SELECT 
         g.*,
+        TO_CHAR(g.date_graded, 'YYYY-MM-DD') as date,
         c.name as course_name,
         c.percentage,
         c.requires_surah,
@@ -91,11 +92,24 @@ router.get('/student/:studentId', auth, async (req, res) => {
     `, [studentId, limit]);
     
     // Calculate average grade
-    const scores = result.rows.filter(g => g.score).map(g => parseFloat(g.score));
+    const scores = result.rows.map((grade) => {
+      if (grade.score !== undefined && grade.score !== null) {
+        return parseFloat(grade.score);
+      }
+      if (grade.grade_value !== undefined && grade.grade_value !== null) {
+        if (grade.max_grade) {
+          return Math.round((parseFloat(grade.grade_value) / parseFloat(grade.max_grade)) * 100);
+        }
+        return parseFloat(grade.grade_value);
+      }
+      return null;
+    }).filter((score) => Number.isFinite(score));
     const averageGrade = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
     
     // Calculate completed pages (if available)
-    const completedPages = result.rows.filter(g => g.pages_covered).reduce((sum, g) => sum + (g.pages_covered || 0), 0);
+    const completedPages = result.rows.reduce((sum, grade) => {
+      return sum + (grade.pages_covered || grade.pages || 0);
+    }, 0);
     
     res.json({
       grades: result.rows,

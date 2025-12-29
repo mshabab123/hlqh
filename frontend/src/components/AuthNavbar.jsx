@@ -19,6 +19,31 @@ import {
   AiOutlineMail,
 } from "react-icons/ai";
 
+const API_BASE = import.meta.env.VITE_API_BASE || "";
+
+async function refreshCurrentUser() {
+  const token = localStorage.getItem("token");
+  if (!token) return null;
+
+  try {
+    const response = await fetch(`${API_BASE}/api/profile/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    if (!data?.user) return null;
+
+    const existingUser = JSON.parse(localStorage.getItem("user") || "{}");
+    const mergedUser = { ...existingUser, ...data.user };
+    localStorage.setItem("user", JSON.stringify(mergedUser));
+    return mergedUser;
+  } catch (error) {
+    return null;
+  }
+}
+
 const getNavLinks = (userRole, isActive) => {
   // For inactive users, only show about and profile
   if (!isActive) {
@@ -66,6 +91,36 @@ export default function AuthNavbar() {
       }
     }
   }, [location.pathname]);
+
+  useEffect(() => {
+    let intervalId;
+    let cancelled = false;
+
+    const refreshIfInactive = async () => {
+      if (!user || user.is_active !== false) return;
+
+      const refreshedUser = await refreshCurrentUser();
+      if (!refreshedUser || cancelled) return;
+
+      setUser(refreshedUser);
+      const isActive = refreshedUser.is_active !== false;
+      setNavLinks(getNavLinks(refreshedUser.role || refreshedUser.user_type, isActive));
+      if (isActive) {
+        setShowInactiveModal(false);
+      }
+    };
+
+    refreshIfInactive();
+
+    if (user?.is_active === false) {
+      intervalId = setInterval(refreshIfInactive, 30000);
+    }
+
+    return () => {
+      cancelled = true;
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [user?.is_active]);
 
   const handleLogout = () => {
     localStorage.removeItem("token");

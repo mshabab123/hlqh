@@ -1,6 +1,31 @@
 import { useState, useEffect } from "react";
 import { AiOutlineUser, AiOutlineCheckCircle, AiOutlineCloseCircle, AiOutlinePhone, AiOutlineMail, AiOutlineInfoCircle } from "react-icons/ai";
 
+const API_BASE = import.meta.env.VITE_API_BASE || "";
+
+async function refreshCurrentUser() {
+  const token = localStorage.getItem("token");
+  if (!token) return null;
+
+  try {
+    const response = await fetch(`${API_BASE}/api/profile/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    if (!data?.user) return null;
+
+    const existingUser = JSON.parse(localStorage.getItem("user") || "{}");
+    const mergedUser = { ...existingUser, ...data.user };
+    localStorage.setItem("user", JSON.stringify(mergedUser));
+    return mergedUser;
+  } catch (error) {
+    return null;
+  }
+}
+
 export default function About() {
   const [user, setUser] = useState(null);
   const [showInactiveModal, setShowInactiveModal] = useState(false);
@@ -15,6 +40,34 @@ export default function About() {
       }
     }
   }, []);
+
+  useEffect(() => {
+    let intervalId;
+    let cancelled = false;
+
+    const refreshIfInactive = async () => {
+      if (!user || user.is_active !== false) return;
+
+      const refreshedUser = await refreshCurrentUser();
+      if (!refreshedUser || cancelled) return;
+
+      setUser(refreshedUser);
+      if (refreshedUser.is_active !== false) {
+        setShowInactiveModal(false);
+      }
+    };
+
+    refreshIfInactive();
+
+    if (user?.is_active === false) {
+      intervalId = setInterval(refreshIfInactive, 30000);
+    }
+
+    return () => {
+      cancelled = true;
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [user?.is_active]);
 
   return (
     <>

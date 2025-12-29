@@ -32,6 +32,76 @@ const getWorkingDays = (startDate, endDate, weekendDays = [4, 5, 6], vacationDay
   return workingDays;
 };
 
+// GET /api/attendance/student/:studentId
+// Get attendance history for a specific student
+router.get('/student/:studentId', auth, async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const userId = req.user?.id;
+    const userRole = req.user?.role;
+
+    if (!userId || !userRole) {
+      return res.status(401).json({ error: 'Token missing' });
+    }
+
+    if (userRole === 'student' && userId !== studentId) {
+      return res.status(403).json({ error: 'O§USOñ U.O3U.U^O- U,UŸ O"OU,U^OæU^U, OU,O-OU^Oñ U,OúOU,O" O›OrOñ' });
+    }
+
+    if (userRole === 'parent' || userRole === 'parent_student') {
+      const parentCheck = await pool.query(
+        'SELECT 1 FROM parent_student_relationships WHERE parent_id = $1 AND student_id = $2',
+        [userId, studentId]
+      );
+
+      if (parentCheck.rows.length === 0) {
+        return res.status(403).json({ error: 'O§USOñ U.O3U.U^O- U,UŸ O"OU,U^OæU^U, OU,O-OU^Oñ U,OúOU,O"' });
+      }
+    }
+
+    if (userRole === 'teacher') {
+      const teacherCheck = await pool.query(`
+        SELECT 1
+        FROM student_enrollments se
+        JOIN teacher_class_assignments tca ON se.class_id = tca.class_id
+        WHERE se.student_id = $1
+          AND se.status = 'enrolled'
+          AND tca.teacher_id = $2
+          AND tca.teacher_role = 'primary'
+          AND tca.is_active = true
+      `, [studentId, userId]);
+
+      if (teacherCheck.rows.length === 0) {
+        return res.status(403).json({ error: 'O§USOñ U.O3U.U^O- U,UŸ O"OU,U^OæU^U, OU,O-OU^Oñ U,OúOU,O"' });
+      }
+    }
+
+    const result = await pool.query(`
+      SELECT
+        TO_CHAR(sa.attendance_date, 'YYYY-MM-DD') as attendance_date,
+        sa.is_present,
+        sa.notes,
+        c.name as class_name
+      FROM semester_attendance sa
+      LEFT JOIN classes c ON sa.class_id = c.id
+      WHERE sa.student_id = $1
+      ORDER BY sa.attendance_date DESC, sa.created_at DESC
+    `, [studentId]);
+
+    const totalCount = result.rows.length;
+    const presentCount = result.rows.filter((row) => row.is_present).length;
+    const percentage = totalCount > 0 ? Math.round((presentCount / totalCount) * 100) : 0;
+
+    res.json({
+      attendance: result.rows,
+      percentage
+    });
+  } catch (error) {
+    console.error('Error fetching student attendance:', error);
+    res.status(500).json({ error: 'Error fetching student attendance' });
+  }
+});
+
 // GET /api/attendance/semester/:semesterId/class/:classId
 // Get attendance data for all students in a class for the semester
 router.get('/semester/:semesterId/class/:classId', auth, async (req, res) => {

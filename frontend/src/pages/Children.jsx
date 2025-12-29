@@ -151,26 +151,52 @@ const Children = () => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {childData.grades.map((grade, index) => (
-              <tr key={index}>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {new Date(grade.date).toLocaleDateString('ar-SA')}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{grade.class_name}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{grade.surah_name}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{grade.pages}</td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                    grade.grade === 'ممتاز' ? 'bg-green-100 text-green-800' :
-                    grade.grade === 'جيد جداً' ? 'bg-blue-100 text-blue-800' :
-                    grade.grade === 'جيد' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'
-                  }`}>
-                    {grade.grade}
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{grade.notes || '-'}</td>
-              </tr>
-            ))}
+            {childData.grades.map((grade, index) => {
+              const dateValue = grade.date || grade.date_graded || grade.created_at;
+              const dateLabel = dateValue && !Number.isNaN(new Date(dateValue).getTime())
+                ? new Date(dateValue).toLocaleDateString('ar-SA')
+                : '-';
+              const classLabel = grade.class_name || grade.course_name || '-';
+              const surahLabel = grade.surah_name || grade.start_reference || grade.course_name || '-';
+              const pagesLabel = grade.pages || grade.pages_covered || '-';
+              const gradeValue = grade.grade ?? grade.grade_value ?? grade.score ?? '-';
+              const gradeIsNumeric = typeof gradeValue === 'number' || (!Number.isNaN(Number(gradeValue)) && gradeValue !== '-');
+              let badgeClass = 'bg-red-100 text-red-800';
+
+              if (gradeIsNumeric) {
+                const numericValue = Number(gradeValue);
+                if (numericValue >= 90) {
+                  badgeClass = 'bg-green-100 text-green-800';
+                } else if (numericValue >= 75) {
+                  badgeClass = 'bg-blue-100 text-blue-800';
+                } else if (numericValue >= 60) {
+                  badgeClass = 'bg-yellow-100 text-yellow-800';
+                }
+              } else if (gradeValue === 'U.U.OSO�O�') {
+                badgeClass = 'bg-green-100 text-green-800';
+              } else if (gradeValue === 'OSUSO_ OSO_O�U<') {
+                badgeClass = 'bg-blue-100 text-blue-800';
+              } else if (gradeValue === 'OSUSO_') {
+                badgeClass = 'bg-yellow-100 text-yellow-800';
+              }
+
+              return (
+                <tr key={index}>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {dateLabel}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{classLabel}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{surahLabel}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{pagesLabel}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${badgeClass}`}>
+                      {gradeIsNumeric ? Number(gradeValue) : gradeValue}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{grade.notes || '-'}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
