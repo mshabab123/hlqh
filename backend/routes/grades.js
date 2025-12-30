@@ -71,8 +71,10 @@ router.get('/semester/:semesterId/class/:classId', auth, async (req, res) => {
 router.get('/student/:studentId', auth, async (req, res) => {
   try {
     const { studentId } = req.params;
-    const { limit = 30 } = req.query;
-    
+    const limitValue = req.query.limit ? parseInt(req.query.limit, 10) : null;
+    const limitClause = Number.isFinite(limitValue) ? ' LIMIT $2' : '';
+    const params = Number.isFinite(limitValue) ? [studentId, limitValue] : [studentId];
+
     const result = await pool.query(`
       SELECT 
         g.*,
@@ -88,8 +90,8 @@ router.get('/student/:studentId', auth, async (req, res) => {
       LEFT JOIN semesters s ON g.semester_id = s.id
       WHERE g.student_id = $1
       ORDER BY g.date_graded DESC, g.created_at DESC
-      LIMIT $2
-    `, [studentId, limit]);
+      ${limitClause}
+    `, params);
     
     // Calculate average grade
     const scores = result.rows.map((grade) => {

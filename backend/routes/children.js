@@ -82,10 +82,26 @@ router.get('/:parentId/available', authenticateToken, async (req, res) => {
 router.post('/:parentId/add', authenticateToken, async (req, res) => {
   try {
     const { parentId } = req.params;
-    const { studentId, relationshipType = 'parent', isPrimary = false } = req.body;
+    const {
+      studentId,
+      relationshipType = 'parent',
+      isPrimary = false,
+      dateOfBirth
+    } = req.body;
     
     if (!studentId) {
       return res.status(400).json({ error: 'رقم هوية الطالب مطلوب' });
+    }
+
+    if (req.user?.role === 'parent' && !dateOfBirth) {
+      return res.status(400).json({ error: 'تاريخ ميلاد الطالب مطلوب' });
+    }
+
+    if (dateOfBirth) {
+      const isIsoDate = /^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth);
+      if (!isIsoDate || Number.isNaN(Date.parse(dateOfBirth))) {
+        return res.status(400).json({ error: 'صيغة تاريخ الميلاد غير صحيحة' });
+      }
     }
     
     const client = await pool.connect();
@@ -112,7 +128,7 @@ router.post('/:parentId/add', authenticateToken, async (req, res) => {
       
       // Check if student exists in users table
       const userCheck = await client.query(
-        'SELECT id, role, is_active, first_name, last_name FROM users WHERE id = $1',
+        'SELECT id, role, is_active, first_name, last_name, date_of_birth FROM users WHERE id = $1',
         [studentId]
       );
       
@@ -122,6 +138,16 @@ router.post('/:parentId/add', authenticateToken, async (req, res) => {
       }
       
       const user = userCheck.rows[0];
+
+      if (dateOfBirth) {
+        const storedDob = user.date_of_birth
+          ? new Date(user.date_of_birth).toISOString().slice(0, 10)
+          : null;
+        if (!storedDob || storedDob !== dateOfBirth) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: 'تاريخ ميلاد الطالب غير مطابق' });
+        }
+      }
       
       // Check if user is actually a student
       if (user.role !== 'student') {

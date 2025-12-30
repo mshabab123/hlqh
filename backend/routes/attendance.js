@@ -102,6 +102,145 @@ router.get('/student/:studentId', auth, async (req, res) => {
   }
 });
 
+// GET /api/attendance/student/:studentId/semester
+// Get attendance for a student across all working days in their current semester
+router.get('/student/:studentId/semester', auth, async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const userId = req.user?.id;
+    const userRole = req.user?.role;
+
+    if (!userId || !userRole) {
+      return res.status(401).json({ error: 'Token missing' });
+    }
+
+    if (userRole === 'student' && userId !== studentId) {
+      return res.status(403).json({ error: 'ليس لديك صلاحية للوصول لهذه البيانات' });
+    }
+
+    if (userRole === 'parent' || userRole === 'parent_student') {
+      const parentCheck = await pool.query(
+        'SELECT 1 FROM parent_student_relationships WHERE parent_id = $1 AND student_id = $2',
+        [userId, studentId]
+      );
+
+      if (parentCheck.rows.length === 0) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية للوصول لهذه البيانات' });
+      }
+    }
+
+    if (userRole === 'teacher') {
+      const teacherCheck = await pool.query(`
+        SELECT 1
+        FROM student_enrollments se
+        JOIN teacher_class_assignments tca ON se.class_id = tca.class_id
+        WHERE se.student_id = $1
+          AND se.status = 'enrolled'
+          AND tca.teacher_id = $2
+          AND tca.teacher_role = 'primary'
+          AND tca.is_active = true
+      `, [studentId, userId]);
+
+      if (teacherCheck.rows.length === 0) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية للوصول لهذه البيانات' });
+      }
+    }
+
+    const enrollmentResult = await pool.query(`
+      SELECT c.id as class_id, c.semester_id, s.start_date, s.end_date, s.weekend_days, s.vacation_days, s.display_name
+      FROM student_enrollments se
+      JOIN classes c ON se.class_id = c.id
+      JOIN semesters s ON c.semester_id = s.id
+      WHERE se.student_id = $1 AND se.status = 'enrolled'
+      ORDER BY se.enrollment_date DESC
+      LIMIT 1
+    `, [studentId]);
+
+    if (enrollmentResult.rows.length === 0) {
+      return res.status(404).json({ error: 'لا يوجد فصل دراسي نشط لهذا الطالب' });
+    }
+
+    const enrollment = enrollmentResult.rows[0];
+    const weekendDays = enrollment.weekend_days || [4, 5, 6];
+    const vacationDays = enrollment.vacation_days || [];
+    const workingDays = getWorkingDays(enrollment.start_date, enrollment.end_date, weekendDays, vacationDays);
+
+    const attendanceResult = await pool.query(`
+      SELECT attendance_date, is_present
+      FROM semester_attendance
+      WHERE student_id = $1 AND class_id = $2 AND semester_id = $3
+    `, [studentId, enrollment.class_id, enrollment.semester_id]);
+
+    const attendanceMap = {};
+    attendanceResult.rows.forEach(record => {
+      let dateStr;
+      if (record.attendance_date instanceof Date) {
+        const date = new Date(record.attendance_date);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        dateStr = `${year}-${month}-${day}`;
+      } else {
+        dateStr = record.attendance_date.split('T')[0];
+      }
+      attendanceMap[dateStr] = record.is_present;
+    });
+
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const dayNames = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+
+    const days = workingDays.map(date => {
+      const dateObj = new Date(date);
+      let status = 'unknown';
+      let isPresent = null;
+
+      if (date in attendanceMap) {
+        status = attendanceMap[date] ? 'present' : 'absent';
+        isPresent = attendanceMap[date];
+      } else if (date < today) {
+        status = 'absent';
+        isPresent = false;
+      }
+
+      return {
+        date,
+        day_name: dayNames[dateObj.getDay()],
+        formatted_date: dateObj.toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' }),
+        status,
+        is_present: isPresent
+      };
+    });
+
+    const totalDays = days.length;
+    const recordedDays = days.filter(day => day.status !== 'unknown').length;
+    const presentDays = days.filter(day => day.is_present === true).length;
+    const absentDays = days.filter(day => day.is_present === false).length;
+    const attendanceRate = recordedDays > 0 ? Math.round((presentDays / recordedDays) * 100) : 0;
+
+    res.json({
+      semester: {
+        id: enrollment.semester_id,
+        name: enrollment.display_name,
+        start_date: enrollment.start_date,
+        end_date: enrollment.end_date
+      },
+      days,
+      statistics: {
+        total_working_days: totalDays,
+        recorded_days: recordedDays,
+        present_days: presentDays,
+        absent_days: absentDays,
+        unrecorded_days: totalDays - recordedDays,
+        attendance_rate: attendanceRate
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching student semester attendance:', error);
+    res.status(500).json({ error: 'Error fetching student semester attendance' });
+  }
+});
+
 // GET /api/attendance/semester/:semesterId/class/:classId
 // Get attendance data for all students in a class for the semester
 router.get('/semester/:semesterId/class/:classId', auth, async (req, res) => {
