@@ -673,8 +673,6 @@ export const calculateCircularChartData = (student, grades = []) => {
   });
 
   // 1. GREEN: Memorized pages
-// 1. GREEN: Memorized pages
-  let memorizedPages = actualMemorizedPages;
   let greenPercent = 0;
 
   console.log('GREEN SECTION CHECK:', {
@@ -859,9 +857,11 @@ export const calculateCircularChartData = (student, grades = []) => {
       formula: 'green (memorized) + blue (graded goal) + red (ungraded goal)'
     },
     pageRanges: {
-      memorized: memorizedPages > 0 ? { start: 1, end: memorizedPages } : null,
-      target: targetSurahId && goalPages > 0 ? { start: memorizedPages, end: Math.max(memorizedPages, Math.round(targetPage || memorizedPages)) } : null,
-      total: { start: 1, end: targetSurahId ? Math.round(targetPage || memorizedPages) : memorizedPages }
+      memorized: memorizedPage ? { start: 1, end: Math.round(memorizedPage) } : null,
+      target: targetSurahId && targetPage
+        ? { start: Math.round(memorizedPage || 1), end: Math.round(targetPage) }
+        : null,
+      total: { start: 1, end: targetSurahId ? Math.round(targetPage || memorizedPage || 1) : Math.round(memorizedPage || 1) }
     },
     // Add actual progress data for debugging
     quranProgress: quranProgress,

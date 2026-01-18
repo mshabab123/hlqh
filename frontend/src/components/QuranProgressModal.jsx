@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { AiOutlineBook, AiOutlineCheck } from "react-icons/ai";
 import { QURAN_SURAHS, TOTAL_QURAN_PAGES } from "../utils/quranData";
-import { calculateQuranProgress, calculateStudentGoalProgress, calculateGoalProgressBar, getProgressColor, getProgressBgColor, generateAyahOptions, formatMemorizationDisplay, calculatePageNumber, calculateCircularChartData } from "../utils/studentUtils";
+import { calculateQuranProgress, calculateStudentGoalProgress, calculateGoalProgressBar, getProgressColor, getProgressBgColor, generateAyahOptions, formatMemorizationDisplay, calculatePageNumber, calculateCircularChartData, calculateQuranBlocks } from "../utils/studentUtils";
 import CircularProgressChart from "./CircularProgressChart";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
@@ -32,11 +32,8 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
   const progress = calculateQuranProgress(student.memorized_surah_id, student.memorized_ayah_number);
   const targetProgress = calculateQuranProgress(student.target_surah_id, student.target_ayah_number);
 
-  // Calculate circular chart data with grades
-  const circularChartData = calculateCircularChartData(student, studentGrades);
 
   console.log('QuranProgressModal - Progress calculation:', progress);
-  console.log('QuranProgressModal - Circular chart data:', circularChartData);
 
 
   // Helper function to get memorization position (1-114) from surah ID
@@ -249,6 +246,20 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
     return Number.isFinite(page) && page > 0 ? { page } : null;
   };
 
+  const getGradeStartRef = (grade) => {
+    if (!grade) return null;
+    if (grade.start_reference || grade.end_reference) {
+      return getRefInfo(grade.start_reference || grade.end_reference);
+    }
+    if (grade.start_surah_id && grade.start_ayah_number) {
+      return { surahId: Number(grade.start_surah_id), ayah: Number(grade.start_ayah_number) };
+    }
+    if (grade.end_surah_id && grade.end_ayah_number) {
+      return { surahId: Number(grade.end_surah_id), ayah: Number(grade.end_ayah_number) };
+    }
+    return null;
+  };
+
   const getGradeEndRef = (grade) => {
     if (!grade) return null;
     if (grade.end_reference || grade.start_reference) {
@@ -351,6 +362,59 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
       return bRank.ayah - aRank.ayah;
     })[0] || null;
 
+  // Calculate circular chart data with grades (use last memorized ref when available)
+  const chartStudent = lastMemorizedRef
+    ? {
+        ...student,
+        memorized_surah_id: lastMemorizedRef.surahId || student.memorized_surah_id,
+        memorized_ayah_number: lastMemorizedRef.ayah || student.memorized_ayah_number
+      }
+    : student;
+  const blocksData = calculateQuranBlocks(chartStudent, studentGrades);
+  const memorizedPageNumbers = blocksData?.blocks?.flatMap((block) =>
+    (block.pages || [])
+      .filter((page) => page.status !== 'not_memorized')
+      .map((page) => page.pageNumber)
+  ) || [];
+  const gradedPageNumbers = (() => {
+    const pages = new Set();
+    studentGrades.forEach((grade) => {
+      const startRef = getGradeStartRef(grade);
+      const endRef = getGradeEndRef(grade);
+      const startPage = getPageFromRef(startRef);
+      const endPage = getPageFromRef(endRef);
+      if (!startPage && !endPage) return;
+      const minPage = Math.min(startPage || endPage, endPage || startPage);
+      const maxPage = Math.max(startPage || endPage, endPage || startPage);
+      for (let page = Math.round(minPage); page <= Math.round(maxPage); page += 1) {
+        pages.add(page);
+      }
+    });
+    return Array.from(pages);
+  })();
+  const circularChartData = {
+    ...calculateCircularChartData(chartStudent, studentGrades),
+    memorizedPageNumbers,
+    gradedPageNumbers
+  };
+  const totalPagesCount = circularChartData.totalPages || 604;
+  const memorizedCount = memorizedPageNumbers.length;
+  const memorizedPercent = totalPagesCount ? (memorizedCount / totalPagesCount) * 100 : 0;
+  const targetRange = circularChartData.pageRanges?.target || null;
+  const targetStart = targetRange ? Math.round(targetRange.start) : 0;
+  const targetEnd = targetRange ? Math.round(targetRange.end) : 0;
+  const targetPagesCount = targetRange ? Math.abs(targetEnd - targetStart) + 1 : 0;
+  const targetMin = Math.min(targetStart, targetEnd);
+  const targetMax = Math.max(targetStart, targetEnd);
+  const gradedCountInTarget = targetPagesCount
+    ? gradedPageNumbers.filter((page) => page >= targetMin && page <= targetMax).length
+    : 0;
+  const remainingTargetPages = Math.max(0, targetPagesCount - gradedCountInTarget);
+  const gradedPercentOfMemorized = memorizedCount ? (gradedCountInTarget / memorizedCount) * 100 : 0;
+  const lastMemorizedPage = memorizedPageNumbers.length
+    ? Math.max(...memorizedPageNumbers)
+    : 0;
+
   useEffect(() => {
     if (!showForms || !lastMemorizedRef) return;
     if (lastMemorizedRef.surahId) {
@@ -363,8 +427,16 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-      <div className="bg-white p-6 rounded-xl shadow-xl max-w-6xl w-full m-4 max-h-[90vh] overflow-y-auto">
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-200 shadow-lg mb-6">
+      <div className="bg-white p-6 rounded-xl shadow-xl max-w-6xl w-full m-4 max-h-[90vh] overflow-y-auto relative">
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-200 shadow-lg mb-6 relative">
+          <button
+            onClick={() => setShowForms(true)}
+            disabled={showForms}
+            className={`absolute top-4 right-4 px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${showForms ? "bg-blue-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"} text-white`}
+          >
+            <AiOutlineBook className="w-4 h-4" />
+            تعديل الهدف
+          </button>
           <div className="text-center">
             <h3 className="text-lg font-bold text-gray-900 flex items-center justify-center gap-2">
               <AiOutlineBook className="text-xl" />
@@ -376,56 +448,28 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
           </div>
         </div>
 
-          {/* Edit Target Button or Action Buttons */}
-        <div className="mb-6 text-center">
-          {!showForms ? (
-            <button
-              onClick={() => setShowForms(true)}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 mx-auto"
-            >
-              <AiOutlineBook className="w-4 h-4" />
-              تعديل الهدف
-            </button>
-          ) : (
-            <div className="flex gap-3 justify-center">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-
-                  // Create updated student object with local state values
-                  const updatedStudent = {
-                    ...student,
-                    target_surah_id: selectedSurahId,
-                    target_ayah_number: selectedAyahNumber,
-                    memorized_surah_id: selectedMemorizedSurahId,
-                    memorized_ayah_number: selectedMemorizedAyahNumber
-                  };
-
-                  onSubmit(e, updatedStudent);
-                  setShowForms(false);
-                }}
-                className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-              >
-                <AiOutlineCheck className="w-4 h-4" />
-                حفظ التغييرات
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowForms(false)}
-                className="bg-gray-500 text-white px-6 py-3 rounded-lg hover:bg-gray-600 transition-colors"
-              >
-                إلغاء
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Forms and Buttons Section */}
+          {/* Forms and Buttons Section */}
           {/* Forms Section - Conditional Display */}
           {showForms && (
-            <div ref={formRef} className="space-y-6">
-              <div className="grid gap-8 grid-cols-1 md:grid-cols-2">
+            <div
+              className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 p-4"
+              onClick={() => setShowForms(false)}
+            >
+              <div
+                ref={formRef}
+                className="bg-white rounded-xl shadow-xl w-full max-w-5xl max-h-[85vh] overflow-y-auto p-6 relative"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  type="button"
+                  onClick={() => setShowForms(false)}
+                  className="absolute top-4 right-4 w-9 h-9 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+                  aria-label="إغلاق"
+                >
+                  ×
+                </button>
+                <div className="space-y-6">
+                  <div className="grid gap-8 grid-cols-1 md:grid-cols-2">
                 {/* Current Memorization */}
                 <div className="space-y-4 p-4 border rounded-lg bg-green-50">
                   <h5 className="font-semibold text-lg text-green-700 flex items-center gap-2">
@@ -674,8 +718,40 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
 
                   </div>
                 </div>
-              </div>
+                  </div>
+                </div>
+                <div className="mt-6 flex gap-3 justify-center">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
 
+                      // Create updated student object with local state values
+                      const updatedStudent = {
+                        ...student,
+                        target_surah_id: selectedSurahId,
+                        target_ayah_number: selectedAyahNumber,
+                        memorized_surah_id: selectedMemorizedSurahId,
+                        memorized_ayah_number: selectedMemorizedAyahNumber
+                      };
+
+                      onSubmit(e, updatedStudent);
+                      setShowForms(false);
+                    }}
+                    className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                  >
+                    <AiOutlineCheck className="w-4 h-4" />
+                    حفظ التغييرات
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowForms(false)}
+                    className="bg-gray-500 text-white px-6 py-3 rounded-lg hover:bg-gray-600 transition-colors"
+                  >
+                    إغلاق
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
@@ -784,26 +860,6 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
                       />
                     </div>
 
-                    {/* Progress Stats - Enhanced with grading info */}
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div className="bg-white p-3 rounded border">
-                        <div className="text-gray-600 mb-1">الصفحات المحفوظة</div>
-                        <div className="font-bold text-green-600">{circularChartData.memorizedPages}</div>
-                      </div>
-                      <div className="bg-white p-3 rounded border">
-                        <div className="text-gray-600 mb-1">صفحات الهدف</div>
-                        <div className="font-bold text-red-600">{circularChartData.targetPages}</div>
-                      </div>
-                      <div className="bg-white p-3 rounded border">
-                        <div className="text-gray-600 mb-1">الصفحات المُقيّمة</div>
-                        <div className="font-bold text-blue-600">{circularChartData.gradedPages}</div>
-                      </div>
-                      <div className="bg-white p-3 rounded border">
-                        <div className="text-gray-600 mb-1">السور المكتملة</div>
-                        <div className="font-bold text-purple-600">{progress.completedSurahs}</div>
-                      </div>
-                    </div>
-
                     {/* الهدف والتقدم - إحصائيات الحفظ */}
                     <div className="mt-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
                       <h6 className="font-semibold text-gray-800 mb-4 text-center">الهدف والتقدم - إحصائيات الحفظ</h6>
@@ -816,16 +872,16 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
                           </h6>
                           <div className="space-y-2 text-sm">
                             <div className="flex justify-between">
-                              <span className="text-gray-600">الآيات المحفوظة:</span>
-                              <span className="font-bold text-green-600">{progress.memorizedAyahs.toLocaleString()}</span>
+                              <span className="text-gray-600">الصفحات المحفوظة:</span>
+                              <span className="font-bold text-green-600">{memorizedCount}</span>
                             </div>
                             <div className="flex justify-between">
-                              <span className="text-gray-600">إجمالي الآيات:</span>
-                              <span className="font-bold text-gray-800">{progress.totalAyahs.toLocaleString()}</span>
+                              <span className="text-gray-600">إجمالي الصفحات:</span>
+                              <span className="font-bold text-gray-800">{totalPagesCount}</span>
                             </div>
                             <div className="flex justify-between">
                               <span className="text-gray-600">النسبة المئوية:</span>
-                              <span className="font-bold text-blue-600">{progress.percentage.toFixed(1)}%</span>
+                              <span className="font-bold text-blue-600">{memorizedPercent.toFixed(1)}%</span>
                             </div>
                           </div>
                         </div>
@@ -854,13 +910,13 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
                                 <div className="flex justify-between">
                                   <span className="text-gray-600">نسبة إنجاز الهدف:</span>
                                   <span className="font-bold text-red-600">
-                                    {circularChartData.targetCompletionPercentage.toFixed(1)}%
+                                    {targetPagesCount ? ((gradedCountInTarget / targetPagesCount) * 100).toFixed(1) : "0.0"}%
                                   </span>
                                 </div>
                                 <div className="flex justify-between">
                                   <span className="text-gray-600">صفحات متبقية:</span>
                                   <span className="font-bold text-orange-600">
-                                    {Math.max(0, circularChartData.targetPages - circularChartData.gradedPages)}
+                                    {remainingTargetPages}
                                   </span>
                                 </div>
                               </>
@@ -876,7 +932,7 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
                       {/* Detailed Quran Statistics */}
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
                         <div className="bg-green-50 p-3 rounded-lg text-center">
-                          <div className="text-lg font-bold text-green-600">{progress.memorizedPages.toFixed(1)}</div>
+                          <div className="text-lg font-bold text-green-600">{memorizedCount}</div>
                           <div className="text-xs text-green-700">صفحة محفوظة</div>
                         </div>
                         <div className="bg-blue-50 p-3 rounded-lg text-center">
@@ -884,29 +940,29 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
                           <div className="text-xs text-blue-700">سورة مكتملة</div>
                         </div>
                         <div className="bg-purple-50 p-3 rounded-lg text-center">
-                          <div className="text-lg font-bold text-purple-600">{(progress.memorizedPages / 20).toFixed(1)}</div>
+                          <div className="text-lg font-bold text-purple-600">{(memorizedCount / 20).toFixed(1)}</div>
                           <div className="text-xs text-purple-700">جزء تقريبي</div>
                         </div>
                         <div className="bg-orange-50 p-3 rounded-lg text-center">
-                          <div className="text-lg font-bold text-orange-600">{progress.remainingAyahs.toLocaleString()}</div>
-                          <div className="text-xs text-orange-700">آية متبقية</div>
+                          <div className="text-lg font-bold text-orange-600">{Math.max(0, totalPagesCount - memorizedCount)}</div>
+                          <div className="text-xs text-orange-700">صفحة متبقية</div>
                         </div>
                       </div>
 
                       {/* Grade Activity Summary */}
-                      {circularChartData.gradedPages > 0 && (
+                      {gradedCountInTarget > 0 && (
                         <div className="bg-white p-4 rounded-lg shadow-sm">
                           <h6 className="font-medium text-gray-700 mb-3 flex items-center gap-2">
                             📝 ملخص التقييمات
                           </h6>
                           <div className="grid grid-cols-3 gap-3 text-center text-sm">
                             <div>
-                              <div className="text-lg font-bold text-blue-600">{circularChartData.gradedPages}</div>
+                              <div className="text-lg font-bold text-blue-600">{gradedCountInTarget}</div>
                               <div className="text-xs text-gray-600">صفحة مُقيّمة</div>
                             </div>
                             <div>
                               <div className="text-lg font-bold text-green-600">
-                                {((circularChartData.gradedPages / circularChartData.memorizedPages) * 100).toFixed(1)}%
+                                {gradedPercentOfMemorized.toFixed(1)}%
                               </div>
                               <div className="text-xs text-gray-600">من المحفوظ</div>
                             </div>
@@ -924,26 +980,26 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
                           📍 الموقع الحالي
                         </h6>
                         <div className="text-sm space-y-2">
-                          {student.memorized_surah_id ? (
+                          {lastMemorizedRef?.surahId || student.memorized_surah_id ? (
                             <>
                               <div className="flex justify-between">
                                 <span className="text-gray-600">السورة الحالية:</span>
                                 <span className="font-bold text-green-600">
-                                  {QURAN_SURAHS.find(s => s.id == student.memorized_surah_id)?.name || 'غير محدد'}
+                                  {QURAN_SURAHS.find(s => s.id == (lastMemorizedRef?.surahId || student.memorized_surah_id))?.name || 'غير محدد'}
                                 </span>
                               </div>
                               <div className="flex justify-between">
                                 <span className="text-gray-600">آخر آية محفوظة:</span>
-                                <span className="font-bold text-green-600">{student.memorized_ayah_number}</span>
+                                <span className="font-bold text-green-600">{lastMemorizedRef?.ayah || student.memorized_ayah_number}</span>
                               </div>
                               <div className="flex justify-between">
                                 <span className="text-gray-600">رقم الصفحة:</span>
-                                <span className="font-bold text-blue-600">{progress.currentPageNumber}</span>
+                                <span className="font-bold text-blue-600">{lastMemorizedPage || 0}</span>
                               </div>
                               <div className="flex justify-between">
                                 <span className="text-gray-600">رقم السورة:</span>
                                 <span className="font-bold text-purple-600">
-                                  {student.memorized_surah_id} من 114
+                                  {(lastMemorizedRef?.surahId || student.memorized_surah_id)} من 114
                                 </span>
                               </div>
                             </>

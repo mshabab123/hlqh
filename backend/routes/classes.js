@@ -431,6 +431,8 @@ router.delete('/:id', requireAuth, async (req, res) => {
       });
     }
 
+    await client.query('DELETE FROM semester_courses WHERE class_id = $1', [id]);
+
     const result = await client.query(`
       DELETE FROM classes WHERE id = $1
       RETURNING id

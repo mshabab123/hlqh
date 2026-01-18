@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 
 const CircularProgressChart = ({
   chartData,
-  size = 240,
+  size = 320,
   strokeWidth = 24,
   showLabels = true,
   showPercentages = true,
@@ -14,6 +14,59 @@ const CircularProgressChart = ({
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const center = size / 2;
+  const totalPages = chartData.totalPages || 604;
+  const memorizedPageNumbers = Array.isArray(chartData.memorizedPageNumbers)
+    ? [...new Set(chartData.memorizedPageNumbers)].sort((a, b) => a - b)
+    : null;
+  const memorizedSource = chartData.memorizedPages ?? chartData.totalProgressPages ?? chartData.pageRanges?.memorized?.end ?? 0;
+  const gradedPageNumbers = Array.isArray(chartData.gradedPageNumbers)
+    ? [...new Set(chartData.gradedPageNumbers)].sort((a, b) => a - b)
+    : [];
+  const memorizedPages = memorizedPageNumbers
+    ? memorizedPageNumbers.length
+    : Math.max(0, Math.min(totalPages, Math.round(memorizedSource)));
+  const memorizedSet = new Set(memorizedPageNumbers || []);
+  const gradedSet = new Set(gradedPageNumbers);
+  const targetRange = chartData.pageRanges?.target || null;
+  const targetPageNumbers = targetRange
+    ? (() => {
+        const start = Math.round(targetRange.start);
+        const end = Math.round(targetRange.end);
+        const minPage = Math.min(start, end);
+        const maxPage = Math.max(start, end);
+        return Array.from({ length: Math.max(0, maxPage - minPage + 1) }, (_, idx) => minPage + idx);
+      })()
+    : [];
+  const segmentGap = 1.2;
+  const segmentLength = circumference / totalPages;
+  const segmentStroke = Math.max(1, Math.floor(strokeWidth * 0.9));
+  const memorizedPageList = memorizedPageNumbers
+    ? memorizedPageNumbers.join(", ")
+    : memorizedPages > 0
+      ? Array.from({ length: memorizedPages }, (_, idx) => idx + 1).join(", ")
+      : "";
+  const targetPageList = targetPageNumbers.length > 0 ? targetPageNumbers.join(", ") : "";
+  const targetSet = new Set(targetPageNumbers);
+  const ungradedTargetPages = targetPageNumbers.filter((page) => !memorizedSet.has(page) && !gradedSet.has(page));
+  const memorizedCount = memorizedPageNumbers ? memorizedPageNumbers.length : memorizedPages;
+  const gradedCount = targetPageNumbers.length
+    ? gradedPageNumbers.filter((page) => targetSet.has(page)).length
+    : gradedPageNumbers.length;
+  const gradedPageList = targetPageNumbers.length
+    ? gradedPageNumbers.filter((page) => targetSet.has(page)).join(", ")
+    : gradedPageNumbers.join(", ");
+  const ungradedTargetCount = ungradedTargetPages.length;
+  const memorizedPercent = totalPages > 0 ? (memorizedCount / totalPages) * 100 : 0;
+  const gradedPercent = totalPages > 0 ? (gradedCount / totalPages) * 100 : 0;
+  const ungradedTargetPercent = totalPages > 0 ? (ungradedTargetCount / totalPages) * 100 : 0;
+  const lastMemorizedPage = memorizedPageNumbers?.length
+    ? memorizedPageNumbers[memorizedPageNumbers.length - 1]
+    : memorizedPages || 0;
+  const targetEndPage = targetPageNumbers.length
+    ? Math.max(...targetPageNumbers)
+    : 0;
+  const revealEndPage = Math.max(1, targetEndPage || lastMemorizedPage || memorizedCount || 1);
+  const revealDurationMs = 1400;
 
   // Enhanced color palette with gradients
   const getColorConfig = (color) => {
@@ -140,126 +193,50 @@ const CircularProgressChart = ({
   };
 
   // Calculate dynamic center content
-  const displayPercentage = chartData.targetCompletionPercentage > 0
-    ? chartData.targetCompletionPercentage
-    : chartData.totalProgressPercentage;
+  const displayPercentage = memorizedPercent;
 
   return (
     <div className="flex flex-col items-center">
       <div className="relative drop-shadow-lg" style={{ width: size, height: size }}>
-        <svg width={size} height={size} className="transform -rotate-90">
-          {/* Gradient definitions */}
-          <defs>
-            <linearGradient id="greenGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" style={{ stopColor: '#10B981', stopOpacity: 1 }} />
-              <stop offset="100%" style={{ stopColor: '#059669', stopOpacity: 1 }} />
-            </linearGradient>
-            <linearGradient id="blueGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" style={{ stopColor: '#3B82F6', stopOpacity: 1 }} />
-              <stop offset="100%" style={{ stopColor: '#2563EB', stopOpacity: 1 }} />
-            </linearGradient>
-            <linearGradient id="redGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" style={{ stopColor: '#EF4444', stopOpacity: 1 }} />
-              <stop offset="100%" style={{ stopColor: '#DC2626', stopOpacity: 1 }} />
-            </linearGradient>
-            <linearGradient id="grayGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" style={{ stopColor: '#D1D5DB', stopOpacity: 1 }} />
-              <stop offset="100%" style={{ stopColor: '#9CA3AF', stopOpacity: 1 }} />
-            </linearGradient>
-            <linearGradient id="lightGrayGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" style={{ stopColor: '#F3F4F6', stopOpacity: 1 }} />
-              <stop offset="100%" style={{ stopColor: '#E5E7EB', stopOpacity: 1 }} />
-            </linearGradient>
+        <svg
+          width={size}
+          height={size}
+          className="absolute inset-0"
+          viewBox={`0 0 ${size} ${size}`}
+        >
+          {/* Base ring removed to emphasize memorized/target only */}
 
-            {/* Shadow filters */}
-            <filter id="dropshadow" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="2" stdDeviation="3" floodOpacity="0.3"/>
-            </filter>
-            <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-              <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-              <feMerge>
-                <feMergeNode in="coloredBlur"/>
-                <feMergeNode in="SourceGraphic"/>
-              </feMerge>
-            </filter>
-          </defs>
-
-          {/* Background circle with subtle pattern */}
-          <circle
-            cx={center}
-            cy={center}
-            r={radius}
-            fill="transparent"
-            stroke="#F3F4F6"
-            strokeWidth={strokeWidth}
-            strokeDasharray="2 4"
-            opacity="0.5"
-          />
-
-          {/* Main background circle */}
-          <circle
-            cx={center}
-            cy={center}
-            r={radius}
-            fill="transparent"
-            stroke="#E5E7EB"
-            strokeWidth={strokeWidth - 2}
-          />
-
-          {/* Progress sections with enhanced styling */}
-          {sectionsWithPositions.map((section, index) => {
-            const colorConfig = getColorConfig(section.color);
-            const animatedPercentage = animated ? section.animatedPercentage : section.usePercentage;
+          {/* Page-by-page ring */}
+          {Array.from({ length: totalPages }, (_, idx) => {
+            const pageNumber = idx + 1;
+            const isMemorized = memorizedPageNumbers
+              ? memorizedPageNumbers.includes(pageNumber)
+              : pageNumber <= memorizedPages;
+            const isGraded = gradedPageNumbers.includes(pageNumber);
+            const isTarget = !isMemorized && !isGraded && targetPageNumbers.includes(pageNumber);
+            const dash = Math.max(0.5, segmentLength - segmentGap);
+            const offset = circumference * 0.25 - idx * segmentLength;
+            const revealRatio = revealEndPage > 1
+              ? Math.min(1, (pageNumber - 1) / (revealEndPage - 1))
+              : 0;
+            const revealDelay = Math.round(revealDurationMs * revealRatio);
 
             return (
-              <g key={`section-${section.color}-${index}`}>
-                {/* Shadow/glow effect */}
-                <circle
-                  cx={center}
-                  cy={center}
-                  r={radius}
-                  fill="transparent"
-                  stroke={colorConfig.shadow}
-                  strokeWidth={strokeWidth + 4}
-                  strokeDasharray={getStrokeDashArray(animatedPercentage)}
-                  strokeDashoffset={getStrokeDashOffset(section.startPercentage)}
-                  strokeLinecap="round"
-                  opacity="0.3"
-                  filter="url(#dropshadow)"
-                />
-
-                {/* Main progress circle */}
-                <circle
-                  cx={center}
-                  cy={center}
-                  r={radius}
-                  fill="transparent"
-                  stroke={colorConfig.gradient}
-                  strokeWidth={strokeWidth}
-                  strokeDasharray={getStrokeDashArray(animatedPercentage)}
-                  strokeDashoffset={getStrokeDashOffset(section.startPercentage)}
-                  strokeLinecap="round"
-                  className="transition-all duration-300 ease-out"
-                  style={{
-                    filter: section.color === 'blue' ? 'url(#glow)' : 'url(#dropshadow)'
-                  }}
-                />
-
-                {/* Highlight effect for blue sections */}
-                {section.color === 'blue' && (
-                  <circle
-                    cx={center}
-                    cy={center}
-                    r={radius}
-                    fill="transparent"
-                    stroke="rgba(255, 255, 255, 0.4)"
-                    strokeWidth="2"
-                    strokeDasharray={getStrokeDashArray(animatedPercentage)}
-                    strokeDashoffset={getStrokeDashOffset(section.startPercentage)}
-                    strokeLinecap="round"
-                  />
-                )}
-              </g>
+              <circle
+                key={`page-seg-${pageNumber}`}
+                cx={center}
+                cy={center}
+                r={radius}
+                fill="transparent"
+                stroke={isMemorized ? '#10B981' : isGraded ? '#2563EB' : isTarget ? '#EF4444' : '#E5E7EB'}
+                strokeWidth={segmentStroke}
+                strokeDasharray={`${dash} ${circumference - dash}`}
+                strokeDashoffset={offset}
+                strokeLinecap="butt"
+                title={`صفحة ${pageNumber}`}
+                className="ring-reveal"
+                style={{ animationDelay: `${revealDelay}ms` }}
+              />
             );
           })}
         </svg>
@@ -273,12 +250,12 @@ const CircularProgressChart = ({
               </span>
             </div>
             <div className="text-sm font-medium text-gray-600 mt-1">
-              {chartData.targetCompletionPercentage > 0 ? 'الى الان المحفوظ' : 'من القرآن'}
+              من إجمالي المصحف
             </div>
             <div className="text-xl font-bold text-blue-600 mt-2">
-              {chartData.totalProgressPages+ chartData.gradedPages}
+              {memorizedCount}
             </div>
-            <div className="text-xs text-gray-500 font-medium">صفحة</div>
+            <div className="text-xs text-gray-500 font-medium">صفحة محفوظة</div>
 
             {/* Accuracy indicator */}
             {/* {chartData.accuracy && (
@@ -289,43 +266,35 @@ const CircularProgressChart = ({
           </div>
         </div>
 
-        {/* Floating progress indicators */}
-        {sectionsWithPositions.map((section, index) => {
-          if (section.usePercentage === 0) return null;
-
-          const angle = (section.startPercentage + section.usePercentage / 2) * 3.6; // Convert to degrees
-          const indicatorRadius = radius + strokeWidth / 2 + 15;
-          const x = center + indicatorRadius * Math.cos((angle - 90) * Math.PI / 180);
-          const y = center + indicatorRadius * Math.sin((angle - 90) * Math.PI / 180);
-
-          return (
-            <div
-              key={`indicator-${index}`}
-              className="absolute transform -translate-x-1/2 -translate-y-1/2 transition-all duration-1000"
-              style={{ left: x, top: y }}
-            >
-              <div className={`w-2 h-2 rounded-full ${
-                section.color === 'blue' ? 'bg-blue-500' :
-                section.color === 'green' ? 'bg-green-500' :
-                section.color === 'red' ? 'bg-red-500' :
-                section.color === 'lightgray' ? 'bg-gray-200' :
-                'bg-gray-400'
-              } shadow-lg`} />
-            </div>
-          );
-        })}
+        {/* Floating progress indicators removed */}
       </div>
 
       {/* Enhanced Legend with modern design */}
       {showLabels && (
         <div className="mt-6 space-y-3 w-full max-w-md">
-          {chartData.sections.map((section, index) => {
+          <div className="p-3 bg-white rounded-xl shadow-md border border-gray-100 text-xs text-gray-700 leading-5">
+            <span className="font-semibold text-gray-900">الصفحات المحفوظة:</span>{" "}
+            {memorizedPageList || "لا توجد صفحات محفوظة"}
+          </div>
+          <div className="p-3 bg-white rounded-xl shadow-md border border-gray-100 text-xs text-gray-700 leading-5">
+            <span className="font-semibold text-gray-900">صفحات الهدف:</span>{" "}
+            {targetPageList || "لا يوجد هدف"}
+          </div>
+          <div className="p-3 bg-white rounded-xl shadow-md border border-gray-100 text-xs text-gray-700 leading-5">
+            <span className="font-semibold text-gray-900">صفحات من الهدف تم حفظها او مراجعتها عند المعلم :</span>{" "}
+            {gradedPageList || "لا توجد صفحات مُقيّمة"}
+          </div>
+          {[
+            { key: "memorized", label: "محفوظ", color: "green", percent: memorizedPercent, pages: memorizedCount },
+            { key: "target", label: "هدف غير مُقيّم", color: "red", percent: ungradedTargetPercent, pages: ungradedTargetCount },
+            { key: "graded", label: "مُقيّم", color: "blue", percent: gradedPercent, pages: gradedCount }
+          ].map((section) => {
             const colorConfig = getColorConfig(section.color);
-            const percentage = section.percentage;
+            const percentage = section.percent;
 
             return (
               <div
-                key={`legend-${section.color}-${index}`}
+                key={`legend-${section.key}`}
                 className="flex items-center justify-between p-3 bg-white rounded-xl shadow-md border border-gray-100 hover:shadow-lg transition-shadow duration-300"
               >
                 <div className="flex items-center gap-3">
@@ -355,38 +324,6 @@ const CircularProgressChart = ({
         </div>
       )}
 
-      {/* Enhanced Page ranges info */}
-      {chartData.pageRanges && (
-        <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200 w-full max-w-md">
-          <div className="text-xs font-medium text-gray-700 space-y-2">
-            {chartData.pageRanges.memorized && (
-              <div className="flex items-center gap-2">
-                <span className="text-green-600">📚</span>
-                <span>المحفوظ: صفحة {chartData.pageRanges.memorized.end} - {chartData.pageRanges.memorized.start}</span>
-              </div>
-            )}
-            {chartData.pageRanges.target && (
-              <div className="flex items-center gap-2">
-                <span className="text-red-600">🎯</span>
-                <span>الهدف: صفحة {chartData.pageRanges.target.end} - {chartData.pageRanges.target.start}</span>
-              </div>
-            )}
-            {chartData.gradedPages > 0 && (
-              <div className="flex items-center gap-2">
-                <span className="text-blue-600">📝</span>
-                <span>المُقيّم: {chartData.gradedPages} صفحة</span>
-              </div>
-            )}
-            {chartData.targetCompletionPercentage > 0 && (
-              <div className="mt-3 pt-2 border-t border-blue-200">
-                <div className="text-sm font-semibold text-blue-700">
-                  تقدم نحو الهدف: {Math.round(chartData.targetCompletionPercentage)}%
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 };
