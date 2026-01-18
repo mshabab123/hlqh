@@ -3,6 +3,14 @@
 @import url('https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400;1,700&family=Cairo:wght@200..1000&family=Tajawal:wght@200;300;400;500;700;800;900&display=swap');
 @import "tailwindcss";
 
+@font-face {
+  font-family: 'HafsSmart';
+  src: url('./assets/Quran/HafsSmart_08.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* 3D Flip Card Styles */
 .perspective-1000 {
   perspective: 1000px;
@@ -23,6 +31,7 @@
 @theme {
   /* Font Family */
   --font-family-arabic: 'Tajawal', serif;
+  --font-family-quran: 'HafsSmart', serif;
   --font-family-sans: ui-sans-serif, system-ui, sans-serif;
   --font-family-mono: ui-monospace, 'Courier New', monospace;
 
@@ -182,6 +191,9 @@ body,
 }
 
 /* English text override */
+.font-quran {
+  font-family: var(--font-family-quran);
+}
 .font-sans,
 [lang="en"],
 .english {
@@ -233,6 +245,128 @@ input:-webkit-autofill:active {
   border-width: 1px;
 }
 
+.quran-box {
+  position: relative;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 0;
+  border-radius: 14px;
+  border: 2px solid var(--color-border-medium);
+  background-color: var(--color-background);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
+  color: var(--color-text-primary);
+}
+
+.quran-box--light {
+  background-color: var(--color-background);
+  border-color: var(--color-border-medium);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
+  color: var(--color-text-primary);
+}
+
+.quran-box--dark {
+  background-color: #111827;
+  border-color: #334155;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+  color: #f8fafc;
+}
+
+.quran-box--parchment {
+  background-color: #f7f1dd;
+  border-color: #d7c8a0;
+  box-shadow: 0 12px 24px rgba(82, 60, 20, 0.18);
+  color: #3b2f2f;
+}
+
+.quran-total-errors {
+  position: sticky;
+  top: 72px;
+  left: 0;
+  right: auto;
+  inset-inline-start: 0;
+  inset-inline-end: auto;
+  margin-left: 0;
+  margin-right: auto;
+  z-index: 2;
+  width: 64px;
+  height: 64px;
+  padding: 4px;
+  border-radius: 10px;
+  border: 2px solid var(--color-border-medium);
+  background-color: var(--color-background);
+  text-align: center;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.quran-total-label {
+  font-size: 9px;
+  color: var(--color-text-secondary);
+  margin-bottom: 1px;
+}
+
+.quran-total-count {
+  font-size: 12px;
+  font-weight: 700;
+  color: #dc2626;
+}
+
+.quran-box__content {
+  padding-top: 56px;
+}
+
+.quran-word {
+  cursor: pointer;
+}
+
+.quran-word--error {
+  color: #dc2626;
+}
+
+.quran-ayah-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.quran-error-box {
+  min-width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 2px solid var(--color-border-medium);
+  background-color: var(--color-background-secondary);
+  color: var(--color-text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.quran-error-box--active {
+  border-color: #dc2626;
+  color: #dc2626;
+  background-color: #fff1f2;
+}
+
+.quran-theme-btn {
+  border: 1px solid var(--color-border-medium);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  background-color: #ffffff;
+  color: var(--color-text-primary);
+}
+
+.quran-theme-btn.active {
+  border-color: var(--color-border-accent);
+  background-color: var(--color-primary-50);
+  color: var(--color-text-primary);
+}
+
 /* Dark mode variants */
 @media (prefers-color-scheme: dark) {
   html,
@@ -269,5 +403,17 @@ input:-webkit-autofill:active {
     -webkit-box-shadow: 0 0 0 30px var(--color-background-dark) inset !important;
     -webkit-text-fill-color: var(--color-text-inverse) !important;
     box-shadow: 0 0 0 30px var(--color-background-dark) inset !important;
+  }
+
+  .quran-total-errors {
+    background-color: var(--color-background-dark-secondary);
+    border-color: var(--color-border-dark);
+    color: var(--color-text-inverse);
+  }
+
+  .quran-error-box {
+    background-color: var(--color-background-dark-secondary);
+    border-color: var(--color-border-dark);
+    color: var(--color-text-inverse);
   }
 }

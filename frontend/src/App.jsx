@@ -28,6 +28,7 @@ import MyStudentsPage from "./pages/MyStudentsPage";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import About from "./pages/About";
+import QuranReader from "./pages/QuranReader";
 import Home from "./pages/home";
 import DailyReports from "./pages/DailyReports";
 import PointsManagement from "./pages/PointsManagement";
@@ -73,6 +74,7 @@ export default function App() {
           <Route path="/student-registration" element={<StudentRegistration />} />
           <Route path="/TeacherRegister" element={<TeacherRegister />} />
           <Route path="/about" element={<About />} />
+          <Route path="/quran" element={<QuranReader />} />
 
           {/* Protected routes */}
           <Route
@@ -344,7 +346,7 @@ export default function App() {
           <Route
             path="/privilege-management"
             element={
-              <ProtectedRoute requiredRole="admin">
+              <ProtectedRoute requiredRole={["admin", "supervisor"]}>
                 <ConditionalLayout>
                   <PrivilegeManagement />
                 </ConditionalLayout>

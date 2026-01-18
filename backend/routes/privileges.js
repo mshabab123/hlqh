@@ -1,9 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../config/database');
+const { authenticateToken } = require('../middleware/auth');
+const { requireRole, ROLES } = require('../middleware/rbac');
 
 // Get user privileges
-router.get('/:userId', async (req, res) => {
+router.get('/:userId', authenticateToken, requireRole(ROLES.SUPERVISOR), async (req, res) => {
   try {
     const { userId } = req.params;
 
@@ -66,7 +68,7 @@ router.get('/:userId', async (req, res) => {
 });
 
 // Update user privileges
-router.put('/:userId', async (req, res) => {
+router.put('/:userId', authenticateToken, requireRole(ROLES.ADMIN), async (req, res) => {
   try {
     const { userId } = req.params;
     const { permissions } = req.body;
@@ -100,7 +102,7 @@ router.put('/:userId', async (req, res) => {
 });
 
 // Get all users with their roles and privileges
-router.get('/', async (req, res) => {
+router.get('/', authenticateToken, requireRole(ROLES.SUPERVISOR), async (req, res) => {
   try {
     const { role, search } = req.query;
 

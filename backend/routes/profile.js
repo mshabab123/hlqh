@@ -12,7 +12,7 @@ router.post('/change-password',
   [
     body('currentPassword').notEmpty().withMessage('Current password is required'),
     body('newPassword')
-      .isLength({ min: 6 }).withMessage('New password must be at least 6 characters')
+      .isLength({ min: 10 }).withMessage('New password must be at least 10 characters')
       .matches(/^(?=.*[a-zA-Z])(?=.*\d)/)
       .withMessage('New password must contain at least one letter and one number'),
     body('confirmPassword').custom((value, { req }) => {

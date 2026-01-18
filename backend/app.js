@@ -17,6 +17,7 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' })); // Increased limit for file uploads
 app.use(express.urlencoded({ extended: true, limit: '10mb' })); // For form data
+app.use(require('./middleware/csrf'));
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
@@ -43,6 +44,7 @@ app.use('/api/points', require('./routes/points')); // Points system
 app.use('/api/privileges', require('./routes/privileges')); // Privileges management
 app.use('/api/grading', require('./routes/grading')); // Comprehensive grading system
 app.use('/api/debug', require('./routes/debug')); // Debug endpoints
+app.use('/api/quran', require('./routes/quran')); // Quran read endpoints
 
 // Default route
 app.get('/', (req, res) => {

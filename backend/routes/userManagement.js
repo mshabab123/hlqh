@@ -462,7 +462,7 @@ router.post('/reset-password',
   authenticateToken,
   [
     body('userId').notEmpty().withMessage('User ID is required'),
-    body('newPassword').isLength({ min: 6 }).withMessage('Password must be at least 6 characters')
+    body('newPassword').isLength({ min: 10 }).withMessage('Password must be at least 10 characters')
   ],
   async (req, res) => {
     try {

@@ -6,6 +6,9 @@ const pool = require('../config/database');
 
 const router = express.Router();
 
+const hashResetToken = (token) =>
+  crypto.createHash('sha256').update(token).digest('hex');
+
 // Auto-create password_reset_tokens table if it doesn't exist
 const initializeTable = async () => {
   try {
@@ -23,7 +26,7 @@ const initializeTable = async () => {
         CREATE TABLE password_reset_tokens (
           id SERIAL PRIMARY KEY,
           user_id VARCHAR(10) NOT NULL,
-          token VARCHAR(255) NOT NULL UNIQUE,
+          token_hash VARCHAR(255) NOT NULL UNIQUE,
           expires_at TIMESTAMP NOT NULL,
           used BOOLEAN DEFAULT FALSE,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -32,10 +35,30 @@ const initializeTable = async () => {
       `);
       
       // Create indexes only if table was just created
-      await pool.query(`CREATE INDEX idx_password_reset_tokens_token ON password_reset_tokens(token)`);
+      await pool.query(`CREATE INDEX idx_password_reset_tokens_token_hash ON password_reset_tokens(token_hash)`);
       await pool.query(`CREATE INDEX idx_password_reset_tokens_user_id ON password_reset_tokens(user_id)`);
       await pool.query(`CREATE INDEX idx_password_reset_tokens_expires_at ON password_reset_tokens(expires_at)`);
       
+    } else {
+      const columnExists = await pool.query(`
+        SELECT EXISTS (
+          SELECT FROM information_schema.columns
+          WHERE table_schema = 'public'
+          AND table_name = 'password_reset_tokens'
+          AND column_name = 'token_hash'
+        );
+      `);
+
+      if (!columnExists.rows[0].exists) {
+        await pool.query(`
+          ALTER TABLE password_reset_tokens
+          ADD COLUMN token_hash VARCHAR(255)
+        `);
+        await pool.query(`
+          CREATE INDEX idx_password_reset_tokens_token_hash
+          ON password_reset_tokens(token_hash)
+        `);
+      }
     }
   } catch (error) {
     // If it's a permission error, just log and continue
@@ -102,13 +125,14 @@ router.post('/request',
       
       // Generate reset token
       const resetToken = generateResetToken();
+      const resetTokenHash = hashResetToken(resetToken);
       const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes from now
       
       // Store reset token in database
       await pool.query(`
-        INSERT INTO password_reset_tokens (user_id, token, expires_at) 
+        INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) 
         VALUES ($1, $2, $3)
-      `, [user.id, resetToken, expiresAt]);
+      `, [user.id, resetTokenHash, expiresAt]);
       
       // In a real application, you would send an email here
       // For now, we'll log the reset link (in production, remove this!)
@@ -136,7 +160,7 @@ router.post('/reset',
   [
     body('token').notEmpty().withMessage('Reset token is required'),
     body('newPassword')
-      .isLength({ min: 6 }).withMessage('Password must be at least 6 characters')
+      .isLength({ min: 10 }).withMessage('Password must be at least 10 characters')
       .matches(/^(?=.*[a-zA-Z])(?=.*\d)/)
       .withMessage('Password must contain at least one letter and one number'),
     body('confirmPassword').custom((value, { req }) => {
@@ -157,14 +181,15 @@ router.post('/reset',
       }
 
       const { token, newPassword } = req.body;
+      const tokenHash = hashResetToken(token);
       
       // Find valid reset token
       const tokenResult = await pool.query(`
         SELECT prt.user_id, prt.expires_at, prt.used, u.email, u.first_name, u.last_name
         FROM password_reset_tokens prt
         JOIN users u ON prt.user_id = u.id
-        WHERE prt.token = $1 AND prt.used = false AND prt.expires_at > NOW()
-      `, [token]);
+        WHERE prt.token_hash = $1 AND prt.used = false AND prt.expires_at > NOW()
+      `, [tokenHash]);
       
       if (tokenResult.rows.length === 0) {
         return res.status(400).json({ 
@@ -189,14 +214,14 @@ router.post('/reset',
         
         // Mark token as used
         await client.query(
-          'UPDATE password_reset_tokens SET used = true WHERE token = $1',
-          [token]
+          'UPDATE password_reset_tokens SET used = true WHERE token_hash = $1',
+          [tokenHash]
         );
         
         // Optionally, invalidate all other reset tokens for this user
         await client.query(
-          'UPDATE password_reset_tokens SET used = true WHERE user_id = $1 AND token != $2',
-          [tokenData.user_id, token]
+          'UPDATE password_reset_tokens SET used = true WHERE user_id = $1 AND token_hash != $2',
+          [tokenData.user_id, tokenHash]
         );
         
         await client.query('COMMIT');
@@ -238,14 +263,15 @@ router.post('/verify-token',
       }
 
       const { token } = req.body;
+      const tokenHash = hashResetToken(token);
       
       // Check if token is valid and not expired
       const tokenResult = await pool.query(`
         SELECT prt.user_id, prt.expires_at, u.first_name, u.email
         FROM password_reset_tokens prt
         JOIN users u ON prt.user_id = u.id
-        WHERE prt.token = $1 AND prt.used = false AND prt.expires_at > NOW()
-      `, [token]);
+        WHERE prt.token_hash = $1 AND prt.used = false AND prt.expires_at > NOW()
+      `, [tokenHash]);
       
       if (tokenResult.rows.length === 0) {
         return res.status(400).json({ 
