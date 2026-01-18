@@ -661,18 +661,19 @@ export const calculateCircularChartData = (student, grades = []) => {
 
   const sections = [];
 
-  // Calculate actual memorized pages using the proper function
+  // Use the actual page number (1..604) to match Quran map ordering
   const quranProgress = calculateQuranProgress(memorizedSurahId, memorizedAyah);
-  const actualMemorizedPages = quranProgress.memorizedPages || 0;
+  const memorizedPages = memorizedPage ? Math.max(0, Math.min(604, Math.round(memorizedPage))) : 0;
 
-  console.log('MEMORIZED PAGES CALCULATION:', {
+  console.log('MEMORIZED PAGES CALCULATION (page-based):', {
     memorizedSurahId: memorizedSurahId,
     memorizedAyah: memorizedAyah,
-    quranProgress: quranProgress,
-    actualMemorizedPages: actualMemorizedPages
+    memorizedPage: memorizedPage,
+    memorizedPages: memorizedPages
   });
 
   // 1. GREEN: Memorized pages
+// 1. GREEN: Memorized pages
   let memorizedPages = actualMemorizedPages;
   let greenPercent = 0;
 
@@ -858,9 +859,9 @@ export const calculateCircularChartData = (student, grades = []) => {
       formula: 'green (memorized) + blue (graded goal) + red (ungraded goal)'
     },
     pageRanges: {
-      memorized: memorizedPages > 0 ? { start: 604, end: memorizedPage } : null,
-      target: targetSurahId && goalPages > 0 ? { start: memorizedPage, end: targetPage } : null,
-      total: { start: 604, end: targetSurahId ? targetPage : memorizedPage }
+      memorized: memorizedPages > 0 ? { start: 1, end: memorizedPages } : null,
+      target: targetSurahId && goalPages > 0 ? { start: memorizedPages, end: Math.max(memorizedPages, Math.round(targetPage || memorizedPages)) } : null,
+      total: { start: 1, end: targetSurahId ? Math.round(targetPage || memorizedPages) : memorizedPages }
     },
     // Add actual progress data for debugging
     quranProgress: quranProgress,
