@@ -1,7 +1,7 @@
 import { useState, useEffect, Fragment } from "react";
 import * as XLSX from "xlsx";
 import axios from "axios";
-import { AiOutlinePlus, AiOutlineEdit, AiOutlineDelete, AiOutlineUser, AiOutlineBook, AiOutlineReload, AiOutlineStar, AiOutlineFileText, AiOutlineBarChart } from "react-icons/ai";
+import { AiOutlinePlus, AiOutlineEdit, AiOutlineDelete, AiOutlineUser, AiOutlineBook, AiOutlineReload, AiOutlineStar, AiOutlineFileText, AiOutlineBarChart, AiOutlineCopy } from "react-icons/ai";
 import ClassForm from "../components/ClassForm";
 import StudentListModal from "../components/StudentListModal";
 import { 
@@ -33,6 +33,12 @@ export default function ClassManagement() {
   const [showGradesModal, setShowGradesModal] = useState(false);
   const [selectedClassForPoints, setSelectedClassForPoints] = useState(null);
   const [showPointsModal, setShowPointsModal] = useState(false);
+  const [showCopyModal, setShowCopyModal] = useState(false);
+  const [copySourceSemester, setCopySourceSemester] = useState("");
+  const [copyTargetSemester, setCopyTargetSemester] = useState("");
+  const [copyLoading, setCopyLoading] = useState(false);
+  const [copyError, setCopyError] = useState("");
+  const [copySuccess, setCopySuccess] = useState("");
   const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
   const [userRole, setUserRole] = useState(storedUser.role || storedUser.user_type || "admin");
   const [userSchoolId, setUserSchoolId] = useState(null); // TODO: Get from auth context
@@ -318,6 +324,49 @@ export default function ClassManagement() {
     }
   };
 
+  const handleCopySemester = async () => {
+    setCopyError("");
+    setCopySuccess("");
+
+    if (!copySourceSemester || !copyTargetSemester) {
+      setCopyError("يرجى اختيار الفصل المصدر والفصل الهدف.");
+      return;
+    }
+
+    if (copySourceSemester === copyTargetSemester) {
+      setCopyError("الفصل المصدر والهدف يجب أن يكونا مختلفين.");
+      return;
+    }
+
+    if (!window.confirm("هل تريد نسخ جميع الحلقات للفصل الهدف بدون الدرجات؟")) {
+      return;
+    }
+
+    try {
+      setCopyLoading(true);
+      await axios.post(`${API_BASE}/api/classes/copy-semester`, {
+        source_semester_id: copySourceSemester,
+        target_semester_id: copyTargetSemester,
+        copy_students: false,
+        copy_teachers: false
+      }, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+
+      setCopySuccess("تم نسخ الحلقات بنجاح بدون الدرجات.");
+      setShowCopyModal(false);
+      setCopySourceSemester("");
+      setCopyTargetSemester("");
+      fetchClasses(schoolFilter || null, semesterFilter || null);
+    } catch (err) {
+      setCopyError(err.response?.data?.error || "فشل في نسخ الحلقات.");
+    } finally {
+      setCopyLoading(false);
+    }
+  };
+
   // Utility functions with current user context
   const canManageClassWithContext = (classData) => canManageClass(classData, userRole, userSchoolId);
   const getFilteredSchoolsWithContext = () => getFilteredSchools(schools, userRole, userSchoolId);
@@ -574,6 +623,18 @@ export default function ClassManagement() {
           >
             <AiOutlineReload /> تحديث
           </button>
+          {["admin", "administrator"].includes(userRole) && (
+            <button
+              onClick={() => {
+                setCopyError("");
+                setCopySuccess("");
+                setShowCopyModal(true);
+              }}
+              className="flex items-center gap-2 bg-amber-500 text-white px-4 py-2 rounded-lg hover:bg-amber-600"
+            >
+              <AiOutlineCopy /> نسخ الحلقات
+            </button>
+          )}
           <button
             onClick={() => {
               fetchTeachers(); // Refresh teachers before opening modal
@@ -589,6 +650,90 @@ export default function ClassManagement() {
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
           {error}
+        </div>
+      )}
+
+      {copySuccess && (
+        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
+          {copySuccess}
+        </div>
+      )}
+
+      {showCopyModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-xl shadow-xl max-w-lg w-full m-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-gray-800">نسخ الحلقات إلى فصل آخر</h3>
+              <button
+                type="button"
+                onClick={() => setShowCopyModal(false)}
+                className="text-gray-500 hover:text-gray-700 text-2xl"
+              >
+                ×
+              </button>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              سيتم نسخ الحلقات مع الطلاب والمعلمين ومقررات الحلقات فقط بدون الدرجات.
+            </p>
+
+            {copyError && (
+              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+                {copyError}
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">الفصل المصدر</label>
+                <select
+                  value={copySourceSemester}
+                  onChange={(e) => setCopySourceSemester(e.target.value)}
+                  className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">اختر الفصل</option>
+                  {semesters.map((semester) => (
+                    <option key={semester.id} value={semester.id}>
+                      {(semester.display_name || `الفصل ${semester.year}`)}{semester.school_name ? ` - ${semester.school_name}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">الفصل الهدف</label>
+                <select
+                  value={copyTargetSemester}
+                  onChange={(e) => setCopyTargetSemester(e.target.value)}
+                  className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">اختر الفصل</option>
+                  {semesters.map((semester) => (
+                    <option key={semester.id} value={semester.id}>
+                      {(semester.display_name || `الفصل ${semester.year}`)}{semester.school_name ? ` - ${semester.school_name}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="mt-6 flex gap-3 justify-end">
+              <button
+                type="button"
+                onClick={() => setShowCopyModal(false)}
+                className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                onClick={handleCopySemester}
+                disabled={copyLoading}
+                className={`px-4 py-2 rounded-lg text-white ${copyLoading ? "bg-amber-400" : "bg-amber-500 hover:bg-amber-600"}`}
+              >
+                {copyLoading ? "جار النسخ..." : "نسخ الآن"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

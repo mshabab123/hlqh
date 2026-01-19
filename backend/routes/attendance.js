@@ -67,7 +67,6 @@ router.get('/student/:studentId', auth, async (req, res) => {
         WHERE se.student_id = $1
           AND se.status = 'enrolled'
           AND tca.teacher_id = $2
-          AND tca.teacher_role = 'primary'
           AND tca.is_active = true
       `, [studentId, userId]);
 
@@ -137,7 +136,6 @@ router.get('/student/:studentId/semester', auth, async (req, res) => {
         WHERE se.student_id = $1
           AND se.status = 'enrolled'
           AND tca.teacher_id = $2
-          AND tca.teacher_role = 'primary'
           AND tca.is_active = true
       `, [studentId, userId]);
 
@@ -260,7 +258,6 @@ router.get('/semester/:semesterId/class/:classId', auth, async (req, res) => {
         SELECT 1 FROM teacher_class_assignments
         WHERE teacher_id = $1
           AND class_id = $2
-          AND teacher_role = 'primary'
           AND is_active = true
       `, [userId, classId]);
 
@@ -453,7 +450,6 @@ router.post('/mark', auth, async (req, res) => {
         SELECT 1 FROM teacher_class_assignments
         WHERE teacher_id = $1
           AND class_id = $2
-          AND teacher_role = 'primary'
           AND is_active = true
       `, [userId, class_id]);
 
@@ -533,7 +529,6 @@ router.get('/classes', auth, async (req, res) => {
         whereClause = ` WHERE c.id IN (
           SELECT class_id FROM teacher_class_assignments
           WHERE teacher_id = $1
-            AND teacher_role = 'primary'
             AND is_active = true
         )`;
         params = [userId];

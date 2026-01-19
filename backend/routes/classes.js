@@ -354,6 +354,133 @@ router.post('/', requireAuth, classValidationRules, async (req, res) => {
   }
 });
 
+// POST /api/classes/copy-semester - Copy all classes (students/teachers/courses) to another semester without grades
+router.post('/copy-semester', requireAuth, async (req, res) => {
+  const {
+    source_semester_id,
+    target_semester_id,
+    copy_students = true,
+    copy_teachers = true
+  } = req.body;
+
+  if (!source_semester_id || !target_semester_id) {
+    return res.status(400).json({ error: 'Source and target semester IDs are required.' });
+  }
+
+  if (source_semester_id === target_semester_id) {
+    return res.status(400).json({ error: 'Source and target semesters must be different.' });
+  }
+
+  if (!['admin', 'administrator'].includes(req.user.role)) {
+    return res.status(403).json({ error: 'You do not have permission to copy classes.' });
+  }
+
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+
+    const classesResult = await client.query(
+      `
+      SELECT id, name, school_id, school_level, max_students, room_number, is_active
+      FROM classes
+      WHERE semester_id = $1
+      ORDER BY created_at ASC
+      `,
+      [source_semester_id]
+    );
+
+    if (classesResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'No classes found for the source semester.' });
+    }
+
+    const classIdMap = new Map();
+    let enrollmentsCopied = 0;
+    let assignmentsCopied = 0;
+    let coursesCopied = 0;
+
+    for (const cls of classesResult.rows) {
+      const insertClass = await client.query(
+        `
+        INSERT INTO classes (
+          name, school_id, semester_id, school_level, max_students, room_number, is_active
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+        RETURNING id
+        `,
+        [
+          cls.name,
+          cls.school_id,
+          target_semester_id,
+          cls.school_level,
+          cls.max_students,
+          cls.room_number,
+          cls.is_active
+        ]
+      );
+
+      const newClassId = insertClass.rows[0].id;
+      classIdMap.set(cls.id, newClassId);
+
+      if (copy_students) {
+        const enrollmentsResult = await client.query(
+          `
+          INSERT INTO student_enrollments (student_id, class_id, status)
+          SELECT student_id, $1, status
+          FROM student_enrollments
+          WHERE class_id = $2
+          ON CONFLICT (student_id, class_id) DO NOTHING
+          `,
+          [newClassId, cls.id]
+        );
+        enrollmentsCopied += enrollmentsResult.rowCount || 0;
+      }
+
+      if (copy_teachers) {
+        const assignmentsResult = await client.query(
+          `
+          INSERT INTO teacher_class_assignments (teacher_id, class_id, teacher_role, is_active)
+          SELECT teacher_id, $1, teacher_role, is_active
+          FROM teacher_class_assignments
+          WHERE class_id = $2
+          ON CONFLICT DO NOTHING
+          `,
+          [newClassId, cls.id]
+        );
+        assignmentsCopied += assignmentsResult.rowCount || 0;
+      }
+
+      const coursesResult = await client.query(
+        `
+        INSERT INTO semester_courses (
+          semester_id, school_id, class_id, name, percentage, requires_surah, description, created_at
+        )
+        SELECT $1, school_id, $2, name, percentage, requires_surah, description, NOW()
+        FROM semester_courses
+        WHERE class_id = $3
+        `,
+        [target_semester_id, newClassId, cls.id]
+      );
+      coursesCopied += coursesResult.rowCount || 0;
+    }
+
+    await client.query('COMMIT');
+
+    res.json({
+      message: 'Classes copied to the new semester without grades.',
+      classesCopied: classIdMap.size,
+      enrollmentsCopied,
+      assignmentsCopied,
+      coursesCopied
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Copy semester classes error:', err);
+    res.status(500).json({ error: 'Failed to copy classes to the new semester.' });
+  } finally {
+    client.release();
+  }
+});
+
 // PUT /api/classes/:id - Update class
 router.put('/:id', requireAuth, async (req, res) => {
   const client = await db.connect();

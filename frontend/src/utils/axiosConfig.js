@@ -44,22 +44,12 @@ axiosInstance.interceptors.response.use(
       const { status, data } = error.response;
       
       // Handle authentication and authorization errors
-      if (status === 401 || status === 403) {
+      if (status === 401) {
         const errorMessage = data?.error || 'Authentication failed';
-        
-        // Check if it's an access/employment related error (don't logout for these)
-        const isAccessError = errorMessage.includes('employment') || 
-                             errorMessage.includes('inactive') ||
-                             errorMessage.includes('on leave') ||
-                             errorMessage.includes('deactivated');
-        
-        if (isAccessError) {
-          // Show access error message and redirect to appropriate page
-          handleAccessDenied(errorMessage);
-        } else {
-          // Invalid token - logout and redirect to login
-          handleAuthenticationFailure(errorMessage);
-        }
+        handleAuthenticationFailure(errorMessage);
+      } else if (status === 403) {
+        const errorMessage = data?.error || 'Access denied';
+        handleAccessDenied(errorMessage);
       }
     }
     

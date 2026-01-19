@@ -76,7 +76,6 @@ router.get('/student/:studentId', auth, async (req, res) => {
         FROM student_enrollments se
         JOIN teacher_class_assignments tca ON se.class_id = tca.class_id
         WHERE tca.teacher_id = $1
-          AND tca.teacher_role = 'primary'
           AND tca.is_active = true
           AND se.student_id = $2
           AND se.status = 'enrolled'
@@ -189,7 +188,7 @@ router.get('/class/:classId', auth, async (req, res) => {
         SELECT id FROM teacher_class_assignments 
         WHERE teacher_id = $1
           AND class_id = $2
-          AND teacher_role = 'primary'
+          
           AND is_active = true
       `, [userId, classId]);
       
@@ -298,7 +297,7 @@ router.post('/', auth, async (req, res) => {
         SELECT id FROM teacher_class_assignments 
         WHERE teacher_id = $1
           AND class_id = $2
-          AND teacher_role = 'primary'
+          
           AND is_active = true
       `, [teacher_id, class_id]);
       
@@ -512,7 +511,7 @@ router.get('/teacher/my-classes', auth, async (req, res) => {
         JOIN schools s ON c.school_id = s.id
         LEFT JOIN student_enrollments se ON c.id = se.class_id AND se.status = 'enrolled'
         WHERE tca.teacher_id = $1
-          AND tca.teacher_role = 'primary'
+          
           AND tca.is_active = true
           AND c.is_active = true
         GROUP BY c.id, c.name, c.school_id, s.name
@@ -630,7 +629,7 @@ router.get('/reports/students-summary', auth, async (req, res) => {
       query += ` AND se.class_id IN (
         SELECT class_id FROM teacher_class_assignments
         WHERE teacher_id = $${paramIndex}
-          AND teacher_role = 'primary'
+          
           AND is_active = true
       )`;
       params.push(userId);

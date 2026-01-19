@@ -10,6 +10,7 @@ const API_BASE = import.meta.env.VITE_API_BASE || "";
 export default function StudentManagement() {
   const [students, setStudents] = useState([]);
   const [schools, setSchools] = useState([]);
+  const [semesters, setSemesters] = useState([]);
   const [classes, setClasses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -22,6 +23,7 @@ export default function StudentManagement() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [schoolFilter, setSchoolFilter] = useState("all");
+  const [semesterFilter, setSemesterFilter] = useState("all");
   const [classFilter, setClassFilter] = useState("all");
   
   const [currentStudent, setCurrentStudent] = useState({
@@ -44,6 +46,7 @@ export default function StudentManagement() {
   useEffect(() => {
     fetchStudents();
     fetchSchools();
+    fetchSemesters();
     fetchClasses();
   }, []);
 
@@ -85,6 +88,26 @@ export default function StudentManagement() {
     } catch (err) {
       console.error("Error fetching classes:", err);
       setClasses([]);
+    }
+  };
+
+  const fetchSemesters = async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/api/semesters`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      const payload = response.data;
+      const list = Array.isArray(payload?.semesters)
+        ? payload.semesters
+        : Array.isArray(payload?.data)
+          ? payload.data
+          : Array.isArray(payload)
+            ? payload
+            : [];
+      setSemesters(list);
+    } catch (err) {
+      console.error("Error fetching semesters:", err);
+      setSemesters([]);
     }
   };
 
@@ -407,16 +430,40 @@ export default function StudentManagement() {
     }
   };
 
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+  const classById = new Map(classes.map(cls => [String(cls.id), cls]));
+
   const filteredStudents = students.filter(student => {
-    const matchesSearch = student.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         student.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         student.id?.includes(searchTerm);
+    const fullName = [
+      student.first_name,
+      student.second_name,
+      student.third_name,
+      student.last_name
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    const studentId = String(student.id ?? "").toLowerCase();
+    const matchesSearch = !normalizedSearch ||
+      fullName.includes(normalizedSearch) ||
+      studentId.includes(normalizedSearch);
     const matchesStatus = statusFilter === "all" || student.status === statusFilter;
     const matchesSchool = schoolFilter === "all" || student.school_id == schoolFilter;
+    const studentClass = student.class_id ? classById.get(String(student.class_id)) : null;
+    const matchesSemester = semesterFilter === "all" ||
+      (studentClass && String(studentClass.semester_id) === String(semesterFilter));
     const matchesClass = classFilter === "all" || student.class_id == classFilter;
     
-    return matchesSearch && matchesStatus && matchesSchool && matchesClass;
+    return matchesSearch && matchesStatus && matchesSchool && matchesSemester && matchesClass;
   });
+
+  const visibleSemesters = schoolFilter === "all"
+    ? semesters
+    : semesters.filter(semester => String(semester.school_id) === String(schoolFilter));
+  const visibleClasses = classes.filter(cls =>
+    (schoolFilter === "all" || String(cls.school_id) === String(schoolFilter)) &&
+    (semesterFilter === "all" || String(cls.semester_id) === String(semesterFilter))
+  );
 
   if (loading) {
     return <div className="flex justify-center items-center h-64">جاري التحميل...</div>;
@@ -471,7 +518,11 @@ export default function StudentManagement() {
               <label className="block text-sm font-medium mb-1">مجمع الحلقات</label>
               <select
                 value={schoolFilter}
-                onChange={(e) => setSchoolFilter(e.target.value)}
+                onChange={(e) => {
+                  setSchoolFilter(e.target.value);
+                  setSemesterFilter("all");
+                  setClassFilter("all");
+                }}
                 className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="all">جميع مجمعات الحلقات</option>
@@ -480,16 +531,36 @@ export default function StudentManagement() {
                 ))}
               </select>
             </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">????? ???????</label>
+              <select
+                value={semesterFilter}
+                onChange={(e) => {
+                  setSemesterFilter(e.target.value);
+                  setClassFilter("all");
+                }}
+                className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="all">?? ?????? ????????</option>
+                {visibleSemesters.map(semester => (
+                  <option key={semester.id} value={semester.id}>
+                    {semester.display_name || semester.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+
 
             <div>
-              <label className="block text-sm font-medium mb-1">الفصل</label>
+              <label className="block text-sm font-medium mb-1">?????</label>
               <select
                 value={classFilter}
                 onChange={(e) => setClassFilter(e.target.value)}
                 className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="all">كل الفصول</option>
-                {classes && classes.map(cls => (
+                <option value="all">?? ??????</option>
+                {visibleClasses.map(cls => (
                   <option key={cls.id} value={cls.id}>{cls.name}</option>
                 ))}
               </select>
@@ -504,9 +575,9 @@ export default function StudentManagement() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredStudents.map(student => (
+          {filteredStudents.map((student, index) => (
             <StudentCard
-              key={student.id}
+              key={`${student.id}-${student.class_id || "no-class"}-${index}`}
               student={student}
               onView={handleView}
               onEdit={handleEdit}

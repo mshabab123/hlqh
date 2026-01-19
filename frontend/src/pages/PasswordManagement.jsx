@@ -90,8 +90,8 @@ export default function PasswordManagement() {
       return;
     }
     
-    if (newPassword.length < 6) {
-      setError("يجب أن تكون كلمة المرور 6 أحرف على الأقل");
+    if (newPassword.length < 10) {
+      setError("يجب أن تكون كلمة المرور 10 أحرف على الأقل");
       return;
     }
     
@@ -319,7 +319,7 @@ export default function PasswordManagement() {
                     onChange={(e) => setNewPassword(e.target.value)}
                     className="w-full p-3 pr-10 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="أدخل كلمة المرور الجديدة"
-                    minLength="6"
+                    minLength="10"
                   />
                   <button
                     type="button"
@@ -340,7 +340,7 @@ export default function PasswordManagement() {
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     className="w-full p-3 pr-10 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="أعد إدخال كلمة المرور"
-                    minLength="6"
+                    minLength="10"
                   />
                   <button
                     type="button"
@@ -356,8 +356,8 @@ export default function PasswordManagement() {
                 <p className="text-red-500 text-sm">كلمات المرور غير متطابقة</p>
               )}
               
-              {newPassword && newPassword.length < 6 && (
-                <p className="text-amber-500 text-sm">يجب أن تكون كلمة المرور 6 أحرف على الأقل</p>
+              {newPassword && newPassword.length < 10 && (
+                <p className="text-amber-500 text-sm">يجب أن تكون كلمة المرور 10 أحرف على الأقل</p>
               )}
             </div>
             
@@ -376,7 +376,7 @@ export default function PasswordManagement() {
               </button>
               <button
                 onClick={handlePasswordReset}
-                disabled={!newPassword || !confirmPassword || newPassword !== confirmPassword || newPassword.length < 6}
+                disabled={!newPassword || !confirmPassword || newPassword !== confirmPassword || newPassword.length < 10}
                 className="px-4 py-2 bg-[var(--color-primary-500)] text-white rounded-lg hover:bg-[var(--color-primary-600)] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 تغيير كلمة المرور

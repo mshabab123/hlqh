@@ -27,6 +27,7 @@ import Profile from "./pages/Profile";
 import MyStudentsPage from "./pages/MyStudentsPage";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import AccessDenied from "./pages/AccessDenied";
 import About from "./pages/About";
 import QuranReader from "./pages/QuranReader";
 import Home from "./pages/home";
@@ -69,6 +70,7 @@ export default function App() {
           />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/access-denied" element={<AccessDenied />} />
           <Route path="/registration" element={<Registration />} />
           <Route path="/parent-registration" element={<ParentRegistration />} />
           <Route path="/student-registration" element={<StudentRegistration />} />
