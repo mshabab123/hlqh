@@ -365,7 +365,7 @@ const QuranTestingModal = ({ student, courses = [], onClose, onSave, initialTest
                     disabled={loadingSurahs}
                   >
                     <option value="uthmani">عثماني</option>
-                    <option value="hafs">حفص الذكي V8</option>
+                    <option value="hafs">مصحف المدينة (حفص)</option>
                   </select>
                 </div>
 

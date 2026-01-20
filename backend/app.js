@@ -51,6 +51,7 @@ app.use('/api/privileges', require('./routes/privileges')); // Privileges manage
 app.use('/api/grading', require('./routes/grading')); // Comprehensive grading system
 app.use('/api/debug', require('./routes/debug')); // Debug endpoints
 app.use('/api/quran', require('./routes/quran')); // Quran read endpoints
+app.use('/api/homework', require('./routes/homework')); // Homework management
 
 // Default route
 app.get('/', (req, res) => {

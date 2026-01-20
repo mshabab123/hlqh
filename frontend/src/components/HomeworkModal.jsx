@@ -64,7 +64,7 @@ const HomeworkModal = ({ student, classItem, courses = [], onClose, onSave }) =>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {/* Title */}
           <div>
-            <label className="block text-sm font-medium mb-2">عنوان الواجب *</label>
+            <label className="block text-sm font-medium mb-2">عنوان التلاوة الجديدة *</label>
             <input
               type="text"
               value={formData.title}

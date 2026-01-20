@@ -120,6 +120,9 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
 
   // Homework Modal state
   const [showHomeworkModal, setShowHomeworkModal] = useState(false);
+  const [homeworkList, setHomeworkList] = useState([]);
+  const [latestHomework, setLatestHomework] = useState(null);
+  const [showAllHomeworkModal, setShowAllHomeworkModal] = useState(false);
 
   // Grade modal state
   const [showGradeModal, setShowGradeModal] = useState(false);
@@ -260,10 +263,11 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
       setStudentData(response.data);
       console.log('Student Profile Data:', response.data);
       
-      // Fetch points and attendance data in parallel
+      // Fetch points, attendance, and homework data in parallel
       await Promise.all([
         fetchPointsData(),
-        fetchAttendanceData()
+        fetchAttendanceData(),
+        fetchHomework()
       ]);
       
     } catch (err) {
@@ -312,7 +316,7 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
         },
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
-      
+
       // Get the student's attendance data from the response
       const studentAttendance = attendanceResponse.data.students?.find(s => s.student_id === student.id);
       const attendanceRecords = studentAttendance?.attendance || [];
@@ -320,15 +324,53 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
       const presentDays = attendanceRecords.filter(record => record.is_present === true).length;
       const totalDays = attendanceRecords.length;
       const attendanceRate = totalDays > 0 ? (presentDays / totalDays) * 100 : 0;
-      
+
       setAttendanceData({
         attendanceRate: attendanceRate,
         presentDays: presentDays,
         totalDays: totalDays
       });
-      
+
     } catch (error) {
       console.error('Error fetching attendance data:', error);
+    }
+  };
+
+  const fetchHomework = async () => {
+    try {
+      // Fetch both student-specific and class-wide homework
+      const [studentHomework, classHomework] = await Promise.all([
+        axios.get(`${API_BASE}/api/homework`, {
+          params: { student_id: student.id },
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        }),
+        axios.get(`${API_BASE}/api/homework`, {
+          params: { class_id: classItem.id },
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        })
+      ]);
+
+      // Combine and deduplicate homework
+      const allHomework = [...(studentHomework.data || []), ...(classHomework.data || [])];
+
+      // Remove duplicates by ID
+      const uniqueHomework = allHomework.filter((hw, index, self) =>
+        index === self.findIndex((t) => t.id === hw.id)
+      );
+
+      // Sort by assigned_date descending (most recent first)
+      const sortedHomework = uniqueHomework.sort((a, b) =>
+        new Date(b.assigned_date) - new Date(a.assigned_date)
+      );
+
+      setHomeworkList(sortedHomework);
+
+      // Get the latest pending homework (not completed)
+      const latestPending = sortedHomework.find(hw => hw.status !== 'completed');
+      setLatestHomework(latestPending || null);
+
+    } catch (error) {
+      console.error('Error fetching homework:', error);
     }
   };
 
@@ -762,13 +804,13 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
         }
       });
 
-      setSuccess('تم حفظ الواجب بنجاح');
+      setSuccess('تم حفظ المهمة بنجاح');
       setTimeout(() => setSuccess(''), 3000);
       setShowHomeworkModal(false);
       fetchStudentProfile(); // Refresh to show the new homework
     } catch (error) {
       console.error('Error saving homework:', error);
-      setError(error.response?.data?.error || 'فشل في حفظ الواجب');
+      setError(error.response?.data?.error || 'فشل في حفظ المهمة');
       setTimeout(() => setError(''), 3000);
     } finally {
       setSaving(false);
@@ -1233,7 +1275,7 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
               className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700"
             >
               <AiOutlineBook />
-              تكليف واجب
+              مهمة جديدة
             </button>
           </div>
         </div>
@@ -1289,7 +1331,80 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
               </div>
             </div>
 
- 
+            {/* Latest Homework Section */}
+            {latestHomework && (
+              <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-4 rounded-lg border border-purple-200 mb-6">
+                <div className="flex justify-between items-center mb-3">
+                  <h3 className="text-lg font-semibold text-purple-800">📚 آخر مهمة مُكلّفة</h3>
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                    latestHomework.status === 'completed' ? 'bg-green-100 text-green-700' :
+                    latestHomework.status === 'overdue' ? 'bg-red-100 text-red-700' :
+                    'bg-yellow-100 text-yellow-700'
+                  }`}>
+                    {latestHomework.status === 'completed' ? 'مكتمل' :
+                     latestHomework.status === 'overdue' ? 'متأخر' : 'قيد التنفيذ'}
+                  </span>
+                </div>
+
+                <div className="bg-white p-4 rounded-lg border">
+                  <div className="text-center">
+                    <div className="text-xl font-bold text-purple-700 mb-2">
+                      {getSurahNameFromId(latestHomework.start_surah)}:{latestHomework.start_ayah} - {getSurahNameFromId(latestHomework.end_surah)}:{latestHomework.end_ayah}
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      تاريخ التكليف: {latestHomework.assigned_date ? new Date(latestHomework.assigned_date).toLocaleDateString('ar-SA') : 'غير محدد'}
+                    </div>
+                    {latestHomework.completed_date && (
+                      <div className="text-sm text-green-700 font-semibold mt-2">
+                        تم الإكمال: {new Date(latestHomework.completed_date).toLocaleDateString('ar-SA')}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Mark as Done Button */}
+                  {latestHomework.status !== 'completed' && (
+                    <div className="mt-4 pt-4 border-t">
+                      <button
+                        onClick={async () => {
+                          try {
+                            const token = localStorage.getItem('token');
+                            await axios.post(
+                              `${API_BASE}/api/homework/${latestHomework.id}/complete`,
+                              {},
+                              {
+                                headers: { Authorization: `Bearer ${token}` }
+                              }
+                            );
+                            // Refresh homework list
+                            fetchHomework();
+                            toast.success('تم تحديد المهمة كمكتملة');
+                          } catch (error) {
+                            console.error('Error marking homework as complete:', error);
+                            toast.error('فشل في تحديث حالة المهمة');
+                          }
+                        }}
+                        className="w-full px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 text-sm font-semibold"
+                      >
+                        ✓ تم إنجاز المهمة
+                      </button>
+                    </div>
+                  )}
+
+                  {/* All Homework Button */}
+                  {homeworkList.length > 1 && (
+                    <div className={`${latestHomework.status !== 'completed' ? 'mt-2' : 'mt-4 pt-4 border-t'}`}>
+                      <button
+                        onClick={() => setShowAllHomeworkModal(true)}
+                        className="w-full px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600 text-sm"
+                      >
+                        عرض جميع المهام ({homeworkList.length})
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Goal and Progress Section */}
             {studentData.goal?.target_surah_id && (
               <div className="bg-gradient-to-r from-blue-50 to-green-50 p-4 rounded-lg border border-blue-200 mb-6">
@@ -2868,6 +2983,93 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
           onClose={() => setShowHomeworkModal(false)}
           onSave={handleSaveHomework}
         />
+      )}
+
+      {/* All Homework Modal */}
+      {showAllHomeworkModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold text-purple-800">جميع المهام</h3>
+              <button
+                onClick={() => setShowAllHomeworkModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <AiOutlineClose className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {homeworkList.map((hw, index) => (
+                <div key={hw.id} className="bg-gradient-to-r from-purple-50 to-pink-50 p-4 rounded-lg border border-purple-200">
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="text-sm text-gray-600">#{index + 1}</div>
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                      hw.status === 'completed' ? 'bg-green-100 text-green-700' :
+                      hw.status === 'overdue' ? 'bg-red-100 text-red-700' :
+                      'bg-yellow-100 text-yellow-700'
+                    }`}>
+                      {hw.status === 'completed' ? 'مكتمل' :
+                       hw.status === 'overdue' ? 'متأخر' : 'قيد التنفيذ'}
+                    </span>
+                  </div>
+
+                  <div className="text-lg font-bold text-purple-700 mb-2">
+                    {getSurahNameFromId(hw.start_surah)}:{hw.start_ayah} - {getSurahNameFromId(hw.end_surah)}:{hw.end_ayah}
+                  </div>
+
+                  <div className="text-sm text-gray-600">
+                    تاريخ التكليف: {hw.assigned_date ? new Date(hw.assigned_date).toLocaleDateString('ar-SA') : 'غير محدد'}
+                  </div>
+
+                  {hw.completed_date && (
+                    <div className="text-sm text-green-700 font-semibold mt-1">
+                      تم الإكمال: {new Date(hw.completed_date).toLocaleDateString('ar-SA')}
+                    </div>
+                  )}
+
+                  {/* Mark as Done Button for each homework */}
+                  {hw.status !== 'completed' && (
+                    <div className="mt-3 pt-3 border-t">
+                      <button
+                        onClick={async () => {
+                          try {
+                            const token = localStorage.getItem('token');
+                            await axios.post(
+                              `${API_BASE}/api/homework/${hw.id}/complete`,
+                              {},
+                              {
+                                headers: { Authorization: `Bearer ${token}` }
+                              }
+                            );
+                            // Refresh homework list
+                            fetchHomework();
+                            toast.success('تم تحديد المهمة كمكتملة');
+                          } catch (error) {
+                            console.error('Error marking homework as complete:', error);
+                            toast.error('فشل في تحديث حالة المهمة');
+                          }
+                        }}
+                        className="w-full px-3 py-2 bg-green-500 text-white rounded hover:bg-green-600 text-sm font-semibold"
+                      >
+                        ✓ تم إنجاز المهمة
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-end mt-6">
+              <button
+                onClick={() => setShowAllHomeworkModal(false)}
+                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
+              >
+                إغلاق
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

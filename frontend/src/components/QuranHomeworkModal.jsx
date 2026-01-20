@@ -115,7 +115,7 @@ const QuranHomeworkModal = ({ student, classItem, onClose, onSave }) => {
         {/* Header */}
         <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex justify-between items-center">
           <div>
-            <h2 className="text-2xl font-bold text-gray-800">تكليف واجب قرآني</h2>
+            <h2 className="text-2xl font-bold text-gray-800">المهمة الجديدة (تلاوة جديدة)</h2>
             <p className="text-sm text-gray-600 mt-1">
               الطالب: {student.first_name} {student.second_name} {student.third_name} {student.last_name}
             </p>
@@ -150,7 +150,7 @@ const QuranHomeworkModal = ({ student, classItem, onClose, onSave }) => {
                   onChange={(e) => setSource(e.target.value)}
                 >
                   <option value="uthmani">عثماني</option>
-                  <option value="hafs">حفص الذكي V8</option>
+                  <option value="hafs">مصحف المدينة (حفص)</option>
                 </select>
               </div>
 
@@ -186,18 +186,23 @@ const QuranHomeworkModal = ({ student, classItem, onClose, onSave }) => {
               <div>
                 <label className="block text-sm font-medium mb-2">من سورة</label>
                 <select
-                  className="w-full border rounded px-3 py-2"
+                  className="w-full border rounded px-3 py-2 text-gray-900 bg-white"
                   value={fromSurah}
                   onChange={(e) => setFromSurah(e.target.value)}
                   disabled={loadingSurahs}
                 >
                   <option value="">اختر السورة</option>
+                  {surahs.length === 0 && !loadingSurahs && (
+                    <option disabled>جاري التحميل...</option>
+                  )}
                   {surahs.map((surah) => (
                     <option key={surah.number} value={surah.number}>
-                      {surah.number}. {surah.name_ar}
+                      {surah.number}. {surah.name_arabic}
                     </option>
                   ))}
                 </select>
+                {loadingSurahs && <div className="text-xs text-gray-500 mt-1">جاري تحميل السور...</div>}
+                {!loadingSurahs && surahs.length === 0 && <div className="text-xs text-red-500 mt-1">فشل في تحميل السور</div>}
               </div>
 
               <div>
@@ -222,15 +227,18 @@ const QuranHomeworkModal = ({ student, classItem, onClose, onSave }) => {
               <div>
                 <label className="block text-sm font-medium mb-2">إلى سورة</label>
                 <select
-                  className="w-full border rounded px-3 py-2"
+                  className="w-full border rounded px-3 py-2 text-gray-900 bg-white"
                   value={toSurah}
                   onChange={(e) => setToSurah(e.target.value)}
                   disabled={loadingSurahs}
                 >
                   <option value="">اختر السورة</option>
+                  {surahs.length === 0 && !loadingSurahs && (
+                    <option disabled>جاري التحميل...</option>
+                  )}
                   {surahs.map((surah) => (
                     <option key={surah.number} value={surah.number}>
-                      {surah.number}. {surah.name_ar}
+                      {surah.number}. {surah.name_arabic}
                     </option>
                   ))}
                 </select>
@@ -320,7 +328,7 @@ const QuranHomeworkModal = ({ student, classItem, onClose, onSave }) => {
               disabled={!fromSurah || !toSurah}
               className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              حفظ الواجب
+              حفظ المهمة
             </button>
           </div>
         </div>

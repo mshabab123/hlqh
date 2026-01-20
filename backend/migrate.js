@@ -10,7 +10,7 @@ async function runMigration() {
     console.log('🔄 Starting database migration...');
 
     // Read the SQL file
-    const sqlFilePath = path.join('c:', 'Users', 'mshbb', 'OneDrive', 'Desktop', 'update-fixed.sql');
+    const sqlFilePath = path.join('c:', 'Users', 'mshbb', 'OneDrive', 'Desktop', 'fix-homework-types.sql');
     const sql = fs.readFileSync(sqlFilePath, 'utf8');
 
     console.log('📖 SQL file loaded successfully');
