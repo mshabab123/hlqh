@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import axios from "../utils/axiosConfig";
-import { AiOutlineStar, AiOutlineUserAdd, AiOutlineSave, AiOutlineClose, AiOutlineEdit, AiOutlineDelete, AiOutlineTable, AiOutlineCalendar, AiOutlineCheck } from "react-icons/ai";
+import { AiOutlineStar, AiOutlineUserAdd, AiOutlineSave, AiOutlineClose, AiOutlineEdit, AiOutlineDelete, AiOutlineTable, AiOutlineCalendar, AiOutlineCheck, AiOutlineBook } from "react-icons/ai";
 import { BsFillGridFill } from "react-icons/bs";
 import { QURAN_SURAHS, TOTAL_QURAN_PAGES } from "../utils/quranData";
 import {
@@ -18,6 +18,8 @@ import {
 import { getSurahIdFromName, getSurahNameFromId } from "../utils/quranData";
 import QuranProgressModal from "./QuranProgressModal";
 import QuranBlocksModal from "./QuranBlocksModal";
+import QuranTestingModal from "./QuranTestingModal";
+import QuranHomeworkModal from "./QuranHomeworkModal";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
@@ -111,7 +113,14 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
 
   // Quran Blocks Modal state
   const [showBlocksModal, setShowBlocksModal] = useState(false);
-  
+
+  // Quran Testing Modal state
+  const [showQuranTestingModal, setShowQuranTestingModal] = useState(false);
+  const [viewingTestData, setViewingTestData] = useState(null);
+
+  // Homework Modal state
+  const [showHomeworkModal, setShowHomeworkModal] = useState(false);
+
   // Grade modal state
   const [showGradeModal, setShowGradeModal] = useState(false);
   const [editingGrade, setEditingGrade] = useState(null); // Track which grade is being edited
@@ -659,6 +668,113 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
     }));
   };
 
+  const handleSaveQuranTest = async (testData) => {
+    console.log('Saving Quran test result:', testData);
+
+    if (!testData.course_id) {
+      setError('يرجى اختيار المقرر أولاً');
+      setTimeout(() => setError(''), 3000);
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      // Build reference strings for the tested range
+      const start_ref = testData.start_surah && testData.start_ayah
+        ? `${testData.start_surah}:${testData.start_ayah}`
+        : '';
+      const end_ref = testData.end_surah && testData.end_ayah
+        ? `${testData.end_surah}:${testData.end_ayah}`
+        : '';
+
+      // Use the calculated grade from the modal
+      const calculatedGrade = testData.calculated_grade;
+      const gradePerError = testData.grade_per_error || 1;
+
+      // Save as a grade
+      await axios.post(`${API_BASE}/api/classes/${classItem.id}/grades`, {
+        student_id: student.id,
+        course_id: testData.course_id,
+        grade_value: calculatedGrade,
+        max_grade: testData.max_grade,
+        notes: testData.notes ? `${testData.notes}\n\nعدد الأخطاء: ${testData.total_errors}\nالخصم لكل خطأ: ${gradePerError}` : `عدد الأخطاء: ${testData.total_errors}\nالخصم لكل خطأ: ${gradePerError}`,
+        grade_type: 'memorization',
+        start_reference: start_ref,
+        end_reference: end_ref,
+        grade_date: testData.test_date,
+        error_details: testData.error_details,
+        quran_error_display: testData.quran_error_display
+      }, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+
+      setSuccess('تم حفظ نتيجة الاختبار بنجاح');
+      setTimeout(() => setSuccess(''), 3000);
+      setShowQuranTestingModal(false);
+      fetchStudentProfile(); // Refresh to show the new grade
+    } catch (error) {
+      console.error('Error saving Quran test:', error);
+      setError(error.response?.data?.error || 'فشل في حفظ نتيجة الاختبار');
+      setTimeout(() => setError(''), 3000);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleViewQuranTest = (grade) => {
+    // Extract grade_per_error from notes
+    let gradePerError = 1;
+    if (grade.notes) {
+      const gradePerErrorMatch = grade.notes.match(/الخصم لكل خطأ:\s*(\d+(?:\.\d+)?)/);
+      if (gradePerErrorMatch) {
+        gradePerError = parseFloat(gradePerErrorMatch[1]);
+      }
+    }
+
+    // Prepare the test data from the grade record to view in the modal
+    const testData = {
+      course_id: grade.course_id,
+      start_surah: grade.start_reference ? grade.start_reference.split(':')[0] : '',
+      start_ayah: grade.start_reference ? grade.start_reference.split(':')[1] : '',
+      end_surah: grade.end_reference ? grade.end_reference.split(':')[0] : '',
+      end_ayah: grade.end_reference ? grade.end_reference.split(':')[1] : '',
+      error_details: grade.error_details ? (typeof grade.error_details === 'string' ? JSON.parse(grade.error_details) : grade.error_details) : {},
+      max_grade: grade.max_grade || 100,
+      calculated_grade: grade.grade_value,
+      grade_per_error: gradePerError,
+      notes: grade.notes || ''
+    };
+
+    setViewingTestData(testData);
+    setShowQuranTestingModal(true);
+  };
+
+  const handleSaveHomework = async (homeworkData) => {
+    try {
+      setSaving(true);
+
+      await axios.post(`${API_BASE}/api/homework`, homeworkData, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+
+      setSuccess('تم حفظ الواجب بنجاح');
+      setTimeout(() => setSuccess(''), 3000);
+      setShowHomeworkModal(false);
+      fetchStudentProfile(); // Refresh to show the new homework
+    } catch (error) {
+      console.error('Error saving homework:', error);
+      setError(error.response?.data?.error || 'فشل في حفظ الواجب');
+      setTimeout(() => setError(''), 3000);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleShowBlocks = async () => {
     console.log('Fetching fresh student data and grades for Quran blocks:', student.id);
 
@@ -1105,6 +1221,20 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
               <BsFillGridFill />
              متابعة المراجعة
             </button>
+            <button
+              onClick={() => setShowQuranTestingModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+            >
+              <AiOutlineBook />
+              اختبار القرآن
+            </button>
+            <button
+              onClick={() => setShowHomeworkModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700"
+            >
+              <AiOutlineBook />
+              تكليف واجب
+            </button>
           </div>
         </div>
 
@@ -1340,11 +1470,37 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                             return position > 0 ? `سورة ${name} (${position})` : `سورة ${name}`;
                           };
 
+                          const getSurahIdFromPosition = (position) => {
+                            if (position < 1 || position > QURAN_SURAHS.length) return 0;
+                            return QURAN_SURAHS[position - 1].id;
+                          };
+
+                          const getNextMemorizationRef = (surahId, ayahNumber) => {
+                            const surah = QURAN_SURAHS.find(s => s.id == surahId);
+                            if (!surah) return null;
+                            const ayah = parseInt(ayahNumber) || 0;
+                            if (ayah < surah.ayahCount) {
+                              return { surahId: surah.id, ayah: ayah + 1 };
+                            }
+                            const position = getMemorizationPosition(surahId);
+                            const nextSurahId = getSurahIdFromPosition(position + 1);
+                            if (!nextSurahId) {
+                              return { surahId: surah.id, ayah: surah.ayahCount };
+                            }
+                            return { surahId: nextSurahId, ayah: 1 };
+                          };
+
+
                           // Calculate page information for display
                           const targetDisplay = formatMemorizationDisplay(targetSurahId, targetAyah);
                           const currentDisplay = currentSurahId ?
                             formatMemorizationDisplay(currentSurahId, currentAyah) :
                             { display: 'سورة الفاتحة (صفحة 1)', pageNumber: 1 };
+                          const nextRef = getNextMemorizationRef(currentSurahId, currentAyah);
+                          const nextDisplay = nextRef
+                            ? formatMemorizationDisplay(nextRef.surahId, nextRef.ayah)
+                            : currentDisplay;
+
 
                           if (!currentSurahId || currentSurahId === 0) {
                             // No current memorization - start from الفاتحة (position 1)
@@ -1360,7 +1516,9 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                               if (currentAyah >= targetAyah) {
                                 return `🎉 تم تحقيق الهدف - ${currentSurahWithPos} آية ${currentAyah} (صفحة ${currentDisplay.pageNumber})`;
                               } else {
-                                return `من ${currentSurahWithPos} آية ${currentAyah + 1} إلى آية ${targetAyah} (من صفحة ${currentDisplay.pageNumber} إلى صفحة ${targetDisplay.pageNumber})`;
+                                const nextSurahWithPos = nextRef ? getCurrentSurahWithPosition(nextRef.surahId) : currentSurahWithPos;
+                                const nextAyah = nextRef ? nextRef.ayah : currentAyah + 1;
+                                return `من ${nextSurahWithPos} آية ${nextAyah} إلى آية ${targetAyah} (من صفحة ${nextDisplay.pageNumber} إلى صفحة ${targetDisplay.pageNumber})`;
                               }
                             } else {
                               // Different surahs - check memorization positions
@@ -1370,7 +1528,9 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                               if (currentPosition > targetPosition) {
                                 return `🎉 تم تجاوز الهدف - الحالي: ${currentSurahWithPos} آية ${currentAyah} (صفحة ${currentDisplay.pageNumber})`;
                               } else {
-                                return `من ${currentSurahWithPos} آية ${currentAyah + 1} إلى ${targetSurahWithPos} آية ${targetAyah} (من صفحة ${currentDisplay.pageNumber} إلى صفحة ${targetDisplay.pageNumber})`;
+                                const nextSurahWithPos = nextRef ? getCurrentSurahWithPosition(nextRef.surahId) : currentSurahWithPos;
+                                const nextAyah = nextRef ? nextRef.ayah : currentAyah + 1;
+                                return `من ${nextSurahWithPos} آية ${nextAyah} إلى ${targetSurahWithPos} آية ${targetAyah} (من صفحة ${nextDisplay.pageNumber} إلى صفحة ${targetDisplay.pageNumber})`;
                               }
                             }
                           }
@@ -2007,6 +2167,9 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                       <table className="w-full">
                         <thead className="bg-gray-100 sticky top-0">
                           <tr>
+                            {!['السلوك', 'سلوك', 'السيرة', 'سيرة', 'العقيدة', 'عقيدة', 'الفقه', 'فقه'].includes(selectedCourse.name.toLowerCase()) && (
+                              <th className="p-2 text-center text-sm border">عرض</th>
+                            )}
                             <th className="p-2 text-center text-sm border">الدرجة من 100</th>
                             {!['السلوك', 'سلوك', 'السيرة', 'سيرة', 'العقيدة', 'عقيدة', 'الفقه', 'فقه'].includes(selectedCourse.name.toLowerCase()) && (
                               <th className="p-2 text-center text-sm border">المرجع القرآني</th>
@@ -2019,6 +2182,21 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                         <tbody>
                           {studentData.grades?.filter(grade => grade.course_id === selectedCourse.id).map(grade => (
                             <tr key={grade.id} className="hover:bg-gray-50">
+                              {!['السلوك', 'سلوك', 'السيرة', 'سيرة', 'العقيدة', 'عقيدة', 'الفقه', 'فقه'].includes(selectedCourse.name.toLowerCase()) && (
+                                <td className="p-2 text-center border">
+                                  {grade.error_details && grade.start_reference && grade.end_reference ? (
+                                    <button
+                                      onClick={() => handleViewQuranTest(grade)}
+                                      className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                                      title="عرض نتيجة الاختبار"
+                                    >
+                                      عرض
+                                    </button>
+                                  ) : (
+                                    <span className="text-gray-400 text-xs">-</span>
+                                  )}
+                                </td>
+                              )}
                               <td className="p-2 text-center font-medium border text-sm">
                                 {Math.round(parseFloat(grade.grade_value))}
                               </td>
@@ -2664,6 +2842,31 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
           student={studentData}
           blocksData={showBlocksModal}
           onClose={() => setShowBlocksModal(false)}
+        />
+      )}
+
+      {/* Quran Testing Modal */}
+      {showQuranTestingModal && studentData && (
+        <QuranTestingModal
+          student={studentData}
+          courses={studentData.courses || []}
+          onClose={() => {
+            setShowQuranTestingModal(false);
+            setViewingTestData(null);
+          }}
+          onSave={handleSaveQuranTest}
+          initialTestData={viewingTestData}
+          viewMode={viewingTestData !== null}
+        />
+      )}
+
+      {/* Homework Modal */}
+      {showHomeworkModal && studentData && (
+        <QuranHomeworkModal
+          student={studentData}
+          classItem={classItem}
+          onClose={() => setShowHomeworkModal(false)}
+          onSave={handleSaveHomework}
         />
       )}
     </div>

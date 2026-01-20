@@ -7,6 +7,25 @@ import QuranProgressModal from "../components/QuranProgressModal";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
+const UI_TEXT = {
+  title: "\u0625\u062F\u0627\u0631\u0629 \u0627\u0644\u0637\u0644\u0627\u0628",
+  addStudent: "\u0625\u0636\u0627\u0641\u0629 \u0637\u0627\u0644\u0628 \u062C\u062F\u064A\u062F",
+  searchLabel: "\u0627\u0644\u0628\u062D\u062B",
+  searchPlaceholder: "\u0627\u0644\u0628\u062D\u062B \u0628\u0627\u0644\u0627\u0633\u0645 \u0623\u0648 \u0631\u0642\u0645 \u0627\u0644\u0647\u0648\u064A\u0629...",
+  statusLabel: "\u0627\u0644\u062D\u0627\u0644\u0629",
+  statusAll: "\u062C\u0645\u064A\u0639 \u0627\u0644\u062D\u0627\u0644\u0627\u062A",
+  statusActive: "\u0646\u0634\u0637",
+  statusInactive: "\u063A\u064A\u0631 \u0646\u0634\u0637",
+  schoolLabel: "\u0645\u062C\u0645\u0639 \u0627\u0644\u062D\u0644\u0642\u0627\u062A",
+  schoolAll: "\u062C\u0645\u064A\u0639 \u0645\u062C\u0645\u0639\u0627\u062A \u0627\u0644\u062D\u0644\u0642\u0627\u062A",
+  semesterLabel: "\u0627\u0644\u0641\u0635\u0644 \u0627\u0644\u062F\u0631\u0627\u0633\u064A",
+  semesterAll: "\u0643\u0644 \u0627\u0644\u0641\u0635\u0648\u0644 \u0627\u0644\u062F\u0631\u0627\u0633\u064A\u0629",
+  classLabel: "\u0627\u0644\u0641\u0635\u0644",
+  classAll: "\u0643\u0644 \u0627\u0644\u0641\u0635\u0648\u0644",
+  totalStudents: "\u0625\u062C\u0645\u0627\u0644\u064A \u0627\u0644\u0637\u0644\u0627\u0628",
+  noResults: "\u0644\u0627 \u062A\u0648\u062C\u062F \u0637\u0644\u0627\u0628 \u0645\u0637\u0627\u0628\u0642\u0648\u0646 \u0644\u0645\u0639\u0627\u064A\u064A\u0631 \u0627\u0644\u0628\u062D\u062B"
+};
+
 export default function StudentManagement() {
   const [students, setStudents] = useState([]);
   const [schools, setSchools] = useState([]);
@@ -450,12 +469,23 @@ export default function StudentManagement() {
     const matchesStatus = statusFilter === "all" || student.status === statusFilter;
     const matchesSchool = schoolFilter === "all" || student.school_id == schoolFilter;
     const studentClass = student.class_id ? classById.get(String(student.class_id)) : null;
+    // For semester filter: include students without class when "all" is selected
     const matchesSemester = semesterFilter === "all" ||
-      (studentClass && String(studentClass.semester_id) === String(semesterFilter));
+      (studentClass && String(studentClass.semester_id) === String(semesterFilter)) ||
+      (!student.class_id && semesterFilter === "all");
     const matchesClass = classFilter === "all" || student.class_id == classFilter;
-    
+
     return matchesSearch && matchesStatus && matchesSchool && matchesSemester && matchesClass;
   });
+
+  // Remove duplicate students - keep only unique students by ID
+  const uniqueStudents = filteredStudents.reduce((acc, student) => {
+    const existingStudent = acc.find(s => s.id === student.id);
+    if (!existingStudent) {
+      acc.push(student);
+    }
+    return acc;
+  }, []);
 
   const visibleSemesters = schoolFilter === "all"
     ? semesters
@@ -473,12 +503,12 @@ export default function StudentManagement() {
     <div className="min-h-screen bg-gray-50 p-6" dir="rtl">
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-800">إدارة الطلاب</h1>
+          <h1 className="text-3xl font-bold text-gray-800">{UI_TEXT.title}</h1>
           <button
             onClick={() => setShowForm(true)}
             className="bg-[var(--color-primary-700)] text-white px-6 py-3 rounded-lg hover:bg-[var(--color-primary-800)] transition-colors flex items-center gap-2"
           >
-            <AiOutlinePlus /> إضافة طالب جديد
+            <AiOutlinePlus /> {UI_TEXT.addStudent}
           </button>
         </div>
 
@@ -489,12 +519,12 @@ export default function StudentManagement() {
         )}
 
         <div className="bg-white p-6 rounded-xl shadow-lg mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">البحث</label>
+              <label className="block text-sm font-medium mb-1">{UI_TEXT.searchLabel}</label>
               <input
                 type="text"
-                placeholder="البحث بالاسم أو رقم الهوية..."
+                placeholder={UI_TEXT.searchPlaceholder}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -502,20 +532,20 @@ export default function StudentManagement() {
             </div>
             
             <div>
-              <label className="block text-sm font-medium mb-1">الحالة</label>
+              <label className="block text-sm font-medium mb-1">{UI_TEXT.statusLabel}</label>
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="all">جميع الحالات</option>
-                <option value="active">نشط</option>
-                <option value="inactive">غير نشط</option>
+                <option value="all">{UI_TEXT.statusAll}</option>
+                <option value="active">{UI_TEXT.statusActive}</option>
+                <option value="inactive">{UI_TEXT.statusInactive}</option>
               </select>
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">مجمع الحلقات</label>
+              <label className="block text-sm font-medium mb-1">{UI_TEXT.schoolLabel}</label>
               <select
                 value={schoolFilter}
                 onChange={(e) => {
@@ -525,14 +555,14 @@ export default function StudentManagement() {
                 }}
                 className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="all">جميع مجمعات الحلقات</option>
+                <option value="all">{UI_TEXT.schoolAll}</option>
                 {schools && schools.map(school => (
                   <option key={school.id} value={school.id}>{school.name}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">????? ???????</label>
+              <label className="block text-sm font-medium mb-1">{UI_TEXT.semesterLabel}</label>
               <select
                 value={semesterFilter}
                 onChange={(e) => {
@@ -541,7 +571,7 @@ export default function StudentManagement() {
                 }}
                 className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="all">?? ?????? ????????</option>
+                <option value="all">{UI_TEXT.semesterAll}</option>
                 {visibleSemesters.map(semester => (
                   <option key={semester.id} value={semester.id}>
                     {semester.display_name || semester.name}
@@ -550,16 +580,14 @@ export default function StudentManagement() {
               </select>
             </div>
 
-
-
             <div>
-              <label className="block text-sm font-medium mb-1">?????</label>
+              <label className="block text-sm font-medium mb-1">{UI_TEXT.classLabel}</label>
               <select
                 value={classFilter}
                 onChange={(e) => setClassFilter(e.target.value)}
                 className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="all">?? ??????</option>
+                <option value="all">{UI_TEXT.classAll}</option>
                 {visibleClasses.map(cls => (
                   <option key={cls.id} value={cls.id}>{cls.name}</option>
                 ))}
@@ -568,14 +596,14 @@ export default function StudentManagement() {
 
             <div className="flex items-end">
               <div className="text-sm text-gray-600">
-                إجمالي الطلاب: {filteredStudents.length}
+                {UI_TEXT.totalStudents}: {uniqueStudents.length}
               </div>
             </div>
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredStudents.map((student, index) => (
+          {uniqueStudents.map((student, index) => (
             <StudentCard
               key={`${student.id}-${student.class_id || "no-class"}-${index}`}
               student={student}
@@ -588,9 +616,9 @@ export default function StudentManagement() {
           ))}
         </div>
 
-        {filteredStudents.length === 0 && (
+        {uniqueStudents.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-gray-500 text-lg">لا توجد طلاب مطابقون لمعايير البحث</p>
+            <p className="text-gray-500 text-lg">{UI_TEXT.noResults}</p>
           </div>
         )}
 

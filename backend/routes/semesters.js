@@ -266,11 +266,11 @@ router.post('/:id/courses', auth, async (req, res) => {
     }
 
     const { id: semesterId } = req.params;
-    const { name, percentage, requires_surah, description, school_id, class_id } = req.body;
+    const { name, percentage, requires_surah, description, school_id, class_id, grade_type } = req.body;
 
     const result = await pool.query(
-      'INSERT INTO semester_courses (semester_id, school_id, class_id, name, percentage, requires_surah, description, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW()) RETURNING *',
-      [semesterId, school_id, class_id, name, percentage, requires_surah, description]
+      'INSERT INTO semester_courses (semester_id, school_id, class_id, name, percentage, requires_surah, description, grade_type, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW()) RETURNING *',
+      [semesterId, school_id, class_id, name, percentage, requires_surah, description, grade_type || 'other']
     );
 
     res.status(201).json(result.rows[0]);
@@ -289,7 +289,7 @@ router.post('/:id/classes/:classId/courses', auth, async (req, res) => {
     }
 
     const { id: semesterId, classId } = req.params;
-    const { name, percentage, requires_surah, description } = req.body;
+    const { name, percentage, requires_surah, description, grade_type } = req.body;
 
     // Get class info to determine school_id
     const classResult = await pool.query('SELECT school_id FROM classes WHERE id = $1', [classId]);
@@ -298,8 +298,8 @@ router.post('/:id/classes/:classId/courses', auth, async (req, res) => {
     }
 
     const result = await pool.query(
-      'INSERT INTO semester_courses (semester_id, school_id, class_id, name, percentage, requires_surah, description, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW()) RETURNING *',
-      [semesterId, classResult.rows[0].school_id, classId, name, percentage, requires_surah, description]
+      'INSERT INTO semester_courses (semester_id, school_id, class_id, name, percentage, requires_surah, description, grade_type, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW()) RETURNING *',
+      [semesterId, classResult.rows[0].school_id, classId, name, percentage, requires_surah, description, grade_type || 'other']
     );
 
     res.status(201).json(result.rows[0]);

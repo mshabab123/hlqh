@@ -798,11 +798,37 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
                       return position > 0 ? `سورة ${name} (${position})` : `سورة ${name}`;
                     };
 
+                    const getSurahIdFromPosition = (position) => {
+                      if (position < 1 || position > QURAN_SURAHS.length) return 0;
+                      return QURAN_SURAHS[position - 1].id;
+                    };
+
+                    const getNextMemorizationRef = (surahId, ayahNumber) => {
+                      const surah = QURAN_SURAHS.find(s => s.id == surahId);
+                      if (!surah) return null;
+                      const ayah = parseInt(ayahNumber) || 0;
+                      if (ayah < surah.ayahCount) {
+                        return { surahId: surah.id, ayah: ayah + 1 };
+                      }
+                      const position = getMemorizationPosition(surahId);
+                      const nextSurahId = getSurahIdFromPosition(position + 1);
+                      if (!nextSurahId) {
+                        return { surahId: surah.id, ayah: surah.ayahCount };
+                      }
+                      return { surahId: nextSurahId, ayah: 1 };
+                    };
+
+
                     // Calculate page information for display
                     const targetDisplay = formatMemorizationDisplay(targetSurahId, targetAyah);
                     const currentDisplay = currentSurahId ?
                       formatMemorizationDisplay(currentSurahId, currentAyah) :
                       { display: 'سورة الفاتحة (صفحة 1)', pageNumber: 1 };
+                    const nextRef = getNextMemorizationRef(currentSurahId, currentAyah);
+                    const nextDisplay = nextRef
+                      ? formatMemorizationDisplay(nextRef.surahId, nextRef.ayah)
+                      : currentDisplay;
+
 
                     if (!currentSurahId || currentSurahId === 0) {
                       // No current memorization - start from الفاتحة (position 1)
@@ -818,7 +844,9 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
                         if (currentAyah >= targetAyah) {
                           return `🎉 تم تحقيق الهدف - ${currentSurahWithPos} آية ${currentAyah} (صفحة ${currentDisplay.pageNumber})`;
                         } else {
-                          return `من ${currentSurahWithPos} آية ${currentAyah + 1} إلى آية ${targetAyah} (من صفحة ${currentDisplay.pageNumber} إلى صفحة ${targetDisplay.pageNumber})`;
+                          const nextSurahWithPos = nextRef ? getCurrentSurahWithPosition(nextRef.surahId) : currentSurahWithPos;
+                          const nextAyah = nextRef ? nextRef.ayah : currentAyah + 1;
+                          return `من ${nextSurahWithPos} آية ${nextAyah} إلى آية ${targetAyah} (من صفحة ${nextDisplay.pageNumber} إلى صفحة ${targetDisplay.pageNumber})`;
                         }
                       } else {
                         // Different surahs - check memorization positions
@@ -828,7 +856,9 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
                         if (currentPosition > targetPosition) {
                           return `🎉 تم تجاوز الهدف - الحالي: ${currentSurahWithPos} آية ${currentAyah} (صفحة ${currentDisplay.pageNumber})`;
                         } else {
-                          return `من ${currentSurahWithPos} آية ${currentAyah + 1} إلى ${targetSurahWithPos} آية ${targetAyah} (من صفحة ${currentDisplay.pageNumber} إلى صفحة ${targetDisplay.pageNumber})`;
+                          const nextSurahWithPos = nextRef ? getCurrentSurahWithPosition(nextRef.surahId) : currentSurahWithPos;
+                          const nextAyah = nextRef ? nextRef.ayah : currentAyah + 1;
+                          return `من ${nextSurahWithPos} آية ${nextAyah} إلى ${targetSurahWithPos} آية ${targetAyah} (من صفحة ${nextDisplay.pageNumber} إلى صفحة ${targetDisplay.pageNumber})`;
                         }
                       }
                     }

@@ -12,11 +12,11 @@ router.put('/:id', auth, async (req, res) => {
     }
 
     const { id } = req.params;
-    const { name, percentage, requires_surah, description } = req.body;
+    const { name, percentage, requires_surah, description, grade_type } = req.body;
 
     const result = await pool.query(
-      'UPDATE semester_courses SET name = $1, percentage = $2, requires_surah = $3, description = $4, updated_at = NOW() WHERE id = $5 RETURNING *',
-      [name, percentage, requires_surah, description, id]
+      'UPDATE semester_courses SET name = $1, percentage = $2, requires_surah = $3, description = $4, grade_type = $5, updated_at = NOW() WHERE id = $6 RETURNING *',
+      [name, percentage, requires_surah, description, grade_type, id]
     );
 
     if (result.rows.length === 0) {

@@ -452,9 +452,9 @@ router.post('/copy-semester', requireAuth, async (req, res) => {
       const coursesResult = await client.query(
         `
         INSERT INTO semester_courses (
-          semester_id, school_id, class_id, name, percentage, requires_surah, description, created_at
+          semester_id, school_id, class_id, name, percentage, requires_surah, description, grade_type, created_at
         )
-        SELECT $1, school_id, $2, name, percentage, requires_surah, description, NOW()
+        SELECT $1, school_id, $2, name, percentage, requires_surah, description, grade_type, NOW()
         FROM semester_courses
         WHERE class_id = $3
         `,
@@ -782,28 +782,28 @@ router.get('/:id/grading', requireAuth, async (req, res) => {
 router.post('/:id/grades', requireAuth, async (req, res) => {
   try {
     const { id: classId } = req.params;
-    const { student_id, course_id, grade_type, grade_value, max_grade, notes, start_reference, end_reference, grade_date } = req.body;
-    
+    const { student_id, course_id, grade_type, grade_value, max_grade, notes, start_reference, end_reference, grade_date, error_details, quran_error_display } = req.body;
+
     if (!student_id || !course_id || grade_value === undefined) {
       return res.status(400).json({ error: 'البيانات المطلوبة: معرف الطالب، معرف المادة، والدرجة' });
     }
-    
+
     // Get class info to obtain semester_id
     const classInfo = await db.query('SELECT semester_id FROM classes WHERE id = $1', [classId]);
     if (classInfo.rows.length === 0) {
       return res.status(404).json({ error: 'الحلقة غير موجودة' });
     }
-    
+
     const semesterId = classInfo.rows[0].semester_id;
-    
+
     // Always insert new grade (allow multiple entries per course) with semester_id
     const result = await db.query(`
       INSERT INTO grades (
         student_id, course_id, semester_id, class_id, grade_value, max_grade,
-        grade_type, start_reference, end_reference, notes, date_graded
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        grade_type, start_reference, end_reference, notes, date_graded, error_details, quran_error_display
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       RETURNING *
-    `, [student_id, course_id, semesterId, classId, grade_value, max_grade || 100, grade_type || 'assignment', start_reference, end_reference, notes, grade_date || new Date().toISOString().split('T')[0]]);
+    `, [student_id, course_id, semesterId, classId, grade_value, max_grade || 100, grade_type || 'assignment', start_reference, end_reference, notes, grade_date || new Date().toISOString().split('T')[0], error_details ? JSON.stringify(error_details) : null, quran_error_display || null]);
     
     // If this is a memorization grade with Quran references, update student's overall progress
     if (start_reference && end_reference && grade_type === 'memorization') {
@@ -1039,9 +1039,9 @@ router.get('/:id/student/:studentId/profile', requireAuth, async (req, res) => {
     
     // Get class courses - prioritize class-specific courses, then semester-wide courses
     const courses = await db.query(`
-      SELECT DISTINCT ON (name) id, name, percentage, requires_surah, description
+      SELECT DISTINCT ON (name) id, name, percentage, requires_surah, description, grade_type
       FROM semester_courses
-      WHERE semester_id = $1 
+      WHERE semester_id = $1
         AND (class_id = $2 OR class_id IS NULL)
         AND (is_active IS NULL OR is_active = true)
       ORDER BY name, CASE WHEN class_id = $2 THEN 0 ELSE 1 END

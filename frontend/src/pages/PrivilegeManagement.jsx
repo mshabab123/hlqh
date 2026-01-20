@@ -18,7 +18,7 @@ const API_BASE = import.meta.env.VITE_API_BASE || "";
 // Define role configurations with their permissions
 const ROLE_CONFIG = {
   admin: { 
-    name: "???? ??????", 
+    name: "مدير منصة", 
     color: "bg-red-500 text-white",
     icon: FaCrown,
     level: 5,
@@ -29,7 +29,7 @@ const ROLE_CONFIG = {
     ]
   },
   administrator: { 
-    name: "???? ???????", 
+    name: "مدير مجمع", 
     color: "bg-purple-500 text-white",
     icon: FaUserTie,
     level: 4,
@@ -39,7 +39,7 @@ const ROLE_CONFIG = {
     ]
   },
   supervisor: { 
-    name: "????", 
+    name: "مشرف", 
     color: "bg-blue-500 text-white",
     icon: FaUsers,
     level: 3,
@@ -48,7 +48,7 @@ const ROLE_CONFIG = {
     ]
   },
   teacher: { 
-    name: "????", 
+    name: "معلم", 
     color: "bg-green-500 text-white",
     icon: FaChalkboardTeacher,
     level: 2,
@@ -57,7 +57,7 @@ const ROLE_CONFIG = {
     ]
   },
   parent: { 
-    name: "??? ???", 
+    name: "ولي أمر", 
     color: "bg-orange-500 text-white",
     icon: AiOutlineUser,
     level: 1,
@@ -66,7 +66,7 @@ const ROLE_CONFIG = {
     ]
   },
   student: { 
-    name: "????", 
+    name: "طالب", 
     color: "bg-gray-500 text-white",
     icon: FaUserGraduate,
     level: 0,
@@ -79,82 +79,83 @@ const ROLE_CONFIG = {
 // All available permissions in the system
 const ALL_PERMISSIONS = {
   // User Management
-  "manage_users": "????? ??????????",
-  "manage_privileges": "????? ?????????",
+  "manage_users": "إدارة المستخدمين",
+  "manage_privileges": "إدارة الصلاحيات",
   
   // School Management
-  "manage_schools": "????? ???????",
-  "view_schools": "??? ???????",
+  "manage_schools": "إدارة المدارس",
+  "view_schools": "عرض المدارس",
   
   // Class Management
-  "manage_classes": "????? ??????",
-  "view_classes": "??? ??????",
-  "view_my_classes": "??? ?????",
+  "manage_classes": "إدارة الحلقات",
+  "view_classes": "عرض الحلقات",
+  "view_my_classes": "عرض حلقاتي",
   
   // Teacher Management
-  "manage_teachers": "????? ????????",
-  "manage_administrators": "????? ?????????",
+  "manage_teachers": "إدارة المعلمين",
+  "manage_administrators": "إدارة المديرين",
   
   // Student Management
-  "manage_students": "????? ??????",
-  "manage_my_students": "????? ?????",
-  "view_my_children": "??? ??????",
+  "manage_students": "إدارة الطلاب",
+  "manage_my_students": "إدارة طلابي",
+  "view_my_children": "عرض أبنائي",
   
   // Parent Management
-  "manage_parents": "????? ?????? ??????",
+  "manage_parents": "إدارة أولياء الأمور",
   
   // Academic Management
-  "manage_semesters": "????? ?????? ????????",
-  "manage_courses": "????? ???????",
-  "manage_grading": "????? ???????",
-  "view_grading": "??? ???????",
-  "view_my_grades": "??? ??????",
-  "view_children_grades": "??? ????? ???????",
+  "manage_semesters": "إدارة الفصول الدراسية",
+  "manage_courses": "إدارة المقررات",
+  "manage_grading": "إدارة الدرجات",
+  "view_grading": "عرض الدرجات",
+  "view_my_grades": "عرض درجاتي",
+  "view_children_grades": "عرض درجات الأبناء",
   
   // Attendance Management
-  "manage_attendance": "????? ?????? ???????",
-  "view_my_attendance": "??? ?????",
-  "view_children_attendance": "??? ???? ???????",
+  "manage_attendance": "إدارة الحضور والغياب",
+  "view_my_attendance": "عرض حضوري",
+  "view_children_attendance": "عرض حضور الأبناء",
   
   // Reporting
-  "view_reports": "??? ????????",
-  "manage_reports": "????? ????????",
+  "view_reports": "عرض التقارير",
+  "manage_reports": "إدارة التقارير",
   
   // System Management
-  "manage_database": "????? ????? ????????",
-  "manage_system_settings": "????? ??????? ??????",
+  "manage_database": "إدارة قاعدة البيانات",
+  "manage_system_settings": "إدارة إعدادات النظام",
   
   // Course Management
-  "view_my_courses": "??? ???????"
+  "view_my_courses": "عرض مقرراتي"
 };
 
 // Permission categories for better organization
 const PERMISSION_CATEGORIES = {
   "system": {
-    name: "??????",
+    name: "النظام",
     permissions: ["manage_users", "manage_privileges", "manage_database", "manage_system_settings"]
   },
   "schools": {
-    name: "??????? ???????",
+    name: "المدارس والحلقات",
     permissions: ["manage_schools", "view_schools", "manage_classes", "view_classes", "view_my_classes"]
   },
   "users": {
-    name: "??????????",
+    name: "المستخدمون",
     permissions: ["manage_teachers", "manage_administrators", "manage_students", "manage_my_students", "manage_parents", "view_my_children"]
   },
   "academic": {
-    name: "?????????",
+    name: "الأكاديمية",
     permissions: ["manage_semesters", "manage_courses", "view_my_courses", "manage_grading", "view_grading", "view_my_grades", "view_children_grades"]
   },
   "attendance": {
-    name: "?????? ???????",
+    name: "الحضور والغياب",
     permissions: ["manage_attendance", "view_my_attendance", "view_children_attendance"]
   },
   "reports": {
-    name: "????????",
+    name: "التقارير",
     permissions: ["view_reports", "manage_reports"]
   }
 };
+
 
 // Permission Editor Modal
 const PermissionEditorModal = ({ user, isOpen, onClose, onSave, allPermissions, canEdit }) => {
@@ -162,23 +163,23 @@ const PermissionEditorModal = ({ user, isOpen, onClose, onSave, allPermissions, 
   const [loading, setLoading] = useState(false);
 
   // Permission categories and actions structure
-      const permissionStructure = {
-    system: { view: "???", manage: "?????" },
-    schools: { view: "???", edit: "?????", manage: "?????" },
-    users: { view: "???", create: "?????", edit: "?????", delete: "???", manage: "?????" },
-    academic: { view: "???", edit: "?????", manage: "?????" },
-    attendance: { view: "???", edit: "?????", manage: "?????" },
-    reports: { view: "???", create: "?????" }
+  const permissionStructure = {
+    system: { view: "عرض", manage: "إدارة" },
+    schools: { view: "عرض", edit: "تعديل", manage: "إدارة" },
+    users: { view: "عرض", create: "إضافة", edit: "تعديل", delete: "حذف", manage: "إدارة" },
+    academic: { view: "عرض", edit: "تعديل", manage: "إدارة" },
+    attendance: { view: "عرض", edit: "تعديل", manage: "إدارة" },
+    reports: { view: "عرض", create: "إنشاء" }
   };
 
   const getCategoryDisplayName = (categoryKey) => {
-            const names = {
-      system: "??????",
-      schools: "??????? ???????",
-      users: "??????????",
-      academic: "?????????",
-      attendance: "?????? ???????",
-      reports: "????????"
+    const names = {
+      system: "النظام",
+      schools: "المدارس والحلقات",
+      users: "المستخدمون",
+      academic: "الأكاديمية",
+      attendance: "الحضور والغياب",
+      reports: "التقارير"
     };
     return names[categoryKey] || categoryKey;
   };
@@ -238,7 +239,7 @@ const PermissionEditorModal = ({ user, isOpen, onClose, onSave, allPermissions, 
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
       <div className="bg-white p-6 rounded-xl shadow-xl max-w-4xl w-full m-4 max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-6">
-          <h3 className="text-2xl font-bold text-[var(--color-primary-700)]">????? ??????? ????????</h3>
+          <h3 className="text-2xl font-bold text-[var(--color-primary-700)]">إدارة صلاحيات المستخدم</h3>
           <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
             <AiOutlineClose size={24} />
           </button>
@@ -246,10 +247,10 @@ const PermissionEditorModal = ({ user, isOpen, onClose, onSave, allPermissions, 
 
         {/* User Info */}
         <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-          <h4 className="font-semibold mb-2">?????? ????????:</h4>
-          <p><strong>?????:</strong> {user.name}</p>
-          <p><strong>?????? ??????????:</strong> {user.email}</p>
-          <p><strong>?????:</strong> <span className={`ml-2 px-2 py-1 rounded text-sm ${ROLE_CONFIG[user.role]?.color}`}>
+          <h4 className="font-semibold mb-2">معلومات المستخدم:</h4>
+          <p><strong>الاسم:</strong> {user.name}</p>
+          <p><strong>البريد الإلكتروني:</strong> {user.email}</p>
+          <p><strong>الدور:</strong> <span className={`ml-2 px-2 py-1 rounded text-sm ${ROLE_CONFIG[user.role]?.color}`}>
               {ROLE_CONFIG[user.role]?.name}
             </span>
           </p>
@@ -396,7 +397,7 @@ export default function PrivilegeManagement() {
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-[var(--color-primary-700)]">????? ?????????</h1>
+        <h1 className="text-3xl font-bold text-[var(--color-primary-700)]">إدارة الصلاحيات</h1>
       </div>
 
       {error && (
@@ -409,13 +410,13 @@ export default function PrivilegeManagement() {
       <div className="bg-white p-4 rounded-lg shadow-sm border mb-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium mb-2">??? ?????</label>
+            <label className="block text-sm font-medium mb-2">الدور</label>
             <select
               value={roleFilter}
               onChange={(e) => setRoleFilter(e.target.value)}
               className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="all">???? ???????</option>
+              <option value="all">جميع الأدوار</option>
               {Object.entries(ROLE_CONFIG).map(([role, config]) => (
                 <option key={role} value={role}>{config.name}</option>
               ))}
@@ -423,12 +424,12 @@ export default function PrivilegeManagement() {
           </div>
           
           <div>
-            <label className="block text-sm font-medium mb-2">???</label>
+            <label className="block text-sm font-medium mb-2">البحث</label>
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="???? ?????? ?? ?????? ??????????..."
+              placeholder="ابحث بالاسم أو البريد الإلكتروني..."
               className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -441,11 +442,11 @@ export default function PrivilegeManagement() {
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="text-right p-4 font-semibold">????????</th>
-                <th className="text-right p-4 font-semibold">?????</th>
-                <th className="text-right p-4 font-semibold">??????</th>
-                <th className="text-right p-4 font-semibold">????????? ???????</th>
-                <th className="text-right p-4 font-semibold">?????????</th>
+                <th className="text-right p-4 font-semibold">الصلاحيات المخصصة</th>
+                <th className="text-right p-4 font-semibold">الدور</th>
+                <th className="text-right p-4 font-semibold">الحالة</th>
+                <th className="text-right p-4 font-semibold">الصلاحيات المخصصة</th>
+                <th className="text-right p-4 font-semibold">الإجراءات</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
@@ -477,7 +478,7 @@ export default function PrivilegeManagement() {
                           ? 'bg-green-100 text-green-800' 
                           : 'bg-red-100 text-red-800'
                       }`}>
-                        {user.is_active ? "???" : "??? ???"}
+                        {user.is_active ? "نشط" : "غير نشط"}
                       </span>
                     </td>
                     <td className="p-4">

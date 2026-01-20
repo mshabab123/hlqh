@@ -1,6 +1,5 @@
 
-@import url('https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400;1,700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400;1,700&family=Cairo:wght@200..1000&family=Tajawal:wght@200;300;400;500;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@200..1000&family=Tajawal:wght@200;300;400;500;700;800;900&family=Amiri:ital,wght@0,400;0,700;1,400;1,700&display=swap&subset=arabic');
 @import "tailwindcss";
 
 @font-face {
@@ -30,8 +29,8 @@
 
 @theme {
   /* Font Family */
-  --font-family-arabic: 'Tajawal', serif;
-  --font-family-quran: 'HafsSmart', serif;
+  --font-family-arabic: 'Tajawal', 'Cairo', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  --font-family-quran: 'HafsSmart', 'Traditional Arabic', serif;
   --font-family-sans: ui-sans-serif, system-ui, sans-serif;
   --font-family-mono: ui-monospace, 'Courier New', monospace;
 
@@ -194,17 +193,32 @@ body,
 #root {
   min-height: 100vh;
   /* Animate the gradient background */
-  background: 
+  background:
   linear-gradient(135deg, var(--color-primary-500), var(--color-primary-700), var(--color-primary-500), var(--color-primary-900));
   background-size: 300% 300%;
   animation: gradientMove 20s ease-in-out  infinite;
   font-family: var(--font-family-arabic);
-
-
   color: var(--color-text-primary);
   min-height: 100vh;
   direction: rtl; /* RTL for Arabic */
   text-align: right; /* Default text alignment for Arabic */
+
+  /* Critical: Enable proper Arabic text rendering */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: normal;
+  font-variant-ligatures: normal;
+  letter-spacing: normal;
+  word-spacing: normal;
+}
+
+/* Universal Arabic text rendering fix */
+* {
+  -webkit-font-feature-settings: "liga" on, "calt" on;
+  -moz-font-feature-settings: "liga" on, "calt" on;
+  font-feature-settings: "liga" on, "calt" on;
+  text-rendering: optimizeLegibility;
 }
 
 /* English text override */

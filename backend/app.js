@@ -19,6 +19,12 @@ app.use(express.json({ limit: '10mb' })); // Increased limit for file uploads
 app.use(express.urlencoded({ extended: true, limit: '10mb' })); // For form data
 app.use(require('./middleware/csrf'));
 
+// Set Content-Type header for all responses
+app.use((req, res, next) => {
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  next();
+});
+
 // Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users')); // Keep for backward compatibility

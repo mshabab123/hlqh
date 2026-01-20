@@ -99,7 +99,7 @@ const PointsReports = () => {
           (cls) => String(cls.id) === String(classIdFromQuery)
         );
         if (!matchedClass) {
-          setError("?? ???? ???? ?????? ???? ??????.");
+          setError("لم يتم العثور على الحلقة المطلوبة.");
           setClasses([]);
           setCurrentClass(null);
         } else {

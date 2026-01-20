@@ -29,14 +29,15 @@ const ClassCourseManagement = () => {
     name: "",
     percentage: 0,
     requires_surah: false,
-    description: ""
+    description: "",
+    grade_type: null
   });
 
   const defaultCourses = [
-    { name: "الحفظ الجديد", percentage: 40, requires_surah: true, description: "حفظ سور جديدة" },
-    { name: "المراجعة الصغرى", percentage: 25, requires_surah: true, description: "مراجعة السور المحفوظة حديثاً" },
-    { name: "المراجعة الكبرى", percentage: 25, requires_surah: true, description: "مراجعة جميع السور المحفوظة" },
-    { name: "السلوك", percentage: 10, requires_surah: false, description: "تقييم السلوك والأخلاق" }
+    { name: "الحفظ الجديد", percentage: 40, requires_surah: true, description: "حفظ سور جديدة", grade_type: "memorization" },
+    { name: "المراجعة الصغرى", percentage: 25, requires_surah: true, description: "مراجعة السور المحفوظة حديثاً", grade_type: "memorization" },
+    { name: "المراجعة الكبرى", percentage: 25, requires_surah: true, description: "مراجعة جميع السور المحفوظة", grade_type: "memorization" },
+    { name: "السلوك", percentage: 10, requires_surah: false, description: "تقييم السلوك والأخلاق", grade_type: "behavior" }
   ];
 
   // Load user data
@@ -206,7 +207,7 @@ const ClassCourseManagement = () => {
       
       await loadCourses();
       setShowCourseModal(false);
-      setCourseForm({ name: "", percentage: 0, requires_surah: false, description: "" });
+      setCourseForm({ name: "", percentage: 0, requires_surah: false, description: "", grade_type: null });
       setEditingCourse(null);
     } catch (error) {
       console.error("Error saving course:", error);
@@ -221,7 +222,8 @@ const ClassCourseManagement = () => {
       name: course.name,
       percentage: parseFloat(course.percentage) || 0,
       requires_surah: course.requires_surah,
-      description: course.description || ""
+      description: course.description || "",
+      grade_type: course.grade_type || null
     });
     setEditingCourse(course);
     setShowCourseModal(true);
@@ -473,7 +475,7 @@ const ClassCourseManagement = () => {
                 )}
                 <button
                   onClick={() => {
-                    setCourseForm({ name: "", percentage: 0, requires_surah: false, description: "" });
+                    setCourseForm({ name: "", percentage: 0, requires_surah: false, description: "", grade_type: null });
                     setEditingCourse(null);
                     setShowCourseModal(true);
                   }}
@@ -547,11 +549,28 @@ const ClassCourseManagement = () => {
                     <p className="text-gray-600 text-sm mb-3 line-clamp-2">{course.description}</p>
                   )}
                   
-                  {course.requires_surah && (
-                    <div className="flex items-center gap-2 text-sm text-green-600 mb-3 bg-green-50 px-3 py-1 rounded">
-                      📖 يتطلب تحديد السور والآيات
-                    </div>
-                  )}
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {course.grade_type && (
+                      <span className={`text-xs font-semibold px-2 py-1 rounded ${
+                        course.grade_type === 'memorization' ? 'bg-purple-100 text-purple-700' :
+                        course.grade_type === 'behavior' ? 'bg-blue-100 text-blue-700' :
+                        course.grade_type === 'exam' ? 'bg-orange-100 text-orange-700' :
+                        course.grade_type === 'attendance' ? 'bg-teal-100 text-teal-700' :
+                        'bg-gray-100 text-gray-700'
+                      }`}>
+                        {course.grade_type === 'memorization' ? '📖 حفظ ومراجعة' :
+                         course.grade_type === 'behavior' ? '⭐ سلوك' :
+                         course.grade_type === 'exam' ? '📝 اختبار' :
+                         course.grade_type === 'attendance' ? '✅ حضور' :
+                         '📋 أخرى'}
+                      </span>
+                    )}
+                    {course.requires_surah && (
+                      <span className="text-xs font-semibold px-2 py-1 rounded bg-green-100 text-green-700">
+                        📌 يتطلب تحديد سور
+                      </span>
+                    )}
+                  </div>
                   
                   <div className="flex gap-2 mt-4">
                     <button
@@ -593,7 +612,7 @@ const ClassCourseManagement = () => {
                   </button>
                   <button
                     onClick={() => {
-                      setCourseForm({ name: "", percentage: 0, requires_surah: false, description: "" });
+                      setCourseForm({ name: "", percentage: 0, requires_surah: false, description: "", grade_type: null });
                       setEditingCourse(null);
                       setShowCourseModal(true);
                     }}
@@ -698,6 +717,28 @@ const ClassCourseManagement = () => {
                 <p className="text-xs text-gray-500 mt-1">{courseForm.description.length}/500</p>
               </div>
 
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <AiOutlineFileText className="inline ml-2" />
+                  نوع المقرر
+                </label>
+                <select
+                  value={courseForm.grade_type || ""}
+                  onChange={(e) => setCourseForm({...courseForm, grade_type: e.target.value || null})}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">اختر نوع المقرر...</option>
+                  <option value="memorization">حفظ ومراجعة (سيظهر في اختبار القرآن)</option>
+                  <option value="behavior">سلوك</option>
+                  <option value="exam">اختبار</option>
+                  <option value="attendance">حضور ومواظبة</option>
+                  <option value="other">أخرى</option>
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  المقررات من نوع "حفظ ومراجعة" ستظهر في اختبار القرآن
+                </p>
+              </div>
+
               <div className="bg-gray-50 p-4 rounded-lg">
                 <label className="flex items-start gap-3">
                   <input
@@ -731,7 +772,7 @@ const ClassCourseManagement = () => {
               <button
                 onClick={() => {
                   setShowCourseModal(false);
-                  setCourseForm({ name: "", percentage: 0, requires_surah: false, description: "" });
+                  setCourseForm({ name: "", percentage: 0, requires_surah: false, description: "", grade_type: null });
                   setEditingCourse(null);
                   setError("");
                 }}
