@@ -307,12 +307,12 @@ const PointsReports = () => {
   // Add error boundary for debugging
   try {
     return (
-      <div className="p-6 max-w-7xl mx-auto" dir="rtl">
+      <div className="p-3 sm:p-6 max-w-7xl mx-auto" dir="rtl">
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-center gap-3 mb-4">
           <AiOutlineStar className="text-3xl text-yellow-600" />
-          <h1 className="text-3xl font-bold text-gray-800">تقارير النقاط</h1>
+          <h1 className="text-xl sm:text-3xl font-bold text-gray-800">تقارير النقاط</h1>
         </div>
 
         {/* Filters */}
@@ -717,7 +717,7 @@ const PointsReports = () => {
   } catch (error) {
     console.error('PointsReports component error:', error);
     return (
-      <div className="p-6 max-w-7xl mx-auto" dir="rtl">
+      <div className="p-3 sm:p-6 max-w-7xl mx-auto" dir="rtl">
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
           خطأ في تحميل الصفحة: {error.message}
         </div>

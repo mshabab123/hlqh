@@ -49,7 +49,12 @@ axiosInstance.interceptors.response.use(
         handleAuthenticationFailure(errorMessage);
       } else if (status === 403) {
         const errorMessage = data?.error || 'Access denied';
-        handleAccessDenied(errorMessage);
+        // Treat invalid/expired token as authentication failure, not access denied
+        if (errorMessage === 'Invalid token') {
+          handleAuthenticationFailure(errorMessage);
+        } else {
+          handleAccessDenied(errorMessage);
+        }
       }
     }
     

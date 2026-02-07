@@ -264,7 +264,7 @@ const AdminRoots = () => {
               <AiOutlineCrown className="text-white text-2xl" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-gray-800">مديري المنصة</h1>
+              <h1 className="text-xl sm:text-3xl font-bold text-gray-800">مديري المنصة</h1>
               <p className="text-gray-600">إدارة مديري المنصة وصلاحياتهم</p>
             </div>
           </div>
@@ -454,7 +454,7 @@ const AdminRoots = () => {
         {/* Admin Roots Table */}
         <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg overflow-hidden">
           {loading ? (
-            <div className="p-8 text-center">
+            <div className="p-4 sm:p-8 text-center">
               <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
               <p className="mt-2 text-gray-600">جاري التحميل...</p>
             </div>

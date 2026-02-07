@@ -1,6 +1,6 @@
 import { useState, useEffect, Fragment } from "react";
 import * as XLSX from "xlsx";
-import axios from "axios";
+import axios from "../utils/axiosConfig";
 import { AiOutlinePlus, AiOutlineEdit, AiOutlineDelete, AiOutlineUser, AiOutlineBook, AiOutlineReload, AiOutlineStar, AiOutlineFileText, AiOutlineBarChart, AiOutlineCopy } from "react-icons/ai";
 import ClassForm from "../components/ClassForm";
 import StudentListModal from "../components/StudentListModal";
@@ -411,7 +411,7 @@ export default function ClassManagement() {
           </div>
         </div>
         <div className="p-4">
-          <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             <div className="bg-gray-50 p-3 rounded-lg">
               <div className="text-xs text-gray-500 mb-1">الفصل الدراسي</div>
               <div className="text-sm font-medium">{classItem.semester_name || "-"}</div>
@@ -429,7 +429,7 @@ export default function ClassManagement() {
           </div>
 
           <div className="space-y-2">
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <button
                 onClick={() => setSelectedClassForStudents(classItem)}
                 className="flex items-center gap-1 px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex-1 justify-center"
@@ -609,10 +609,10 @@ export default function ClassManagement() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-[var(--color-primary-700)]">إدارة الحلقة</h1>
-        <div className="flex gap-2">
+    <div className="p-3 sm:p-6 max-w-7xl mx-auto">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
+        <h1 className="text-xl sm:text-3xl font-bold text-[var(--color-primary-700)]">إدارة الحلقة</h1>
+        <div className="flex flex-wrap gap-2">
           <button
             onClick={() => {
               fetchTeachers();
@@ -662,7 +662,7 @@ export default function ClassManagement() {
       {showCopyModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-xl shadow-xl max-w-lg w-full m-4">
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
               <h3 className="text-lg font-bold text-gray-800">نسخ الحلقات إلى فصل آخر</h3>
               <button
                 type="button"
@@ -739,8 +739,8 @@ export default function ClassManagement() {
 
       {/* Filters */}
       <div className="bg-white p-4 rounded-lg shadow-sm border mb-6">
-        <h3 className="text-lg font-semibold mb-4">تصفية وبحث الحلقات</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <h3 className="text-base sm:text-lg font-semibold mb-4">تصفية وبحث الحلقات</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium mb-2">🏢 مجمع الحلقات</label>
             <select
@@ -842,7 +842,7 @@ export default function ClassManagement() {
               {/* Content */}
               <div className="p-4">
                 {/* Info Grid */}
-                <div className="grid grid-cols-2 gap-4 mb-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                   {/* Semester */}
                   <div className="bg-gray-50 p-3 rounded-lg">
                     <div className="text-xs text-gray-500 mb-1">📅 الفصل الدراسي</div>
@@ -894,7 +894,7 @@ export default function ClassManagement() {
                 {/* Action Buttons */}
                 <div className="space-y-2">
                   {/* Primary Actions */}
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <button
                       onClick={() => setSelectedClassForStudents(classItem)}
                       className="flex items-center gap-1 px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex-1 justify-center"
@@ -1161,7 +1161,7 @@ const CourseManagementModal = ({ classItem, courses, semesters, readOnly = false
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
       <div className="bg-white p-6 rounded-xl shadow-xl max-w-5xl w-full m-4 max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
           <div>
             <h3 className="text-xl font-bold text-[var(--color-primary-700)] mb-2">
               📚 إدارة مقررات الحلقة
@@ -1261,7 +1261,7 @@ const CourseManagementModal = ({ classItem, courses, semesters, readOnly = false
         {/* Add/Edit Course Form */}
         {!readOnly && showAddCourseForm && (
           <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg mb-6">
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
               <h4 className="text-lg font-semibold text-blue-800">
                 {editingCourse ? '✏️ تعديل المقرر' : '➕ إضافة مقرر جديد'}
               </h4>
@@ -1275,7 +1275,7 @@ const CourseManagementModal = ({ classItem, courses, semesters, readOnly = false
             </div>
             
             <form onSubmit={handleSaveCourse} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium mb-1">اسم المقرر *</label>
                   <input
@@ -1342,7 +1342,7 @@ const CourseManagementModal = ({ classItem, courses, semesters, readOnly = false
 
         {/* Courses List */}
         <div>
-          <div className="flex justify-between items-center mb-4">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
             <h4 className="text-lg font-semibold">
               📚 المقررات الحالية ({courses.length})
             </h4>
@@ -1907,7 +1907,7 @@ const ClassGradesModal = ({ classItem, onClose }) => {
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
       <div className="bg-white p-6 rounded-xl shadow-xl max-w-5xl w-full m-4 max-h-[90vh] overflow-y-auto">
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
           <h3 className="text-xl font-bold text-[var(--color-primary-700)]">
             نقاط الطلاب - {classItem.name}
           </h3>

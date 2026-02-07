@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
+import axios from "../utils/axiosConfig";
 import { AiOutlineEye, AiOutlineSearch } from "react-icons/ai";
 import StudentProfileModal from "./StudentProfileModal";
 
@@ -55,9 +55,9 @@ const StudentListModal = ({ classItem, onClose }) => {
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-      <div className="bg-white p-6 rounded-xl shadow-xl max-w-4xl w-full m-4 max-h-[90vh] overflow-y-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-[var(--color-primary-700)]">
+      <div className="bg-white p-4 sm:p-6 rounded-xl shadow-xl max-w-4xl w-full m-2 sm:m-4 max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-start gap-2 mb-4 sm:mb-6">
+          <h2 className="text-lg sm:text-2xl font-bold text-[var(--color-primary-700)]">
             قائمة طلاب حلقة: {classItem.name}
           </h2>
           <button
@@ -98,19 +98,19 @@ const StudentListModal = ({ classItem, onClose }) => {
             
             <div className="space-y-3 max-h-[60vh] overflow-y-auto">
               {filteredStudents.map(student => (
-                <div key={student.id} className="flex justify-between items-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100">
-                  <div className="flex-1">
-                    <p className="font-medium text-lg">
+                <div key={student.id} className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 p-3 sm:p-4 bg-gray-50 rounded-lg hover:bg-gray-100">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-base sm:text-lg">
                       {student.first_name} {student.second_name} {student.third_name} {student.last_name}
                     </p>
-                    <p className="text-sm text-gray-600">
+                    <p className="text-xs sm:text-sm text-gray-600">
                       {student.school_level} • تاريخ التسجيل: {new Date(student.enrollment_date).toLocaleDateString('ar-SA')}
                     </p>
                   </div>
-                  <div>
+                  <div className="self-start sm:self-auto">
                     <button
                       onClick={() => setSelectedStudent(student)}
-                      className="flex items-center gap-1 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                      className="flex items-center gap-1 px-3 sm:px-4 py-1.5 sm:py-2 text-sm sm:text-base bg-blue-500 text-white rounded hover:bg-blue-600 whitespace-nowrap"
                     >
                       <AiOutlineEye /> عرض الملف
                     </button>

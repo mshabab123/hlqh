@@ -56,7 +56,7 @@ export default function ForgotPassword() {
           <p className="text-white/90 text-sm">أدخل بريدك الإلكتروني أو رقم هويتك</p>
         </div>
 
-        <div className="p-8">
+        <div className="p-4 sm:p-8">
           {!success ? (
             <>
               <form onSubmit={handleSubmit} className="space-y-6">

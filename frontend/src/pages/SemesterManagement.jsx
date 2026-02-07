@@ -484,8 +484,8 @@ const SemesterManagement = () => {
     <div className="min-h-screen bg-gray-50" dir="rtl">
       <div className="container mx-auto px-4 py-8">
         <div className="bg-white rounded-xl shadow-lg p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h1 className="text-3xl font-bold text-gray-800">إدارة الفصول الدراسية</h1>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
+            <h1 className="text-xl sm:text-3xl font-bold text-gray-800">إدارة الفصول الدراسية</h1>
             <button
               onClick={() => {
                 setEditingSemester(null);
@@ -717,7 +717,7 @@ const SemesterManagement = () => {
           {/* Course Management */}
           {selectedSemester && selectedSchool && (
             <div className="bg-gray-50 rounded-xl p-6">
-              <div className="flex justify-between items-center mb-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
                 <h2 className="text-2xl font-bold text-gray-800">
                   مقررات الفصل {getSemesterTypeText(selectedSemester.type)} {selectedSemester.year}
                 </h2>
@@ -1031,7 +1031,7 @@ const SemesterManagement = () => {
       {showDetailsModal && detailsSemester && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-8 max-w-lg w-full mx-4">
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
               <h2 className="text-2xl font-bold text-gray-800">
                 تفاصيل الفصل {getSemesterTypeText(detailsSemester.type)} {detailsSemester.year}
               </h2>
@@ -1072,7 +1072,7 @@ const SemesterManagement = () => {
                             {daysInfo?.text || 'غير محدد'}
                           </p>
                           
-                          <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                             <div>
                               <span className="text-gray-600">إجمالي الأيام:</span>
                               <span className="font-semibold ml-2">{totalDays || 'غير محدد'} يوم</span>

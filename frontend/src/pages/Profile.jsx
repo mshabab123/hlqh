@@ -90,11 +90,11 @@ export default function Profile() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto" dir="rtl">
+    <div className="p-3 sm:p-6 max-w-4xl mx-auto" dir="rtl">
       <div className="mb-6">
         <div className="flex items-center gap-3 mb-4">
           <AiOutlineUser className="text-3xl text-[var(--color-primary-700)]" />
-          <h1 className="text-3xl font-bold text-[var(--color-primary-700)]">الملف الشخصي</h1>
+          <h1 className="text-xl sm:text-3xl font-bold text-[var(--color-primary-700)]">الملف الشخصي</h1>
         </div>
       </div>
 

@@ -61,7 +61,7 @@ export default function Login() {
         className="bg-white/90 p-8 rounded-xl w-full max-w-md shadow-xl space-y-6"
         style={{ backdropFilter: "blur(2px)" }}
       >
-        <h1 className="text-3xl font-bold mb-6 text-center text-[var(--color-primary-700)] bg-gradient-to-r from-[var(--color-primary-500)] to-[var(--color-primary-700)] bg-clip-text text-transparent">
+        <h1 className="text-xl sm:text-3xl font-bold mb-6 text-center text-[var(--color-primary-700)] bg-gradient-to-r from-[var(--color-primary-500)] to-[var(--color-primary-700)] bg-clip-text text-transparent">
           تسجيل الدخول
         </h1>
 

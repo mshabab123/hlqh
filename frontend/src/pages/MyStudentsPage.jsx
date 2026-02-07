@@ -110,7 +110,7 @@ export default function MyStudentsPage() {
             <AiOutlineHeart className="text-pink-600 text-2xl" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">معلومات أبنائي</h1>
+            <h1 className="text-xl sm:text-3xl font-bold text-gray-900">معلومات أبنائي</h1>
             <p className="text-gray-600">عرض ومتابعة بيانات وأداء أبنائك الطلاب</p>
           </div>
         </div>

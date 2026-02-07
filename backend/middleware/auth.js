@@ -17,7 +17,7 @@ function authenticateToken(req, res, next) {
 
   jwt.verify(token, SECRET_KEY, async (err, user) => {
     if (err) {
-      return res.status(403).json({ error: 'Invalid token', details: err.message });
+      return res.status(401).json({ error: 'Invalid token', details: err.message });
     }
     
     try {

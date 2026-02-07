@@ -13,7 +13,7 @@ const TeacherForm = ({ teacher, onSubmit, onCancel, isEditing = false, onTeacher
       </h3>
       
       <form onSubmit={onSubmit} className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium mb-1">رقم الهوية *</label>
             <input
@@ -44,7 +44,7 @@ const TeacherForm = ({ teacher, onSubmit, onCancel, isEditing = false, onTeacher
           </div>
         </div>
         
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium mb-1">الاسم الأول *</label>
             <input
@@ -68,7 +68,7 @@ const TeacherForm = ({ teacher, onSubmit, onCancel, isEditing = false, onTeacher
           </div>
         </div>
         
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium mb-1">اسم الجد *</label>
             <input
@@ -92,7 +92,7 @@ const TeacherForm = ({ teacher, onSubmit, onCancel, isEditing = false, onTeacher
           </div>
         </div>
         
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium mb-1">البريد الإلكتروني *</label>
             <input
@@ -132,7 +132,7 @@ const TeacherForm = ({ teacher, onSubmit, onCancel, isEditing = false, onTeacher
           </div>
         )}
         
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium mb-1">التخصص</label>
             <input
@@ -445,9 +445,9 @@ export default function TeacherManagement() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-[var(--color-primary-700)]">إدارة المعلمين</h1>
+    <div className="p-3 sm:p-6 max-w-7xl mx-auto">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
+        <h1 className="text-xl sm:text-3xl font-bold text-[var(--color-primary-700)]">إدارة المعلمين</h1>
         <button
           onClick={() => setShowAddModal(true)}
           className="flex items-center gap-2 bg-[var(--color-primary-500)] text-white px-4 py-2 rounded-lg hover:bg-[var(--color-primary-600)]"

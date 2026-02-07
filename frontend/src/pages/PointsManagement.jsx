@@ -548,12 +548,12 @@ const PointsManagement = () => {
   }
 
   return (
-    <div className="p-6 max-w-full mx-auto" dir="rtl">
+    <div className="p-3 sm:p-6 max-w-full mx-auto" dir="rtl">
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-center gap-3 mb-4">
           <AiOutlineStar className="text-3xl text-yellow-600" />
-          <h1 className="text-3xl font-bold text-gray-800">إدارة النقاط</h1>
+          <h1 className="text-xl sm:text-3xl font-bold text-gray-800">إدارة النقاط</h1>
         </div>
 
         {/* Filters */}

@@ -199,7 +199,7 @@ export default function AdministratorManagement() {
 
   if (loading) {
     return (
-      <div className="p-8">
+      <div className="p-4 sm:p-8">
         <div className="flex justify-center items-center h-64">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
         </div>
@@ -208,10 +208,10 @@ export default function AdministratorManagement() {
   }
 
   return (
-    <div className="p-8">
-      <div className="flex justify-between items-center mb-8">
+    <div className="p-4 sm:p-8">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-800">إدارة مديري المجمعات</h1>
+          <h1 className="text-xl sm:text-3xl font-bold text-gray-800">إدارة مديري المجمعات</h1>
           <p className="text-gray-600 mt-2">إدارة وتتبع مديري المجمعات والمشرفين</p>
         </div>
         <button
@@ -315,7 +315,7 @@ export default function AdministratorManagement() {
             </div>
 
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700">الاسم الأول</label>
                   <p className="text-gray-900">{selectedAdministrator.first_name}</p>
@@ -326,7 +326,7 @@ export default function AdministratorManagement() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700">البريد الإلكتروني</label>
                   <p className="text-gray-900">{selectedAdministrator.email}</p>

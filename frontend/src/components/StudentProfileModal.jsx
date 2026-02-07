@@ -1334,7 +1334,7 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
             {/* Latest Homework Section */}
             {latestHomework && (
               <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-4 rounded-lg border border-purple-200 mb-6">
-                <div className="flex justify-between items-center mb-3">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-3">
                   <h3 className="text-lg font-semibold text-purple-800">📚 آخر مهمة مُكلّفة</h3>
                   <span className={`px-3 py-1 rounded-full text-sm font-medium ${
                     latestHomework.status === 'completed' ? 'bg-green-100 text-green-700' :
@@ -1408,7 +1408,7 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
             {/* Goal and Progress Section */}
             {studentData.goal?.target_surah_id && (
               <div className="bg-gradient-to-r from-blue-50 to-green-50 p-4 rounded-lg border border-blue-200 mb-6">
-                <div className="flex justify-between items-center mb-3">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-3">
                   <h3 className="text-lg font-semibold">الهدف والتقدم</h3>
                   <button
                     onClick={async () => {
@@ -2989,7 +2989,7 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
       {showAllHomeworkModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60]">
           <div className="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
               <h3 className="text-xl font-bold text-purple-800">جميع المهام</h3>
               <button
                 onClick={() => setShowAllHomeworkModal(false)}

@@ -412,7 +412,7 @@ const QuranTestingModal = ({ student, courses = [], onClose, onSave, initialTest
                         ))}
                       </select>
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs font-medium mb-1">من آية</label>
                         <select
@@ -451,7 +451,7 @@ const QuranTestingModal = ({ student, courses = [], onClose, onSave, initialTest
 
                 {rangeMode && (
                   <>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs font-medium mb-1">من سورة</label>
                         <select
@@ -495,7 +495,7 @@ const QuranTestingModal = ({ student, courses = [], onClose, onSave, initialTest
                         </select>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs font-medium mb-1">من آية</label>
                         <select

@@ -185,11 +185,11 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto" dir="rtl">
+    <div className="p-3 sm:p-6 max-w-7xl mx-auto" dir="rtl">
       {/* Header */}
       <div className="mb-8">
         <div className="bg-gradient-to-r from-[var(--color-primary-600)] to-[var(--color-primary-800)] text-white p-6 rounded-xl shadow-lg">
-          <h1 className="text-3xl font-bold mb-2">مرحباً، {userName}</h1>
+          <h1 className="text-xl sm:text-3xl font-bold mb-2">مرحباً، {userName}</h1>
           <p className="text-lg opacity-90">
             {getRoleDisplayName(userRole)} - لوحة التحكم الرئيسية
             {userRole === 'administrator' && stats.schoolName && (

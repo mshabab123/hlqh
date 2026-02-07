@@ -484,7 +484,7 @@ const ComprehensiveGrading = () => {
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
         <div className="bg-white rounded-lg shadow-lg p-6">
-          <h1 className="text-3xl font-bold text-gray-800 mb-6 text-center">
+          <h1 className="text-xl sm:text-3xl font-bold text-gray-800 mb-6 text-center">
             نظام الدرجات الشامل
           </h1>
           
@@ -814,7 +814,7 @@ const ComprehensiveGrading = () => {
                     {editingGrade ? 'تعديل الدرجة' : 'إضافة درجة جديدة'}
                   </h3>
                   
-                  <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                     <div>
                       <label className="block text-sm font-medium mb-1">المقرر:</label>
                       <select
@@ -844,7 +844,7 @@ const ComprehensiveGrading = () => {
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                     <div>
                       <label className="block text-sm font-medium mb-1">الدرجة:</label>
                       <input

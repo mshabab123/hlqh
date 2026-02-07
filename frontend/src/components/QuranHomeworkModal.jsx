@@ -141,7 +141,7 @@ const QuranHomeworkModal = ({ student, classItem, onClose, onSave }) => {
             <h3 className="font-semibold mb-3">اختر نطاق الحفظ المطلوب</h3>
 
             {/* Source and Theme Selection */}
-            <div className="grid grid-cols-2 gap-4 mb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
               <div>
                 <label className="block text-sm font-medium mb-2">مصدر النص:</label>
                 <select
@@ -182,7 +182,7 @@ const QuranHomeworkModal = ({ student, classItem, onClose, onSave }) => {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 mb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
               <div>
                 <label className="block text-sm font-medium mb-2">من سورة</label>
                 <select
@@ -223,7 +223,7 @@ const QuranHomeworkModal = ({ student, classItem, onClose, onSave }) => {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 mb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
               <div>
                 <label className="block text-sm font-medium mb-2">إلى سورة</label>
                 <select

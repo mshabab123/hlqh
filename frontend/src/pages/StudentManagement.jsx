@@ -502,8 +502,8 @@ export default function StudentManagement() {
   return (
     <div className="min-h-screen bg-gray-50 p-6" dir="rtl">
       <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-800">{UI_TEXT.title}</h1>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-8">
+          <h1 className="text-xl sm:text-3xl font-bold text-gray-800">{UI_TEXT.title}</h1>
           <button
             onClick={() => setShowForm(true)}
             className="bg-[var(--color-primary-700)] text-white px-6 py-3 rounded-lg hover:bg-[var(--color-primary-800)] transition-colors flex items-center gap-2"
@@ -673,7 +673,7 @@ export default function StudentManagement() {
               </h3>
               
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <strong>الاسم الكامل:</strong>
                     <p>{selectedStudent.first_name} {selectedStudent.second_name} {selectedStudent.third_name} {selectedStudent.last_name}</p>
@@ -684,7 +684,7 @@ export default function StudentManagement() {
                   </div>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <strong>البريد الإلكتروني:</strong>
                     <p>{selectedStudent.email || "غير محدد"}</p>
@@ -695,7 +695,7 @@ export default function StudentManagement() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <strong>المستوى الدراسي:</strong>
                     <p>{selectedStudent.school_level}</p>
@@ -706,7 +706,7 @@ export default function StudentManagement() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <strong>مجمع الحلقات:</strong>
                     <p>{selectedStudent.school_name || "غير محدد"}</p>

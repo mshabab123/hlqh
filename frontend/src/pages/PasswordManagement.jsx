@@ -152,11 +152,11 @@ export default function PasswordManagement() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto" dir="rtl">
+    <div className="p-3 sm:p-6 max-w-7xl mx-auto" dir="rtl">
       <div className="mb-6">
         <div className="flex items-center gap-3 mb-4">
           <AiOutlineKey className="text-3xl text-[var(--color-primary-700)]" />
-          <h1 className="text-3xl font-bold text-[var(--color-primary-700)]">إدارة كلمات المرور</h1>
+          <h1 className="text-xl sm:text-3xl font-bold text-[var(--color-primary-700)]">إدارة كلمات المرور</h1>
         </div>
         
         <div className="bg-amber-100 border-l-4 border-amber-500 text-amber-700 p-4 mb-4">

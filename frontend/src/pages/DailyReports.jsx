@@ -367,8 +367,8 @@ const DailyReports = () => {
       <div className="container mx-auto px-4 py-8">
         <div className="bg-white rounded-xl shadow-lg p-6">
           {/* Header */}
-          <div className="flex justify-between items-center mb-6">
-            <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
+            <h1 className="text-xl sm:text-3xl font-bold text-gray-800 flex items-center gap-2">
               <AiOutlineCalendar className="text-blue-600" />
               التقارير اليومية
             </h1>
@@ -633,7 +633,7 @@ const DailyReports = () => {
 
                 {/* Class Reports */}
                 <div>
-                  <div className="flex justify-between items-center mb-4">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
                     <h4 className="text-lg font-semibold text-gray-700">تفاصيل الحلقات</h4>
                     {modalMode !== 'view' && (
                       <div className="flex gap-2">

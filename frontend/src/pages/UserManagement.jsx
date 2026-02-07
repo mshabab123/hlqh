@@ -271,7 +271,7 @@ const UserDetailsModal = ({ user, onClose, schools, classes }) => {
         </h3>
 
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">الاسم الأول</label>
               <p className="text-gray-900">{user.first_name}</p>
@@ -282,7 +282,7 @@ const UserDetailsModal = ({ user, onClose, schools, classes }) => {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">البريد الإلكتروني</label>
               <p className="text-gray-900">{user.email}</p>
@@ -784,7 +784,7 @@ const UserCard = ({ user, onEdit, onView, onToggleActive, onEditProfile, onDelet
             {/* Action Buttons */}
             <div className="p-3 space-y-2" onClick={(e) => e.stopPropagation()}>
               {/* Primary Actions */}
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <button
                   onClick={() => onView(user)}
                   className="flex items-center justify-center gap-2 px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors font-medium text-sm"
@@ -802,7 +802,7 @@ const UserCard = ({ user, onEdit, onView, onToggleActive, onEditProfile, onDelet
               </div>
 
               {/* Secondary Actions */}
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <button
                   onClick={() => onEdit(user)}
                   className="flex items-center justify-center gap-1 px-3 py-2 text-green-600 bg-green-50 hover:bg-green-100 rounded-lg transition-colors text-sm"
@@ -1104,7 +1104,7 @@ export default function UserManagement() {
 
   if (loading) {
     return (
-      <div className="p-8">
+      <div className="p-4 sm:p-8">
         <div className="flex justify-center items-center h-64">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
         </div>
@@ -1113,10 +1113,10 @@ export default function UserManagement() {
   }
 
   return (
-    <div className="p-8">
-      <div className="flex justify-between items-center mb-8">
+    <div className="p-4 sm:p-8">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-800">إدارة المستخدمين</h1>
+          <h1 className="text-xl sm:text-3xl font-bold text-gray-800">إدارة المستخدمين</h1>
           <p className="text-gray-600 mt-2">إدارة جميع المستخدمين وصلاحياتهم</p>
         </div>
       </div>

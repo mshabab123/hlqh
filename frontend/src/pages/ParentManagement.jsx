@@ -377,7 +377,7 @@ const ParentCard = ({ parent, onView, onToggleActive, onEditProfile, onDeleteUse
             {/* Action Buttons */}
             <div className="p-3 space-y-2" onClick={(e) => e.stopPropagation()}>
               {/* Primary Actions */}
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <button
                   onClick={() => onView(parent)}
                   className="flex items-center justify-center gap-2 px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors font-medium text-sm"
@@ -395,7 +395,7 @@ const ParentCard = ({ parent, onView, onToggleActive, onEditProfile, onDeleteUse
               </div>
 
               {/* Secondary Actions */}
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <button
                   onClick={() => onToggleActive(parent)}
                   className={`flex items-center justify-center gap-1 px-3 py-2 rounded-lg transition-colors text-sm ${
@@ -597,7 +597,7 @@ export default function ParentManagement() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">إدارة أولياء الأمور والمعلمين</h1>
+        <h1 className="text-xl sm:text-3xl font-bold text-gray-900 mb-2">إدارة أولياء الأمور والمعلمين</h1>
         <p className="text-gray-600">عرض وإدارة جميع أولياء الأمور والمعلمين المسجلين في النظام</p>
       </div>
 

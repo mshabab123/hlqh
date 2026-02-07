@@ -28,7 +28,10 @@
       "Bash(Format-Table)",
       "Bash(tasklist:*)",
       "Bash(taskkill:*)",
-      "Bash(taskkill //F //PID 17980)"
+      "Bash(taskkill //F //PID 17980)",
+      "Bash(dir \"c:\\\\Workspace\\\\hlqh\")",
+      "Bash(powershell:*)",
+      "Bash(del \"c:\\\\Workspace\\\\hlqh\\\\frontend\\\\fix-mobile.ps1\")"
     ],
     "deny": [],
     "ask": [],

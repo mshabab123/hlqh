@@ -60,7 +60,7 @@ const ClassForm = ({ classData, onSubmit, onCancel, isEditing = false, onClassCh
         </h3>
         
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-1">اسم الحلقة *</label>
               <input
@@ -92,7 +92,7 @@ const ClassForm = ({ classData, onSubmit, onCancel, isEditing = false, onClassCh
             </div>
           </div>
           
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-1">مجمع الحلقات *</label>
               <select
@@ -180,7 +180,7 @@ const ClassForm = ({ classData, onSubmit, onCancel, isEditing = false, onClassCh
             )}
           </div>
           
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-1">الحد الأقصى للطلاب</label>
               <input

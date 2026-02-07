@@ -83,12 +83,12 @@ export default function DatabaseManagement() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto" dir="rtl">
+    <div className="p-3 sm:p-6 max-w-7xl mx-auto" dir="rtl">
       <div className="mb-6">
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
           <div className="flex items-center gap-3">
             <AiOutlineDatabase className="text-3xl text-[var(--color-primary-700)]" />
-            <h1 className="text-3xl font-bold text-[var(--color-primary-700)]">إدارة قاعدة البيانات</h1>
+            <h1 className="text-xl sm:text-3xl font-bold text-[var(--color-primary-700)]">إدارة قاعدة البيانات</h1>
           </div>
           <button
             onClick={fetchTables}

@@ -210,7 +210,7 @@ const StudentAttendanceGrid = () => {
                 <AiOutlineUser className="text-2xl text-white" />
               </div>
               <div>
-                <h1 className="text-3xl font-bold text-gray-800">جدول الغياب</h1>
+                <h1 className="text-xl sm:text-3xl font-bold text-gray-800">جدول الغياب</h1>
                 {studentData && (
                   <p className="text-lg text-gray-600 mt-1">
                     {studentData.first_name} {studentData.last_name}

@@ -217,7 +217,7 @@ export default function ResetPassword() {
           )}
         </div>
 
-        <div className="p-8">
+        <div className="p-4 sm:p-8">
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* New Password */}
             <div>

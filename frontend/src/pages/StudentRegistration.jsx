@@ -101,7 +101,7 @@ export default function StudentRegistration() {
 
   return (
     <div className="bg-[url('/baground.svg')] bg-cover bg-fixed bg-center bg-no-repeat bg-blend-overlay min-h-screen flex flex-col items-center justify-center font-[var(--font-family-arabic)] py-8">
-      <h1 className="text-3xl font-bold mb-6 text-center text-[var(--color-primary-700)] bg-gradient-to-r from-background-dark to-text-muted bg-clip-text text-transparent">
+      <h1 className="text-xl sm:text-3xl font-bold mb-6 text-center text-[var(--color-primary-700)] bg-gradient-to-r from-background-dark to-text-muted bg-clip-text text-transparent">
         تسجيل طالب
       </h1>
 
@@ -121,7 +121,7 @@ export default function StudentRegistration() {
           <h3 className="text-lg font-semibold mb-4 text-[var(--color-primary-700)]">
             البيانات الأساسية للطالب
           </h3>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <input
                 name="first_name"
