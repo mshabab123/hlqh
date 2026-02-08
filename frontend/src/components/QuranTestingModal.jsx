@@ -412,7 +412,7 @@ const QuranTestingModal = ({ student, courses = [], onClose, onSave, initialTest
                         ))}
                       </select>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs font-medium mb-1">من آية</label>
                         <select
@@ -451,8 +451,9 @@ const QuranTestingModal = ({ student, courses = [], onClose, onSave, initialTest
 
                 {rangeMode && (
                   <>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
+                    {/* From: surah + ayah on same row */}
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="col-span-2">
                         <label className="block text-xs font-medium mb-1">من سورة</label>
                         <select
                           className="w-full border rounded px-3 py-2"
@@ -474,6 +475,25 @@ const QuranTestingModal = ({ student, courses = [], onClose, onSave, initialTest
                         </select>
                       </div>
                       <div>
+                        <label className="block text-xs font-medium mb-1">من آية</label>
+                        <select
+                          className="w-full border rounded px-3 py-2"
+                          value={rangeFromAyah}
+                          onChange={(e) => setRangeFromAyah(e.target.value)}
+                          disabled={!fromSurah}
+                        >
+                          <option value="">اختر...</option>
+                          {buildAyahOptions(fromSurah).map((ayah) => (
+                            <option key={ayah} value={ayah}>
+                              {ayah}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    {/* To: surah + ayah on same row */}
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="col-span-2">
                         <label className="block text-xs font-medium mb-1">إلى سورة</label>
                         <select
                           className="w-full border rounded px-3 py-2"
@@ -490,24 +510,6 @@ const QuranTestingModal = ({ student, courses = [], onClose, onSave, initialTest
                           {surahs.map((surah) => (
                             <option key={surah.number} value={surah.number}>
                               {surah.number}. {surah.name_arabic}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-medium mb-1">من آية</label>
-                        <select
-                          className="w-full border rounded px-3 py-2"
-                          value={rangeFromAyah}
-                          onChange={(e) => setRangeFromAyah(e.target.value)}
-                          disabled={!fromSurah}
-                        >
-                          <option value="">اختر...</option>
-                          {buildAyahOptions(fromSurah).map((ayah) => (
-                            <option key={ayah} value={ayah}>
-                              {ayah}
                             </option>
                           ))}
                         </select>

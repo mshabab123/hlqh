@@ -129,7 +129,7 @@ const QuranHomeworkModal = ({ student, classItem, onClose, onSave }) => {
         </div>
 
         {/* Content */}
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           {error && (
             <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg">
               {error}
@@ -182,60 +182,51 @@ const QuranHomeworkModal = ({ student, classItem, onClose, onSave }) => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">من سورة</label>
+            {/* From: surah + ayah side by side */}
+            <div className="grid grid-cols-3 gap-3 mb-3">
+              <div className="col-span-2">
+                <label className="block text-sm font-medium mb-1">من سورة</label>
                 <select
-                  className="w-full border rounded px-3 py-2 text-gray-900 bg-white"
+                  className="w-full border rounded-lg px-3 py-2 text-gray-900 bg-white"
                   value={fromSurah}
                   onChange={(e) => setFromSurah(e.target.value)}
                   disabled={loadingSurahs}
                 >
                   <option value="">اختر السورة</option>
-                  {surahs.length === 0 && !loadingSurahs && (
-                    <option disabled>جاري التحميل...</option>
-                  )}
                   {surahs.map((surah) => (
                     <option key={surah.number} value={surah.number}>
                       {surah.number}. {surah.name_arabic}
                     </option>
                   ))}
                 </select>
-                {loadingSurahs && <div className="text-xs text-gray-500 mt-1">جاري تحميل السور...</div>}
-                {!loadingSurahs && surahs.length === 0 && <div className="text-xs text-red-500 mt-1">فشل في تحميل السور</div>}
               </div>
-
               <div>
-                <label className="block text-sm font-medium mb-2">من آية</label>
+                <label className="block text-sm font-medium mb-1">من آية</label>
                 <select
-                  className="w-full border rounded px-3 py-2"
+                  className="w-full border rounded-lg px-3 py-2"
                   value={rangeFromAyah}
                   onChange={(e) => setRangeFromAyah(e.target.value)}
                   disabled={!fromSurah}
                 >
-                  <option value="">من البداية</option>
+                  <option value="">البداية</option>
                   {buildAyahOptions(fromSurah).map((ayah) => (
-                    <option key={ayah} value={ayah}>
-                      {ayah}
-                    </option>
+                    <option key={ayah} value={ayah}>{ayah}</option>
                   ))}
                 </select>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">إلى سورة</label>
+            {/* To: surah + ayah side by side */}
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              <div className="col-span-2">
+                <label className="block text-sm font-medium mb-1">إلى سورة</label>
                 <select
-                  className="w-full border rounded px-3 py-2 text-gray-900 bg-white"
+                  className="w-full border rounded-lg px-3 py-2 text-gray-900 bg-white"
                   value={toSurah}
                   onChange={(e) => setToSurah(e.target.value)}
                   disabled={loadingSurahs}
                 >
                   <option value="">اختر السورة</option>
-                  {surahs.length === 0 && !loadingSurahs && (
-                    <option disabled>جاري التحميل...</option>
-                  )}
                   {surahs.map((surah) => (
                     <option key={surah.number} value={surah.number}>
                       {surah.number}. {surah.name_arabic}
@@ -243,20 +234,17 @@ const QuranHomeworkModal = ({ student, classItem, onClose, onSave }) => {
                   ))}
                 </select>
               </div>
-
               <div>
-                <label className="block text-sm font-medium mb-2">إلى آية</label>
+                <label className="block text-sm font-medium mb-1">إلى آية</label>
                 <select
-                  className="w-full border rounded px-3 py-2"
+                  className="w-full border rounded-lg px-3 py-2"
                   value={rangeToAyah}
                   onChange={(e) => setRangeToAyah(e.target.value)}
                   disabled={!toSurah}
                 >
-                  <option value="">حتى النهاية</option>
+                  <option value="">النهاية</option>
                   {buildAyahOptions(toSurah).map((ayah) => (
-                    <option key={ayah} value={ayah}>
-                      {ayah}
-                    </option>
+                    <option key={ayah} value={ayah}>{ayah}</option>
                   ))}
                 </select>
               </div>

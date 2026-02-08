@@ -169,120 +169,142 @@ export default function QuranReader() {
   );
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-semibold mb-4">Quran Reader</h1>
-      <div className="max-w-xl">
-        <label className="block text-sm font-medium mb-2" htmlFor="source-select">
-          Text source
-        </label>
-        <select
-          id="source-select"
-          className="w-full border rounded px-3 py-2 mb-4"
-          value={source}
-          onChange={(e) => {
-            setSource(e.target.value);
-            setSelectedSurah("");
-            setAyahs([]);
-            setFromSurah("");
-            setToSurah("");
-            setRangeFromAyah("");
-            setRangeToAyah("");
-          }}
-          disabled={loadingSurahs}
-        >
-          <option value="uthmani">Uthmani (quran_surahs/quran_ayahs)</option>
-          <option value="hafs">Hafs Smart V8 (hafs_smart_v8)</option>
-        </select>
-
-        <div className="flex gap-4 mb-4">
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="radio"
-              name="mode"
-              checked={!rangeMode}
-              onChange={() => setRangeMode(false)}
-            />
-            Single surah
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="radio"
-              name="mode"
-              checked={rangeMode}
-              onChange={() => {
-                setRangeMode(true);
+    <div className="p-3 sm:p-6" dir="rtl">
+      <h1 className="text-xl sm:text-2xl font-bold text-[var(--color-primary-700)] mb-4">القرآن الكريم</h1>
+      <div className="max-w-2xl bg-white rounded-xl shadow-sm border p-4 sm:p-6 space-y-4">
+        {/* Source + Mode + Theme row */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium mb-1" htmlFor="source-select">
+              مصدر النص
+            </label>
+            <select
+              id="source-select"
+              className="w-full border rounded-lg px-3 py-2"
+              value={source}
+              onChange={(e) => {
+                setSource(e.target.value);
                 setSelectedSurah("");
                 setAyahs([]);
+                setFromSurah("");
+                setToSurah("");
+                setRangeFromAyah("");
+                setRangeToAyah("");
               }}
-            />
-            Surah range
-          </label>
+              disabled={loadingSurahs}
+            >
+              <option value="uthmani">المصحف العثماني</option>
+              <option value="hafs">مصحف المدينة (حفص)</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">نوع العرض</label>
+            <div className="flex gap-4 border rounded-lg px-3 py-2 bg-gray-50">
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="radio"
+                  name="mode"
+                  checked={!rangeMode}
+                  onChange={() => setRangeMode(false)}
+                />
+                سورة واحدة
+              </label>
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="radio"
+                  name="mode"
+                  checked={rangeMode}
+                  onChange={() => {
+                    setRangeMode(true);
+                    setSelectedSurah("");
+                    setAyahs([]);
+                  }}
+                />
+                نطاق سور
+              </label>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">المظهر</label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className={`quran-theme-btn flex-1 ${boxTheme === "light" ? "active" : ""}`}
+                onClick={() => setBoxTheme("light")}
+              >
+                فاتح
+              </button>
+              <button
+                type="button"
+                className={`quran-theme-btn flex-1 ${boxTheme === "dark" ? "active" : ""}`}
+                onClick={() => setBoxTheme("dark")}
+              >
+                داكن
+              </button>
+              <button
+                type="button"
+                className={`quran-theme-btn flex-1 ${boxTheme === "parchment" ? "active" : ""}`}
+                onClick={() => setBoxTheme("parchment")}
+              >
+                كلاسيكي
+              </button>
+            </div>
+          </div>
         </div>
 
         {!rangeMode && (
           <>
-            <label
-              className="block text-sm font-medium mb-2"
-              htmlFor="surah-select"
-            >
-              Select a surah
-            </label>
-            <select
-              id="surah-select"
-              className="w-full border rounded px-3 py-2 mb-4"
-              value={selectedSurah}
-              onChange={(e) => setSelectedSurah(e.target.value)}
-              disabled={loadingSurahs}
-            >
-              <option value="">Choose a surah...</option>
-              {surahs.map((surah) => (
-                <option key={surah.number} value={surah.number}>
-                  {surah.number}. {surah.name_arabic}
-                </option>
-              ))}
-            </select>
-            <div className="flex gap-3 mb-4">
-              <div className="flex-1">
-                <label
-                  className="block text-xs font-medium mb-1"
-                  htmlFor="from-ayah"
-                >
-                  From ayah
+            <div>
+              <label className="block text-sm font-medium mb-1" htmlFor="surah-select">
+                اختر السورة
+              </label>
+              <select
+                id="surah-select"
+                className="w-full border rounded-lg px-3 py-2"
+                value={selectedSurah}
+                onChange={(e) => setSelectedSurah(e.target.value)}
+                disabled={loadingSurahs}
+              >
+                <option value="">اختر سورة...</option>
+                {surahs.map((surah) => (
+                  <option key={surah.number} value={surah.number}>
+                    {surah.number}. {surah.name_arabic}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium mb-1" htmlFor="from-ayah">
+                  من آية
                 </label>
                 <select
                   id="from-ayah"
-                  className="w-full border rounded px-3 py-2"
+                  className="w-full border rounded-lg px-3 py-2"
                   value={fromAyah}
                   onChange={(e) => setFromAyah(e.target.value)}
                   disabled={!selectedSurah}
                 >
-                  <option value="">Choose...</option>
+                  <option value="">اختر...</option>
                   {buildAyahOptions(selectedSurah).map((ayah) => (
-                    <option key={ayah} value={ayah}>
-                      {ayah}
-                    </option>
+                    <option key={ayah} value={ayah}>{ayah}</option>
                   ))}
                 </select>
               </div>
-              <div className="flex-1">
-                <label
-                  className="block text-xs font-medium mb-1"
-                  htmlFor="to-ayah"
-                >
-                  To ayah
+              <div>
+                <label className="block text-xs font-medium mb-1" htmlFor="to-ayah">
+                  إلى آية
                 </label>
                 <select
                   id="to-ayah"
-                  className="w-full border rounded px-3 py-2"
+                  className="w-full border rounded-lg px-3 py-2"
                   value={toAyah}
                   onChange={(e) => setToAyah(e.target.value)}
                   disabled={!selectedSurah}
                 >
-                  <option value="">Choose...</option>
+                  <option value="">اختر...</option>
                   {buildAyahOptions(selectedSurah).map((ayah) => (
-                    <option key={ayah} value={ayah}>
-                      {ayah}
-                    </option>
+                    <option key={ayah} value={ayah}>{ayah}</option>
                   ))}
                 </select>
               </div>
@@ -292,27 +314,25 @@ export default function QuranReader() {
 
         {rangeMode && (
           <>
-            <div className="flex gap-3 mb-3">
-              <div className="flex-1">
-                <label
-                  className="block text-xs font-medium mb-1"
-                  htmlFor="from-surah"
-                >
-                  From surah
+            {/* From: surah + ayah on same row */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="col-span-2">
+                <label className="block text-xs font-medium mb-1" htmlFor="from-surah">
+                  من سورة
                 </label>
-            <select
-              id="from-surah"
-              className="w-full border rounded px-3 py-2"
-              value={fromSurah}
-              onChange={(e) => {
-                const value = e.target.value;
-                setFromSurah(value);
-                const options = buildAyahOptions(value);
-                setRangeFromAyah(options[0] || "");
-              }}
-              disabled={loadingSurahs}
-            >
-                  <option value="">Choose...</option>
+                <select
+                  id="from-surah"
+                  className="w-full border rounded-lg px-3 py-2"
+                  value={fromSurah}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setFromSurah(value);
+                    const options = buildAyahOptions(value);
+                    setRangeFromAyah(options[0] || "");
+                  }}
+                  disabled={loadingSurahs}
+                >
+                  <option value="">اختر...</option>
                   {surahs.map((surah) => (
                     <option key={surah.number} value={surah.number}>
                       {surah.number}. {surah.name_arabic}
@@ -320,123 +340,86 @@ export default function QuranReader() {
                   ))}
                 </select>
               </div>
-              <div className="flex-1">
-                <label
-                  className="block text-xs font-medium mb-1"
-                  htmlFor="to-surah"
-                >
-                  To surah
-                </label>
-            <select
-              id="to-surah"
-              className="w-full border rounded px-3 py-2"
-              value={toSurah}
-              onChange={(e) => {
-                const value = e.target.value;
-                setToSurah(value);
-                const options = buildAyahOptions(value);
-                setRangeToAyah(options[options.length - 1] || "");
-              }}
-              disabled={loadingSurahs}
-            >
-                  <option value="">Choose...</option>
-                  {surahs.map((surah) => (
-                    <option key={surah.number} value={surah.number}>
-                      {surah.number}. {surah.name_arabic}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div className="flex gap-3 mb-4">
-              <div className="flex-1">
-                <label
-                  className="block text-xs font-medium mb-1"
-                  htmlFor="range-from-ayah"
-                >
-                  From ayah
+              <div>
+                <label className="block text-xs font-medium mb-1" htmlFor="range-from-ayah">
+                  من آية
                 </label>
                 <select
                   id="range-from-ayah"
-                  className="w-full border rounded px-3 py-2"
+                  className="w-full border rounded-lg px-3 py-2"
                   value={rangeFromAyah}
                   onChange={(e) => setRangeFromAyah(e.target.value)}
                   disabled={!fromSurah}
                 >
-                  <option value="">Choose...</option>
+                  <option value="">اختر...</option>
                   {buildAyahOptions(fromSurah).map((ayah) => (
-                    <option key={ayah} value={ayah}>
-                      {ayah}
+                    <option key={ayah} value={ayah}>{ayah}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            {/* To: surah + ayah on same row */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="col-span-2">
+                <label className="block text-xs font-medium mb-1" htmlFor="to-surah">
+                  إلى سورة
+                </label>
+                <select
+                  id="to-surah"
+                  className="w-full border rounded-lg px-3 py-2"
+                  value={toSurah}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setToSurah(value);
+                    const options = buildAyahOptions(value);
+                    setRangeToAyah(options[options.length - 1] || "");
+                  }}
+                  disabled={loadingSurahs}
+                >
+                  <option value="">اختر...</option>
+                  {surahs.map((surah) => (
+                    <option key={surah.number} value={surah.number}>
+                      {surah.number}. {surah.name_arabic}
                     </option>
                   ))}
                 </select>
               </div>
-              <div className="flex-1">
-                <label
-                  className="block text-xs font-medium mb-1"
-                  htmlFor="range-to-ayah"
-                >
-                  To ayah
+              <div>
+                <label className="block text-xs font-medium mb-1" htmlFor="range-to-ayah">
+                  إلى آية
                 </label>
                 <select
                   id="range-to-ayah"
-                  className="w-full border rounded px-3 py-2"
+                  className="w-full border rounded-lg px-3 py-2"
                   value={rangeToAyah}
                   onChange={(e) => setRangeToAyah(e.target.value)}
                   disabled={!toSurah}
                 >
-                  <option value="">Choose...</option>
+                  <option value="">اختر...</option>
                   {buildAyahOptions(toSurah).map((ayah) => (
-                    <option key={ayah} value={ayah}>
-                      {ayah}
-                    </option>
+                    <option key={ayah} value={ayah}>{ayah}</option>
                   ))}
                 </select>
               </div>
             </div>
           </>
         )}
+
         <button
-          className="px-4 py-2 rounded bg-[#06bfbf] text-white disabled:opacity-60"
+          className="w-full px-4 py-2.5 rounded-lg bg-[var(--color-primary-500)] hover:bg-[var(--color-primary-600)] text-white font-medium transition-colors disabled:opacity-60"
           onClick={applyFilter}
           disabled={
             loadingAyahs || (!rangeMode && !selectedSurah) || (rangeMode && (!fromSurah || !toSurah))
           }
         >
-          Apply filter
+          عرض الآيات
         </button>
-        {loadingSurahs && <p>Loading surahs...</p>}
-        {error && <p className="text-red-600">{error}</p>}
+        {loadingSurahs && <p className="text-sm text-gray-500">جاري تحميل السور...</p>}
+        {error && <p className="text-red-600 text-sm">{error}</p>}
       </div>
 
       <div className="mt-6">
-        <div className="flex flex-wrap items-center gap-2 mb-4">
-          <span className="text-sm font-medium">Box theme:</span>
-          <button
-            type="button"
-            className={`quran-theme-btn ${boxTheme === "light" ? "active" : ""}`}
-            onClick={() => setBoxTheme("light")}
-          >
-            Light
-          </button>
-          <button
-            type="button"
-            className={`quran-theme-btn ${boxTheme === "dark" ? "active" : ""}`}
-            onClick={() => setBoxTheme("dark")}
-          >
-            Dark
-          </button>
-          <button
-            type="button"
-            className={`quran-theme-btn ${
-              boxTheme === "parchment" ? "active" : ""
-            }`}
-            onClick={() => setBoxTheme("parchment")}
-          >
-            Parchment
-          </button>
-        </div>
-        {loadingAyahs && <p>Loading ayahs...</p>}
+        {loadingAyahs && <p className="text-sm text-gray-500">جاري تحميل الآيات...</p>}
         {!loadingAyahs && ayahs.length > 0 && (
           <div className={`quran-box quran-box--${boxTheme}`}>
             <div className="quran-total-errors">

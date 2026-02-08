@@ -41,10 +41,12 @@ import Navbar from "./components/Navbar";
 import AuthNavbar from "./components/AuthNavbar";
 import Layout from "./components/Layout";
 import ConditionalLayout from "./components/ConditionalLayout";
+import useVersionCheck from "./hooks/useVersionCheck";
 
 export default function App() {
   const location = useLocation();
   const isLoggedIn = !!localStorage.getItem("token");
+  const { updateAvailable, refresh } = useVersionCheck();
   // Routes that shouldn't show navbar
   const noNavbarRoutes = ["/login", "/Login", "/forgot-password", "/reset-password"];
   const showNavbar = !noNavbarRoutes.includes(location.pathname);
@@ -52,6 +54,18 @@ export default function App() {
   return (
     <>
       <div className="min-h-screen text-primary font-arabic">
+        {/* Update notification banner */}
+        {updateAvailable && (
+          <div className="bg-amber-500 text-white text-center py-2 px-4 text-sm flex items-center justify-center gap-3 z-[9999] relative">
+            <span>يتوفر تحديث جديد للتطبيق</span>
+            <button
+              onClick={refresh}
+              className="bg-white text-amber-700 px-3 py-1 rounded font-bold hover:bg-amber-50 transition-colors"
+            >
+              تحديث الآن
+            </button>
+          </div>
+        )}
         {/* Show appropriate navbar */}
         {showNavbar && (isLoggedIn ? <AuthNavbar /> : <Navbar />)}
 
