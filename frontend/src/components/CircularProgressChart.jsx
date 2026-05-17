@@ -27,16 +27,21 @@ const CircularProgressChart = ({
     : Math.max(0, Math.min(totalPages, Math.round(memorizedSource)));
   const memorizedSet = new Set(memorizedPageNumbers || []);
   const gradedSet = new Set(gradedPageNumbers);
+  const explicitTargetPageNumbers = Array.isArray(chartData.targetPageNumbers)
+    ? [...new Set(chartData.targetPageNumbers)].sort((a, b) => a - b)
+    : null;
   const targetRange = chartData.pageRanges?.target || null;
-  const targetPageNumbers = targetRange
-    ? (() => {
+  const targetPageNumbers = explicitTargetPageNumbers || (
+    targetRange
+      ? (() => {
         const start = Math.round(targetRange.start);
         const end = Math.round(targetRange.end);
         const minPage = Math.min(start, end);
         const maxPage = Math.max(start, end);
         return Array.from({ length: Math.max(0, maxPage - minPage + 1) }, (_, idx) => minPage + idx);
       })()
-    : [];
+      : []
+  );
   const segmentGap = 1.2;
   const segmentLength = circumference / totalPages;
   const segmentStroke = Math.max(1, Math.floor(strokeWidth * 0.9));
