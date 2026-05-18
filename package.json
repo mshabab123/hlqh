@@ -1,0 +1,10 @@
+{
+  "name": "hlqh",
+  "private": true,
+  "scripts": {
+    "start": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-dev.ps1",
+    "build": "npm --prefix frontend run build",
+    "backend": "npm --prefix backend run dev",
+    "frontend": "npm --prefix frontend run dev"
+  }
+}

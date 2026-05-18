@@ -183,7 +183,13 @@ router.post('/', registerLimiter, parentValidationRules, async (req, res) => {
 });
 
 // GET /api/parents/:id - Get parent details
-router.get('/:id', async (req, res) => {
+router.get('/:id', authenticateToken, async (req, res) => {
+  const requesterRole = req.user?.role?.toLowerCase();
+  const requesterId = req.user?.id;
+  const isPrivileged = ['admin', 'administrator', 'supervisor', 'teacher'].includes(requesterRole);
+  if (!isPrivileged && String(requesterId) !== String(req.params.id)) {
+    return res.status(403).json({ error: 'غير مصرح بالوصول إلى بيانات ولي أمر آخر' });
+  }
   try {
     const { id } = req.params;
     
@@ -227,7 +233,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // PUT /api/parents/:id/link-child - Link a child to parent
-router.put('/:id/link-child', [
+router.put('/:id/link-child', authenticateToken, requireRole('supervisor'), [
   body('childId')
     .isLength({ min: 10, max: 10 })
     .isNumeric()
@@ -301,7 +307,7 @@ router.put('/:id/link-child', [
 });
 
 // DELETE /api/parents/:id/unlink-child/:childId - Remove parent-child relationship
-router.delete('/:id/unlink-child/:childId', async (req, res) => {
+router.delete('/:id/unlink-child/:childId', authenticateToken, requireRole('supervisor'), async (req, res) => {
   const client = await db.connect();
   try {
     const { id: parentId, childId } = req.params;

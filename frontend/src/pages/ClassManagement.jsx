@@ -10,6 +10,7 @@ import {
   getFilteredClasses, 
   getFilteredTeachers 
 } from "../utils/classUtils";
+import { calculateTargetCompletionData } from "../utils/studentUtils";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 const ALL_SEMESTERS = "__all__";
@@ -1602,6 +1603,7 @@ const ClassGradesModal = ({ classItem, onClose }) => {
   });
   const studentMap = new Map();
   const courseTotals = new Map();
+  const targetGradeLabel = "مقر";
   const attendanceCourseName = "المواظبة";
   const getColumnClass = (index) => (index % 2 === 0 ? "bg-slate-50/70" : "bg-white");
   const getRatingLabel = (value) => {
@@ -1617,7 +1619,20 @@ const ClassGradesModal = ({ classItem, onClose }) => {
     const studentId = row.student_id;
     const name = `${row.first_name} ${row.second_name || ""} ${row.third_name || ""} ${row.last_name}`.replace(/\s+/g, " ").trim();
     if (!studentMap.has(studentId)) {
-      studentMap.set(studentId, { name, courses: {}, presentCount: null, totalDays: null, absentCount: null });
+      studentMap.set(studentId, {
+        name,
+        courses: {},
+        presentCount: null,
+        totalDays: null,
+        absentCount: null,
+        quran: {
+          memorized_surah_id: row.memorized_surah_id,
+          memorized_ayah_number: row.memorized_ayah_number,
+          target_surah_id: row.target_surah_id,
+          target_ayah_number: row.target_ayah_number,
+        },
+        quranGrades: [],
+      });
     }
     const entry = studentMap.get(studentId);
     const key = row.course_name;
@@ -1638,6 +1653,15 @@ const ClassGradesModal = ({ classItem, onClose }) => {
       courseTotals.get(key).sum += value;
       courseTotals.get(key).count += 1;
     }
+    if (row.start_reference || row.end_reference || row.grade_type) {
+      entry.quranGrades.push({
+        start_reference: row.start_reference,
+        end_reference: row.end_reference,
+        grade_type: row.grade_type,
+        date_graded: row.date_graded,
+        created_at: row.created_at,
+      });
+    }
     if (entry.presentCount === null && row.present_count !== undefined && row.present_count !== null) {
       entry.presentCount = Number(row.present_count);
     }
@@ -1652,7 +1676,7 @@ const ClassGradesModal = ({ classItem, onClose }) => {
   const students = Array.from(studentMap.entries()).map(([studentId, data]) => {
     const attendancePct =
       data.totalDays && data.totalDays > 0 && data.presentCount !== null
-        ? (data.presentCount / data.totalDays) * 100
+        ? Math.min(100, (data.presentCount / data.totalDays) * 100)
         : null;
     const averages = courseNames.map((course) => {
       if (course === attendanceCourseName) {
@@ -1672,7 +1696,21 @@ const ClassGradesModal = ({ classItem, onClose }) => {
       return sum + (avg * weight) / 100;
     }, 0);
     const totalSum = valid.length ? weightedTotal : null;
-    return { studentId, name: data.name, averages, totalSum, attendancePct, absentCount: data.absentCount };
+    const targetProgress = calculateTargetCompletionData(data.quran || {}, data.quranGrades || []);
+    const targetPages = Number(targetProgress.targetPages) || 0;
+    const completedTargetPages = Math.min(Number(targetProgress.completedPages) || 0, targetPages);
+    const targetPercentage = targetPages > 0 ? Math.min(100, (completedTargetPages / targetPages) * 100) : null;
+    return {
+      studentId,
+      name: data.name,
+      averages,
+      totalSum,
+      attendancePct,
+      absentCount: data.absentCount,
+      targetPercentage,
+      targetPages,
+      completedTargetPages,
+    };
   });
 
   const sortedStudents = [...students].sort((a, b) => {
@@ -1699,6 +1737,12 @@ const ClassGradesModal = ({ classItem, onClose }) => {
     }
     return stats.sum / stats.count;
   });
+  const targetAverageValues = students
+    .map((student) => student.targetPercentage)
+    .filter((value) => value !== null);
+  const targetAverage = targetAverageValues.length
+    ? targetAverageValues.reduce((sum, value) => sum + value, 0) / targetAverageValues.length
+    : null;
 
   const handleExportToExcel = () => {
 
@@ -1711,6 +1755,7 @@ const ClassGradesModal = ({ classItem, onClose }) => {
           : percentage.toFixed(1);
         return [course, `${course} موزون (${percentageLabel})`];
       }),
+      targetGradeLabel,
       "أيام الغياب",
       "الإجمالي",
       "التقدير",
@@ -1729,6 +1774,7 @@ const ClassGradesModal = ({ classItem, onClose }) => {
       return [
         student.name,
         ...courseCells,
+        student.targetPercentage !== null ? student.targetPercentage.toFixed(1) : "-",
         student.absentCount !== null ? student.absentCount : "-",
         student.totalSum !== null ? student.totalSum.toFixed(1) : "-",
         getRatingLabel(student.totalSum),
@@ -1820,12 +1866,15 @@ const ClassGradesModal = ({ classItem, onClose }) => {
                     </Fragment>
                   ))}
                   <th className={`py-3 px-3 text-gray-700 ${getColumnClass(1 + courseNames.length * 2)}`}>
-                    {"أيام الغياب"}
+                    {targetGradeLabel}
                   </th>
                   <th className={`py-3 px-3 text-gray-700 ${getColumnClass(2 + courseNames.length * 2)}`}>
-                    {"الإجمالي"}
+                    {"أيام الغياب"}
                   </th>
                   <th className={`py-3 px-3 text-gray-700 ${getColumnClass(3 + courseNames.length * 2)}`}>
+                    {"الإجمالي"}
+                  </th>
+                  <th className={`py-3 px-3 text-gray-700 ${getColumnClass(4 + courseNames.length * 2)}`}>
                     {"التقدير"}
                   </th>
                 </tr>
@@ -1859,13 +1908,16 @@ const ClassGradesModal = ({ classItem, onClose }) => {
                         </Fragment>
                       );
                     })}
-                    <td className={`py-2 px-3 text-slate-700 text-center ${getColumnClass(1 + courseNames.length * 2)}`}>
+                    <td className={`py-2 px-3 text-slate-700 font-semibold ${getColumnClass(1 + courseNames.length * 2)}`}>
+                      {student.targetPercentage !== null ? `${student.targetPercentage.toFixed(1)}%` : "-"}
+                    </td>
+                    <td className={`py-2 px-3 text-slate-700 text-center ${getColumnClass(2 + courseNames.length * 2)}`}>
                       {student.absentCount !== null ? student.absentCount : "-"}
                     </td>
-                    <td className={`py-2 px-3 text-slate-700 font-semibold ${getColumnClass(2 + courseNames.length * 2)}`}>
+                    <td className={`py-2 px-3 text-slate-700 font-semibold ${getColumnClass(3 + courseNames.length * 2)}`}>
                       {student.totalSum !== null ? student.totalSum.toFixed(1) : "-"}
                     </td>
-                    <td className={`py-2 px-3 text-slate-700 font-semibold ${getColumnClass(3 + courseNames.length * 2)}`}>
+                    <td className={`py-2 px-3 text-slate-700 font-semibold ${getColumnClass(4 + courseNames.length * 2)}`}>
                       {getRatingLabel(student.totalSum)}
                     </td>
                   </tr>
@@ -1891,9 +1943,12 @@ const ClassGradesModal = ({ classItem, onClose }) => {
                       </Fragment>
                     );
                   })}
-                  <td className={`py-2 px-3 text-gray-500 ${getColumnClass(1 + courseNames.length * 2)}`}>-</td>
+                  <td className={`py-2 px-3 text-slate-700 font-semibold ${getColumnClass(1 + courseNames.length * 2)}`}>
+                    {targetAverage !== null ? `${targetAverage.toFixed(1)}%` : "-"}
+                  </td>
                   <td className={`py-2 px-3 text-gray-500 ${getColumnClass(2 + courseNames.length * 2)}`}>-</td>
                   <td className={`py-2 px-3 text-gray-500 ${getColumnClass(3 + courseNames.length * 2)}`}>-</td>
+                  <td className={`py-2 px-3 text-gray-500 ${getColumnClass(4 + courseNames.length * 2)}`}>-</td>
                 </tr>
               </tfoot>
             </table>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import axios from "../utils/axiosConfig";
 import { AiOutlineStar, AiOutlineUserAdd, AiOutlineSave, AiOutlineClose, AiOutlineEdit, AiOutlineDelete, AiOutlineTable, AiOutlineCalendar, AiOutlineCheck, AiOutlineBook } from "react-icons/ai";
 import { BsFillGridFill } from "react-icons/bs";
@@ -13,13 +13,15 @@ import {
   formatMemorizationDisplay,
   calculatePageNumber,
   calculateQuranPagePercentage,
-  calculateQuranBlocks
+  calculateQuranBlocks,
+  calculateCircularChartData
 } from "../utils/studentUtils";
 import { getSurahIdFromName, getSurahNameFromId } from "../utils/quranData";
 import QuranProgressModal from "./QuranProgressModal";
 import QuranBlocksModal from "./QuranBlocksModal";
 import QuranTestingModal from "./QuranTestingModal";
 import QuranHomeworkModal from "./QuranHomeworkModal";
+import CircularProgressChart from "./CircularProgressChart";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
@@ -1536,28 +1538,8 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                     })()}
                   </div>
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Target Position */}
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-700 mb-2">الهدف المطلوب:</h4>
-                    <p className="text-base font-bold text-blue-700">
-                      {(() => {
-                        const targetSurahId = parseInt(studentData.goal.target_surah_id) || 0;
-                        const targetAyah = parseInt(studentData.goal.target_ayah_number) || 0;
-
-                        const getCurrentSurahName = (surahId) => {
-                          const surah = QURAN_SURAHS.find(s => s.id === surahId);
-                          return surah ? surah.name : '';
-                        };
-
-                        const targetSurahName = getCurrentSurahName(targetSurahId);
-                        return `سورة ${targetSurahName} - الآية ${targetAyah}`;
-                      })()}
-                    </p>
-                  </div>
                   
-                  <div>
+                  <div className="space-y-4">
                     <h4 className="text-sm font-medium text-gray-700 mb-2">الهدف المطلوب:</h4>
 
                     {/* Goal Description - Same format as QuranProgressModal */}
@@ -1666,6 +1648,31 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
 
                         const progress = calculateStudentGoalProgress(student);
                         const progressBar = calculateGoalProgressBar(student);
+                        const grades = Array.isArray(studentData?.grades) ? studentData.grades : [];
+                        const getRefPage = (reference) => {
+                          if (!reference) return null;
+                          if (String(reference).includes(':')) {
+                            const [surahId, ayah] = String(reference).split(':').map(Number);
+                            return surahId && ayah ? calculatePageNumber(surahId, ayah) : null;
+                          }
+                          const page = Number(reference);
+                          return Number.isFinite(page) ? page : null;
+                        };
+                        const gradedPageNumbers = [...new Set(grades.flatMap((grade) => {
+                          const startPage = getRefPage(grade.start_reference);
+                          const endPage = getRefPage(grade.end_reference);
+                          if (!startPage && !endPage) return [];
+                          const minPage = Math.min(startPage || endPage, endPage || startPage);
+                          const maxPage = Math.max(startPage || endPage, endPage || startPage);
+                          return Array.from(
+                            { length: Math.max(0, Math.round(maxPage) - Math.round(minPage) + 1) },
+                            (_, idx) => Math.round(minPage) + idx
+                          );
+                        }))];
+                        const chartData = {
+                          ...calculateCircularChartData(student, grades),
+                          gradedPageNumbers
+                        };
 
                         const currentSurahId = parseInt(studentData?.memorized_surah_id) || 0;
                         const currentAyah = parseInt(studentData?.memorized_ayah_number) || 0;
@@ -1687,6 +1694,16 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                         const isGoalAchieved = progress.percentage >= 100;
                         
                         return (
+                          <>
+                          <div className="flex justify-center mb-4">
+                            <CircularProgressChart
+                              chartData={chartData}
+                              size={240}
+                              strokeWidth={20}
+                              showLabels={false}
+                              showPercentages={true}
+                            />
+                          </div>
                           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 md:gap-4">
                             {/* Goal Status */}
                             <div className="bg-white p-2 sm:p-3 rounded border">
@@ -1760,134 +1777,12 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                               </div>
                             </div>
                           </div>
+                          </>
                         );
                       })()}
                       
-                      {/* Goal Progress Bars */}
-                      <div className="mt-4 space-y-4">
-                        {/* Verse Progress Bar */}
-                        <div>
-                          <div className="flex justify-between text-sm mb-2">
-                            <span>تقدم الآيات:</span>
-                            <span className="font-bold">
-                              {(() => {
-                                const student = {
-                                  memorized_surah_id: studentData?.memorized_surah_id,
-                                  memorized_ayah_number: studentData?.memorized_ayah_number,
-                                  target_surah_id: studentData.goal?.target_surah_id,
-                                  target_ayah_number: studentData.goal?.target_ayah_number
-                                };
-                                const progress = calculateStudentGoalProgress(student);
-                                return `${progress.memorizedVerses} من ${progress.totalGoalVerses} آية`;
-                              })()}
-                            </span>
-                          </div>
-                          <div className="w-full bg-gray-200 rounded-full h-4">
-                            <div
-                              className={`h-4 rounded-full transition-all duration-500 ${
-                                (() => {
-                                  const student = {
-                                    memorized_surah_id: studentData?.memorized_surah_id,
-                                    memorized_ayah_number: studentData?.memorized_ayah_number,
-                                    target_surah_id: studentData.goal?.target_surah_id,
-                                    target_ayah_number: studentData.goal?.target_ayah_number
-                                  };
-                                  const progress = calculateStudentGoalProgress(student);
-                                  return progress.percentage >= 100 ? 'bg-green-500' : 'bg-blue-500';
-                                })()
-                              }`}
-                              style={{
-                                width: `${(() => {
-                                  const student = {
-                                    memorized_surah_id: studentData?.memorized_surah_id,
-                                    memorized_ayah_number: studentData?.memorized_ayah_number,
-                                    target_surah_id: studentData.goal?.target_surah_id,
-                                    target_ayah_number: studentData.goal?.target_ayah_number
-                                  };
-                                  const progress = calculateStudentGoalProgress(student);
-                                  return Math.min(100, progress.percentage);
-                                })()}%`
-                              }}
-                            >
-                              <span className="text-white text-xs font-bold flex items-center justify-center h-full">
-                                {(() => {
-                                  const student = {
-                                    memorized_surah_id: studentData?.memorized_surah_id,
-                                    memorized_ayah_number: studentData?.memorized_ayah_number,
-                                    target_surah_id: studentData.goal?.target_surah_id,
-                                    target_ayah_number: studentData.goal?.target_ayah_number
-                                  };
-                                  const progress = calculateStudentGoalProgress(student);
-                                  return Math.min(100, progress.percentage);
-                                })()}%
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Page Progress Bar */}
-                        <div>
-                          <div className="flex justify-between text-sm mb-2">
-                            <span>تقدم الصفحات:</span>
-                            <span className="font-bold">
-                              {(() => {
-                                const student = {
-                                  memorized_surah_id: studentData?.memorized_surah_id,
-                                  memorized_ayah_number: studentData?.memorized_ayah_number,
-                                  target_surah_id: studentData.goal?.target_surah_id,
-                                  target_ayah_number: studentData.goal?.target_ayah_number
-                                };
-                                const progress = calculateStudentGoalProgress(student);
-                                return `${progress.memorizedPages} من ${progress.totalGoalPages} صفحة`;
-                              })()}
-                            </span>
-                          </div>
-                          <div className="w-full bg-gray-200 rounded-full h-4">
-                            <div
-                              className={`h-4 rounded-full transition-all duration-500 ${
-                                (() => {
-                                  const student = {
-                                    memorized_surah_id: studentData?.memorized_surah_id,
-                                    memorized_ayah_number: studentData?.memorized_ayah_number,
-                                    target_surah_id: studentData.goal?.target_surah_id,
-                                    target_ayah_number: studentData.goal?.target_ayah_number
-                                  };
-                                  const progress = calculateStudentGoalProgress(student);
-                                  return progress.pagePercentage >= 100 ? 'bg-green-500' : 'bg-orange-500';
-                                })()
-                              }`}
-                              style={{
-                                width: `${(() => {
-                                  const student = {
-                                    memorized_surah_id: studentData?.memorized_surah_id,
-                                    memorized_ayah_number: studentData?.memorized_ayah_number,
-                                    target_surah_id: studentData.goal?.target_surah_id,
-                                    target_ayah_number: studentData.goal?.target_ayah_number
-                                  };
-                                  const progress = calculateStudentGoalProgress(student);
-                                  return Math.min(100, progress.pagePercentage);
-                                })()}%`
-                              }}
-                            >
-                              <span className="text-white text-xs font-bold flex items-center justify-center h-full">
-                                {(() => {
-                                  const student = {
-                                    memorized_surah_id: studentData?.memorized_surah_id,
-                                    memorized_ayah_number: studentData?.memorized_ayah_number,
-                                    target_surah_id: studentData.goal?.target_surah_id,
-                                    target_ayah_number: studentData.goal?.target_ayah_number
-                                  };
-                                  const progress = calculateStudentGoalProgress(student);
-                                  return Math.min(100, progress.pagePercentage);
-                                })()}%
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
                     </div>
                   </div>
-                </div>
               </div>
             )}
 

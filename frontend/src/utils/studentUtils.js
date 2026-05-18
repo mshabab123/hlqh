@@ -937,6 +937,63 @@ export const calculateCircularChartData = (student, grades = []) => {
   };
 };
 
+export const calculateTargetCompletionData = (student, grades = []) => {
+  const memorizedSurahId = parseInt(student.memorized_surah_id) || 0;
+  const memorizedAyah = parseInt(student.memorized_ayah_number) || 0;
+  const targetSurahId = parseInt(student.target_surah_id) || 0;
+  const targetAyah = parseInt(student.target_ayah_number) || 0;
+
+  const targetPageNumbers = getTargetPageNumbers(
+    memorizedSurahId,
+    memorizedAyah,
+    targetSurahId,
+    targetAyah
+  );
+  const targetSet = new Set(targetPageNumbers);
+  const completedSet = new Set();
+
+  if (Array.isArray(grades) && targetSet.size > 0) {
+    grades.forEach((grade) => {
+      let gradePages = null;
+
+      if (grade.start_reference && grade.end_reference) {
+        try {
+          gradePages = convertGradeReferencesToPages(grade.start_reference, grade.end_reference);
+        } catch (error) {
+          gradePages = null;
+        }
+      } else if (grade.start_surah_id && grade.end_surah_id) {
+        try {
+          const startPage = calculateExactPageNumber(grade.start_surah_id, grade.start_ayah_number || 1);
+          const endPage = calculateExactPageNumber(grade.end_surah_id, grade.end_ayah_number || 1);
+          gradePages = { startPage, endPage, totalPages: Math.abs(startPage - endPage) };
+        } catch (error) {
+          gradePages = null;
+        }
+      }
+
+      if (gradePages && gradePages.totalPages > 0) {
+        getPageNumbersBetween(gradePages.startPage, gradePages.endPage).forEach((pageNumber) => {
+          if (targetSet.has(pageNumber)) {
+            completedSet.add(pageNumber);
+          }
+        });
+      }
+    });
+  }
+
+  const targetPages = targetPageNumbers.length;
+  const completedPages = Math.min(completedSet.size, targetPages);
+
+  return {
+    targetPages,
+    completedPages,
+    percentage: targetPages > 0 ? (completedPages / targetPages) * 100 : null,
+    targetPageNumbers,
+    completedPageNumbers: Array.from(completedSet).sort((a, b) => b - a),
+  };
+};
+
 // Helper function to merge overlapping grade ranges
 const mergeOverlappingRanges = (ranges) => {
   if (ranges.length <= 1) return ranges;
@@ -1117,9 +1174,15 @@ const getGradePageNumbers = (grade) => {
 export const calculateQuranBlocks = (student, grades = []) => {
   const memorizedSurahId = parseInt(student.memorized_surah_id) || 0;
   const memorizedAyah = parseInt(student.memorized_ayah_number) || 0;
+  const targetSurahId = parseInt(student.target_surah_id) || 0;
+  const targetAyah = parseInt(student.target_ayah_number) || 0;
   const memorizedPageNumber = memorizedSurahId ? calculateExactPageNumber(memorizedSurahId, memorizedAyah) : 604;
   const memorizedPageNumbers = getMemorizedPageNumbers(memorizedSurahId, memorizedAyah);
-  const knownMemorizedPageSet = new Set(memorizedPageNumbers);
+  const targetBoundaryPageNumbers = getMemorizedPageNumbers(targetSurahId, targetAyah);
+  const knownMemorizedPageSet = new Set([
+    ...memorizedPageNumbers,
+    ...targetBoundaryPageNumbers
+  ]);
   const pageActivityByPage = new Map();
 
   // Ensure grades is an array

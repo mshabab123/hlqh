@@ -3,6 +3,8 @@ const bcrypt = require('bcryptjs');
 const router = express.Router();
 const db = require('../config/database'); // adjust based on your DB connection setup
 const { body, validationResult } = require('express-validator');
+const { authenticateToken } = require('../middleware/auth');
+const { requireRole, ROLES } = require('../middleware/rbac');
 
 const rateLimit = require('express-rate-limit');
 const registerLimiter = rateLimit({
@@ -12,7 +14,7 @@ const registerLimiter = rateLimit({
 });
 
 // GET all users with comprehensive information
-router.get('/', async (req, res) => {
+router.get('/', authenticateToken, requireRole(ROLES.SUPERVISOR), async (req, res) => {
   let client;
   try {
     client = await db.connect();
@@ -274,7 +276,7 @@ router.get('/', async (req, res) => {
 });
 
 // PUT /api/users/:id - Update user role and associated information
-router.put('/:id', async (req, res) => {
+router.put('/:id', authenticateToken, requireRole(ROLES.ADMINISTRATOR), async (req, res) => {
   const client = await db.connect();
   try {
     await client.query('BEGIN');
@@ -479,7 +481,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // PATCH /api/users/:id/toggle-active - Toggle user active status
-router.patch('/:id/toggle-active', async (req, res) => {
+router.patch('/:id/toggle-active', authenticateToken, requireRole(ROLES.ADMINISTRATOR), async (req, res) => {
   let client;
   try {
     client = await db.connect();
@@ -512,11 +514,19 @@ router.patch('/:id/toggle-active', async (req, res) => {
 });
 
 // PUT /api/users/:id/profile - Update user profile information
-router.put('/:id/profile', async (req, res) => {
+router.put('/:id/profile', authenticateToken, async (req, res) => {
   let client;
   try {
+    const requesterRole = req.user?.role?.toLowerCase();
+    const requesterId = req.user?.id;
+    const isPrivileged = [ROLES.ADMIN, ROLES.ADMINISTRATOR, ROLES.SUPERVISOR].includes(requesterRole);
+
+    if (!isPrivileged && String(requesterId) !== String(req.params.id)) {
+      return res.status(403).json({ error: 'لا يمكنك تعديل ملف مستخدم آخر' });
+    }
+
     client = await db.connect();
-    
+
     const { id } = req.params;
     const { 
       first_name, 
@@ -588,7 +598,7 @@ router.put('/:id/profile', async (req, res) => {
 });
 
 // DELETE /api/users/:id - Delete user permanently
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', authenticateToken, requireRole(ROLES.ADMINISTRATOR), async (req, res) => {
   const client = await db.connect();
   try {
     await client.query('BEGIN');

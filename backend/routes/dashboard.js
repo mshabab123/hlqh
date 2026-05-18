@@ -2,6 +2,57 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
+const { QURAN_SURAHS, TOTAL_QURAN_PAGES } = require('../utils/quranUtils');
+
+const getSurah = (surahId) => QURAN_SURAHS.find((surah) => surah.id === Number(surahId));
+
+const calculateExactPageNumber = (surahId, ayahNumber) => {
+  const surah = getSurah(surahId);
+  if (!surah) return 0;
+
+  const ayah = Number(ayahNumber) || 1;
+  if (ayah >= surah.ayahCount) return surah.endPage;
+
+  const ayahProgress = ayah / surah.ayahCount;
+  const pageWithinSurah = ayahProgress * (surah.endPage - surah.startPage + 1);
+  return Number((surah.startPage + pageWithinSurah - 1).toFixed(1));
+};
+
+const parseQuranReference = (reference) => {
+  if (!reference || typeof reference !== 'string') return null;
+
+  const [surahPart, ayahPart] = reference.split(':');
+  const surahId = Number(surahPart);
+  const surah = getSurah(surahId);
+  if (!surah) return null;
+
+  const ayahNumber = ayahPart === 'end'
+    ? surah.ayahCount
+    : Math.max(1, Math.min(Number(ayahPart) || 1, surah.ayahCount));
+
+  return {
+    surahId,
+    ayahNumber,
+    page: calculateExactPageNumber(surahId, ayahNumber),
+  };
+};
+
+const countPagesBetweenReferences = (startReference, endReference) => {
+  const start = parseQuranReference(startReference);
+  const end = parseQuranReference(endReference);
+  if (!start || !end || !start.page || !end.page) return 0;
+
+  const minPage = Math.max(1, Math.min(Math.round(start.page), Math.round(end.page)));
+  const maxPage = Math.min(TOTAL_QURAN_PAGES, Math.max(Math.round(start.page), Math.round(end.page)));
+  return Math.max(0, maxPage - minPage + 1);
+};
+
+const classifyQuranCourse = (courseName = '', gradeType = '') => {
+  const text = `${courseName} ${gradeType}`.toLowerCase();
+  if (text.includes('مراجع') || text.includes('review') || text.includes('revision')) return 'review';
+  if (text.includes('حفظ') || text.includes('memor') || text.includes('new')) return 'memorized';
+  return 'other';
+};
 
 // GET /api/dashboard/stats - Get dashboard statistics
 router.get('/stats', authenticateToken, async (req, res) => {
@@ -178,6 +229,165 @@ router.get('/stats', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Dashboard stats error:', error);
     res.status(500).json({ error: 'Failed to fetch dashboard statistics' });
+  }
+});
+
+// GET /api/dashboard/quran-semester-pages - Quran page totals recorded in a semester
+router.get('/quran-semester-pages', authenticateToken, async (req, res) => {
+  try {
+    const userRole = req.user.role;
+    const userId = req.user.id;
+
+    if (!['admin', 'administrator', 'supervisor'].includes(userRole)) {
+      return res.status(403).json({ error: 'Not authorized to view Quran semester page totals.' });
+    }
+
+    let schoolId = null;
+    if (userRole === 'administrator') {
+      const schoolResult = await pool.query('SELECT school_id FROM administrators WHERE id = $1', [userId]);
+      schoolId = schoolResult.rows[0]?.school_id || null;
+    } else if (userRole === 'supervisor') {
+      const schoolResult = await pool.query('SELECT school_id FROM supervisors WHERE id = $1', [userId]);
+      schoolId = schoolResult.rows[0]?.school_id || null;
+    }
+
+    let semesterId = req.query.semester_id ? Number(req.query.semester_id) : null;
+    if (!semesterId) {
+      const semesterResult = await pool.query(`
+        SELECT id
+        FROM semesters
+        WHERE ($1::int IS NULL OR school_id = $1)
+        ORDER BY
+          CASE WHEN start_date <= CURRENT_DATE AND end_date >= CURRENT_DATE THEN 0 ELSE 1 END,
+          start_date DESC NULLS LAST,
+          id DESC
+        LIMIT 1
+      `, [schoolId]);
+
+      semesterId = semesterResult.rows[0]?.id || null;
+    }
+
+    if (!semesterId) {
+      return res.json({
+        semester: null,
+        totals: { memorized_pages: 0, review_pages: 0, other_pages: 0, total_pages: 0, records: 0 },
+        by_school: [],
+        by_class: [],
+      });
+    }
+
+    const result = await pool.query(`
+      SELECT
+        g.id,
+        g.start_reference,
+        g.end_reference,
+        g.grade_type,
+        COALESCE(sc.name, '') as course_name,
+        c.id as class_id,
+        c.name as class_name,
+        sch.id as school_id,
+        sch.name as school_name,
+        sem.id as semester_id,
+        sem.display_name as semester_name,
+        sem.start_date,
+        sem.end_date
+      FROM grades g
+      LEFT JOIN semester_courses sc ON sc.id = g.course_id
+      LEFT JOIN classes c ON c.id = g.class_id
+      LEFT JOIN schools sch ON sch.id = COALESCE(c.school_id, sc.school_id)
+      JOIN semesters sem ON sem.id = g.semester_id
+      WHERE g.semester_id = $1
+        AND ($2::int IS NULL OR COALESCE(c.school_id, sc.school_id) = $2)
+        AND g.start_reference IS NOT NULL
+        AND g.end_reference IS NOT NULL
+        AND (
+          g.grade_type = 'memorization'
+          OR sc.requires_surah = true
+          OR sc.name ILIKE '%حفظ%'
+          OR sc.name ILIKE '%مراجع%'
+        )
+      ORDER BY sch.name, c.name
+    `, [semesterId, schoolId]);
+
+    const totals = {
+      memorized_pages: 0,
+      review_pages: 0,
+      other_pages: 0,
+      total_pages: 0,
+      records: 0,
+    };
+    const bySchoolMap = new Map();
+    const byClassMap = new Map();
+
+    result.rows.forEach((row) => {
+      const pageCount = countPagesBetweenReferences(row.start_reference, row.end_reference);
+      if (pageCount <= 0) return;
+
+      const category = classifyQuranCourse(row.course_name, row.grade_type);
+      const totalKey = category === 'review'
+        ? 'review_pages'
+        : category === 'memorized'
+          ? 'memorized_pages'
+          : 'other_pages';
+
+      totals[totalKey] += pageCount;
+      totals.total_pages += pageCount;
+      totals.records += 1;
+
+      const schoolKey = row.school_id || 'unknown';
+      if (!bySchoolMap.has(schoolKey)) {
+        bySchoolMap.set(schoolKey, {
+          school_id: row.school_id,
+          school_name: row.school_name || 'غير محدد',
+          memorized_pages: 0,
+          review_pages: 0,
+          other_pages: 0,
+          total_pages: 0,
+          records: 0,
+        });
+      }
+      const school = bySchoolMap.get(schoolKey);
+      school[totalKey] += pageCount;
+      school.total_pages += pageCount;
+      school.records += 1;
+
+      const classKey = row.class_id || `unknown-${schoolKey}`;
+      if (!byClassMap.has(classKey)) {
+        byClassMap.set(classKey, {
+          class_id: row.class_id,
+          class_name: row.class_name || 'غير محدد',
+          school_name: row.school_name || 'غير محدد',
+          memorized_pages: 0,
+          review_pages: 0,
+          other_pages: 0,
+          total_pages: 0,
+          records: 0,
+        });
+      }
+      const classSummary = byClassMap.get(classKey);
+      classSummary[totalKey] += pageCount;
+      classSummary.total_pages += pageCount;
+      classSummary.records += 1;
+    });
+
+    const semester = result.rows[0]
+      ? {
+          id: result.rows[0].semester_id,
+          display_name: result.rows[0].semester_name,
+          start_date: result.rows[0].start_date,
+          end_date: result.rows[0].end_date,
+        }
+      : (await pool.query('SELECT id, display_name, start_date, end_date FROM semesters WHERE id = $1', [semesterId])).rows[0] || null;
+
+    res.json({
+      semester,
+      totals,
+      by_school: Array.from(bySchoolMap.values()).sort((a, b) => b.total_pages - a.total_pages),
+      by_class: Array.from(byClassMap.values()).sort((a, b) => b.total_pages - a.total_pages),
+    });
+  } catch (error) {
+    console.error('Quran semester pages error:', error);
+    res.status(500).json({ error: 'Failed to fetch Quran semester page totals' });
   }
 });
 
