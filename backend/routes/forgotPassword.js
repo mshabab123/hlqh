@@ -3,6 +3,7 @@ const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const { body, validationResult } = require('express-validator');
 const pool = require('../config/database');
+const { authenticateToken, authorizeRoles } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -141,11 +142,9 @@ router.post('/request',
       // TODO: Send email with reset link
       // await sendPasswordResetEmail(user.email, user.first_name, resetLink);
       
-      res.json({ 
+      res.json({
         message: 'If an account with this information exists, a password reset link has been sent.',
-        success: true,
-        // In development, return the token for testing (remove in production!)
-        ...(process.env.NODE_ENV === 'development' && { resetToken, resetLink })
+        success: true
       });
 
     } catch (error) {
@@ -299,7 +298,7 @@ router.post('/verify-token',
 );
 
 // Cleanup expired tokens (can be called periodically)
-router.delete('/cleanup-expired', async (req, res) => {
+router.delete('/cleanup-expired', authenticateToken, authorizeRoles('admin'), async (req, res) => {
   try {
     const result = await pool.query(`
       DELETE FROM password_reset_tokens 

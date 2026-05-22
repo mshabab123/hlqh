@@ -4,6 +4,9 @@ import QuranBlocksGrid from './QuranBlocksGrid';
 
 const QuranBlocksModal = ({ student, blocksData, onClose }) => {
   if (!blocksData) return null;
+  const memorizedPageCount = Array.isArray(blocksData.memorizedPageNumbers)
+    ? blocksData.memorizedPageNumbers.length
+    : 0;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -124,7 +127,7 @@ const QuranBlocksModal = ({ student, blocksData, onClose }) => {
                 <div className="flex justify-between">
                   <span className="text-blue-600">الصفحة الحالية:</span>
                   <span className="font-semibold text-blue-800">
-                    صفحة {blocksData.memorizedPageNumber}
+                    صفحة {Math.round(blocksData.memorizedPageNumber || 0)}
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -136,7 +139,7 @@ const QuranBlocksModal = ({ student, blocksData, onClose }) => {
                 <div className="flex justify-between">
                   <span className="text-blue-600">الصفحات المحفوظة:</span>
                   <span className="font-semibold text-blue-800">
-                    {604 - blocksData.memorizedPageNumber} صفحة
+                    {memorizedPageCount} صفحة
                   </span>
                 </div>
               </div>

@@ -911,7 +911,8 @@ router.get('/:id/grades-summary', requireAuth, async (req, res) => {
     );
     const now = new Date();
     const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    const totalWorkDays = workingDays.filter((day) => day < today).length;
+    const countedWorkingDays = workingDays.filter((day) => day < today);
+    const totalWorkDays = countedWorkingDays.length;
     
     const result = await db.query(`
       WITH class_info AS (
@@ -925,22 +926,33 @@ router.get('/:id/grades-summary', requireAuth, async (req, res) => {
         u.second_name,
         u.third_name,
         u.last_name,
+        s.memorized_surah_id,
+        s.memorized_ayah_number,
+        s.target_surah_id,
+        s.target_ayah_number,
         sc.name as course_name,
         sc.percentage as course_percentage,
+        sc.requires_surah,
         g.grade_value,
         g.max_grade,
+        g.start_reference,
+        g.end_reference,
+        g.grade_type,
+        g.date_graded,
+        g.created_at,
         CASE 
           WHEN g.grade_value IS NOT NULL AND g.max_grade > 0 
           THEN ROUND((g.grade_value::decimal / g.max_grade) * 100, 2)
           ELSE NULL
         END as percentage_score,
         (
-          SELECT COUNT(*)::int
+          SELECT COUNT(DISTINCT sa.attendance_date)::int
           FROM semester_attendance sa
           WHERE sa.student_id = s.id
             AND sa.class_id = ci.id
             AND sa.semester_id = ci.semester_id
             AND sa.is_present = true
+            AND sa.attendance_date = ANY($2::date[])
         ) as present_count
       FROM class_info ci
       JOIN student_enrollments se ON se.class_id = ci.id AND se.status = 'enrolled'
@@ -955,10 +967,10 @@ router.get('/:id/grades-summary', requireAuth, async (req, res) => {
           OR (sc.class_id IS NULL AND sc.school_id = (SELECT school_id FROM classes WHERE id = ci.id))
         )
       ORDER BY u.first_name, u.last_name, sc.name
-    `, [classId]);
+    `, [classId, countedWorkingDays]);
 
     const rows = result.rows.map((row) => {
-      const presentCount = Number(row.present_count) || 0;
+      const presentCount = Math.min(Number(row.present_count) || 0, totalWorkDays);
       const absentCount = Math.max(totalWorkDays - presentCount, 0);
       return {
         ...row,
@@ -1091,7 +1103,7 @@ router.get('/:id/student/:studentId/profile', requireAuth, async (req, res) => {
 });
 
 // POST /api/classes/:id/teachers - Assign multiple teachers to class with primary/secondary roles
-router.post('/:id/teachers', async (req, res) => {
+router.post('/:id/teachers', requireAuth, async (req, res) => {
   const client = await db.connect();
   try {
     const { id } = req.params;
@@ -1152,7 +1164,7 @@ router.post('/:id/teachers', async (req, res) => {
 });
 
 // GET /api/classes/:id/teachers - Get teachers assigned to class with their roles
-router.get('/:id/teachers', async (req, res) => {
+router.get('/:id/teachers', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     

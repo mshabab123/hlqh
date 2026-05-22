@@ -1,7 +1,7 @@
 import { useState, useEffect, Fragment } from "react";
 import * as XLSX from "xlsx";
 import axios from "../utils/axiosConfig";
-import { AiOutlinePlus, AiOutlineEdit, AiOutlineDelete, AiOutlineUser, AiOutlineBook, AiOutlineReload, AiOutlineStar, AiOutlineFileText, AiOutlineBarChart, AiOutlineCopy } from "react-icons/ai";
+import { AiOutlinePlus, AiOutlineEdit, AiOutlineDelete, AiOutlineUser, AiOutlineBook, AiOutlineReload, AiOutlineStar, AiOutlineFileText, AiOutlineBarChart, AiOutlineCopy, AiOutlineRollback } from "react-icons/ai";
 import ClassForm from "../components/ClassForm";
 import StudentListModal from "../components/StudentListModal";
 import { 
@@ -10,8 +10,24 @@ import {
   getFilteredClasses, 
   getFilteredTeachers 
 } from "../utils/classUtils";
+import { calculateTargetCompletionData } from "../utils/studentUtils";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
+const ALL_SEMESTERS = "__all__";
+
+const getSemesterTime = (semester) => {
+  if (semester?.start_date) return new Date(semester.start_date).getTime();
+  if (semester?.end_date) return new Date(semester.end_date).getTime();
+  return Number(semester?.year || 0);
+};
+
+const sortSemestersNewestFirst = (semesterList) => {
+  return [...semesterList].sort((a, b) => {
+    const timeDiff = getSemesterTime(b) - getSemesterTime(a);
+    if (timeDiff !== 0) return timeDiff;
+    return Number(b.id || 0) - Number(a.id || 0);
+  });
+};
 
 export default function ClassManagement() {
   const [classes, setClasses] = useState([]);
@@ -62,6 +78,41 @@ export default function ClassManagement() {
     is_active: true
   });
 
+  const getSemesterFilterParam = () => (
+    semesterFilter && semesterFilter !== ALL_SEMESTERS ? semesterFilter : null
+  );
+
+  const getSchoolSemesters = () => (
+    sortSemestersNewestFirst(
+      semesters.filter((semester) => String(semester.school_id) === String(schoolFilter))
+    )
+  );
+
+  const getPreviousSemesterForSelectedSchool = () => {
+    if (!schoolFilter) return null;
+
+    const schoolSemesters = getSchoolSemesters();
+    if (schoolSemesters.length < 2) return null;
+
+    const currentIndex = schoolSemesters.findIndex((semester) =>
+      String(semester.id) === String(semesterFilter)
+    );
+
+    if (currentIndex >= 0 && currentIndex < schoolSemesters.length - 1) {
+      return schoolSemesters[currentIndex + 1];
+    }
+
+    return schoolSemesters[1];
+  };
+
+  const previousSemester = getPreviousSemesterForSelectedSchool();
+
+  const handleShowPreviousSemester = () => {
+    if (previousSemester) {
+      setSemesterFilter(String(previousSemester.id));
+    }
+  };
+
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem("user") || "{}");
     setUserRole(user.role || user.user_type || "admin");
@@ -75,30 +126,48 @@ export default function ClassManagement() {
     fetchSchools();
     fetchTeachers();
     fetchSemesters();
-    fetchClasses(); // Load all classes initially
   }, [userRole]);
-  
-  // Reset semester filter when school changes
+
+  // Default to the latest semester, while allowing older semesters from the same dropdown.
   useEffect(() => {
+    if (!semesters.length) return;
+
     if (schoolFilter) {
-      // Check if current semester belongs to selected school
-      const currentSemesterInSchool = semesters.find(s => 
-        s.id === semesterFilter && s.school_id === schoolFilter
+      const schoolSemesters = sortSemestersNewestFirst(
+        semesters.filter((semester) => String(semester.school_id) === String(schoolFilter))
       );
-      // If current semester doesn't belong to selected school, reset it
-      if (semesterFilter && !currentSemesterInSchool) {
-        setSemesterFilter("");
+      const currentSemesterInSchool = schoolSemesters.find((semester) =>
+        String(semester.id) === String(semesterFilter)
+      );
+
+      if (!schoolSemesters.length) {
+        if (semesterFilter !== ALL_SEMESTERS) {
+          setSemesterFilter(ALL_SEMESTERS);
+        }
+        return;
       }
-    } else {
-      // If no school selected, reset semester filter
-      setSemesterFilter("");
+
+      if (!semesterFilter || (semesterFilter !== ALL_SEMESTERS && !currentSemesterInSchool)) {
+        setSemesterFilter(String(schoolSemesters[0].id));
+      }
+      return;
     }
-  }, [schoolFilter, semesters]);
+
+    if (!semesterFilter) {
+      const latestSemester = sortSemestersNewestFirst(semesters)[0];
+      if (latestSemester) {
+        setSemesterFilter(String(latestSemester.id));
+      }
+    }
+  }, [schoolFilter, semesters, semesterFilter]);
 
   // Fetch classes when school or semester filter changes
   useEffect(() => {
     if (userRole === "teacher") return;
-    fetchClasses(schoolFilter || null, semesterFilter || null);
+    fetchClasses(
+      schoolFilter || null,
+      semesterFilter && semesterFilter !== ALL_SEMESTERS ? semesterFilter : null
+    );
   }, [schoolFilter, semesterFilter, userRole]);
 
   useEffect(() => {
@@ -252,7 +321,7 @@ export default function ClassManagement() {
         max_students: 20,
         is_active: true
       });
-      fetchClasses(schoolFilter || null, semesterFilter || null);
+      fetchClasses(schoolFilter || null, getSemesterFilterParam());
       fetchTeachers(); // Refresh teachers to update their assignments
     } catch (err) {
       setError(err.response?.data?.error || "فشل في إضافة الحلقة");
@@ -287,7 +356,7 @@ export default function ClassManagement() {
       }
       
       setEditingClass(null);
-      fetchClasses(schoolFilter || null, semesterFilter || null);
+      fetchClasses(schoolFilter || null, getSemesterFilterParam());
       fetchTeachers(); // Refresh teachers to update their assignments
     } catch (err) {
       setError(err.response?.data?.error || "فشل في تحديث الحلقة");
@@ -302,7 +371,7 @@ export default function ClassManagement() {
             Authorization: `Bearer ${localStorage.getItem('token')}`
           }
         });
-        fetchClasses(schoolFilter || null, semesterFilter || null);
+        fetchClasses(schoolFilter || null, getSemesterFilterParam());
       } catch (err) {
         setError(err.response?.data?.error || "فشل في حذف الحلقة");
       }
@@ -318,7 +387,7 @@ export default function ClassManagement() {
           Authorization: `Bearer ${localStorage.getItem('token')}`
         }
       });
-      fetchClasses(schoolFilter || null, semesterFilter || null);
+      fetchClasses(schoolFilter || null, getSemesterFilterParam());
     } catch (err) {
       setError(err.response?.data?.error || "فشل في تغيير حالة الفصل");
     }
@@ -359,7 +428,7 @@ export default function ClassManagement() {
       setShowCopyModal(false);
       setCopySourceSemester("");
       setCopyTargetSemester("");
-      fetchClasses(schoolFilter || null, semesterFilter || null);
+      fetchClasses(schoolFilter || null, getSemesterFilterParam());
     } catch (err) {
       setCopyError(err.response?.data?.error || "فشل في نسخ الحلقات.");
     } finally {
@@ -616,7 +685,7 @@ export default function ClassManagement() {
           <button
             onClick={() => {
               fetchTeachers();
-              fetchClasses(schoolFilter || null, semesterFilter || null);
+              fetchClasses(schoolFilter || null, getSemesterFilterParam());
             }}
             className="flex items-center gap-2 bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600"
             title="تحديث قائمة المعلمين والحلقات"
@@ -757,25 +826,39 @@ export default function ClassManagement() {
           
           <div>
             <label className="block text-sm font-medium mb-2">📅 الفصل الدراسي</label>
-            <select
-              value={semesterFilter}
-              onChange={(e) => setSemesterFilter(e.target.value)}
-              disabled={!schoolFilter}
-              className={`w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                !schoolFilter ? 'bg-gray-100 cursor-not-allowed' : ''
-              }`}
-            >
-              <option value="">
-                {schoolFilter ? 'جميع فصول هذا المجمع' : 'اختر المجمع أولاً'}
-              </option>
-              {semesters
-                .filter(semester => schoolFilter && semester.school_id === schoolFilter)
-                .map(semester => (
-                <option key={semester.id} value={semester.id}>
-                  {semester.display_name || `الفصل ${semester.type === 'first' ? 'الأول' : semester.type === 'second' ? 'الثاني' : 'الصيفي'} ${semester.year}`}
+            <div className="flex gap-2">
+              <select
+                value={semesterFilter}
+                onChange={(e) => setSemesterFilter(e.target.value)}
+                className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value={ALL_SEMESTERS}>
+                  {schoolFilter ? 'جميع فصول هذا المجمع' : 'جميع الفصول'}
                 </option>
-              ))}
-            </select>
+                {sortSemestersNewestFirst(semesters)
+                  .filter(semester => !schoolFilter || String(semester.school_id) === String(schoolFilter))
+                  .map(semester => (
+                  <option key={semester.id} value={semester.id}>
+                    {semester.display_name || `الفصل ${semester.type === 'first' ? 'الأول' : semester.type === 'second' ? 'الثاني' : 'الصيفي'} ${semester.year}`}{!schoolFilter && semester.school_name ? ` - ${semester.school_name}` : ''}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={handleShowPreviousSemester}
+                disabled={!previousSemester}
+                className={`shrink-0 px-3 rounded-lg border flex items-center gap-2 transition-colors ${
+                  previousSemester
+                    ? 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+                    : 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                }`}
+                title={schoolFilter ? 'عرض الفصل السابق لهذا المجمع' : 'اختر مجمعاً لعرض الفصل السابق'}
+                aria-label="عرض الفصل السابق"
+              >
+                <AiOutlineRollback />
+                <span className="hidden xl:inline text-sm">السابق</span>
+              </button>
+            </div>
           </div>
           
           <div>
@@ -1520,6 +1603,7 @@ const ClassGradesModal = ({ classItem, onClose }) => {
   });
   const studentMap = new Map();
   const courseTotals = new Map();
+  const targetGradeLabel = "مقر";
   const attendanceCourseName = "المواظبة";
   const getColumnClass = (index) => (index % 2 === 0 ? "bg-slate-50/70" : "bg-white");
   const getRatingLabel = (value) => {
@@ -1535,7 +1619,20 @@ const ClassGradesModal = ({ classItem, onClose }) => {
     const studentId = row.student_id;
     const name = `${row.first_name} ${row.second_name || ""} ${row.third_name || ""} ${row.last_name}`.replace(/\s+/g, " ").trim();
     if (!studentMap.has(studentId)) {
-      studentMap.set(studentId, { name, courses: {}, presentCount: null, totalDays: null, absentCount: null });
+      studentMap.set(studentId, {
+        name,
+        courses: {},
+        presentCount: null,
+        totalDays: null,
+        absentCount: null,
+        quran: {
+          memorized_surah_id: row.memorized_surah_id,
+          memorized_ayah_number: row.memorized_ayah_number,
+          target_surah_id: row.target_surah_id,
+          target_ayah_number: row.target_ayah_number,
+        },
+        quranGrades: [],
+      });
     }
     const entry = studentMap.get(studentId);
     const key = row.course_name;
@@ -1556,6 +1653,15 @@ const ClassGradesModal = ({ classItem, onClose }) => {
       courseTotals.get(key).sum += value;
       courseTotals.get(key).count += 1;
     }
+    if (row.start_reference || row.end_reference || row.grade_type) {
+      entry.quranGrades.push({
+        start_reference: row.start_reference,
+        end_reference: row.end_reference,
+        grade_type: row.grade_type,
+        date_graded: row.date_graded,
+        created_at: row.created_at,
+      });
+    }
     if (entry.presentCount === null && row.present_count !== undefined && row.present_count !== null) {
       entry.presentCount = Number(row.present_count);
     }
@@ -1570,7 +1676,7 @@ const ClassGradesModal = ({ classItem, onClose }) => {
   const students = Array.from(studentMap.entries()).map(([studentId, data]) => {
     const attendancePct =
       data.totalDays && data.totalDays > 0 && data.presentCount !== null
-        ? (data.presentCount / data.totalDays) * 100
+        ? Math.min(100, (data.presentCount / data.totalDays) * 100)
         : null;
     const averages = courseNames.map((course) => {
       if (course === attendanceCourseName) {
@@ -1590,7 +1696,21 @@ const ClassGradesModal = ({ classItem, onClose }) => {
       return sum + (avg * weight) / 100;
     }, 0);
     const totalSum = valid.length ? weightedTotal : null;
-    return { studentId, name: data.name, averages, totalSum, attendancePct, absentCount: data.absentCount };
+    const targetProgress = calculateTargetCompletionData(data.quran || {}, data.quranGrades || []);
+    const targetPages = Number(targetProgress.targetPages) || 0;
+    const completedTargetPages = Math.min(Number(targetProgress.completedPages) || 0, targetPages);
+    const targetPercentage = targetPages > 0 ? Math.min(100, (completedTargetPages / targetPages) * 100) : null;
+    return {
+      studentId,
+      name: data.name,
+      averages,
+      totalSum,
+      attendancePct,
+      absentCount: data.absentCount,
+      targetPercentage,
+      targetPages,
+      completedTargetPages,
+    };
   });
 
   const sortedStudents = [...students].sort((a, b) => {
@@ -1617,6 +1737,12 @@ const ClassGradesModal = ({ classItem, onClose }) => {
     }
     return stats.sum / stats.count;
   });
+  const targetAverageValues = students
+    .map((student) => student.targetPercentage)
+    .filter((value) => value !== null);
+  const targetAverage = targetAverageValues.length
+    ? targetAverageValues.reduce((sum, value) => sum + value, 0) / targetAverageValues.length
+    : null;
 
   const handleExportToExcel = () => {
 
@@ -1629,6 +1755,7 @@ const ClassGradesModal = ({ classItem, onClose }) => {
           : percentage.toFixed(1);
         return [course, `${course} موزون (${percentageLabel})`];
       }),
+      targetGradeLabel,
       "أيام الغياب",
       "الإجمالي",
       "التقدير",
@@ -1647,6 +1774,7 @@ const ClassGradesModal = ({ classItem, onClose }) => {
       return [
         student.name,
         ...courseCells,
+        student.targetPercentage !== null ? student.targetPercentage.toFixed(1) : "-",
         student.absentCount !== null ? student.absentCount : "-",
         student.totalSum !== null ? student.totalSum.toFixed(1) : "-",
         getRatingLabel(student.totalSum),
@@ -1738,12 +1866,15 @@ const ClassGradesModal = ({ classItem, onClose }) => {
                     </Fragment>
                   ))}
                   <th className={`py-3 px-3 text-gray-700 ${getColumnClass(1 + courseNames.length * 2)}`}>
-                    {"أيام الغياب"}
+                    {targetGradeLabel}
                   </th>
                   <th className={`py-3 px-3 text-gray-700 ${getColumnClass(2 + courseNames.length * 2)}`}>
-                    {"الإجمالي"}
+                    {"أيام الغياب"}
                   </th>
                   <th className={`py-3 px-3 text-gray-700 ${getColumnClass(3 + courseNames.length * 2)}`}>
+                    {"الإجمالي"}
+                  </th>
+                  <th className={`py-3 px-3 text-gray-700 ${getColumnClass(4 + courseNames.length * 2)}`}>
                     {"التقدير"}
                   </th>
                 </tr>
@@ -1777,13 +1908,16 @@ const ClassGradesModal = ({ classItem, onClose }) => {
                         </Fragment>
                       );
                     })}
-                    <td className={`py-2 px-3 text-slate-700 text-center ${getColumnClass(1 + courseNames.length * 2)}`}>
+                    <td className={`py-2 px-3 text-slate-700 font-semibold ${getColumnClass(1 + courseNames.length * 2)}`}>
+                      {student.targetPercentage !== null ? `${student.targetPercentage.toFixed(1)}%` : "-"}
+                    </td>
+                    <td className={`py-2 px-3 text-slate-700 text-center ${getColumnClass(2 + courseNames.length * 2)}`}>
                       {student.absentCount !== null ? student.absentCount : "-"}
                     </td>
-                    <td className={`py-2 px-3 text-slate-700 font-semibold ${getColumnClass(2 + courseNames.length * 2)}`}>
+                    <td className={`py-2 px-3 text-slate-700 font-semibold ${getColumnClass(3 + courseNames.length * 2)}`}>
                       {student.totalSum !== null ? student.totalSum.toFixed(1) : "-"}
                     </td>
-                    <td className={`py-2 px-3 text-slate-700 font-semibold ${getColumnClass(3 + courseNames.length * 2)}`}>
+                    <td className={`py-2 px-3 text-slate-700 font-semibold ${getColumnClass(4 + courseNames.length * 2)}`}>
                       {getRatingLabel(student.totalSum)}
                     </td>
                   </tr>
@@ -1809,9 +1943,12 @@ const ClassGradesModal = ({ classItem, onClose }) => {
                       </Fragment>
                     );
                   })}
-                  <td className={`py-2 px-3 text-gray-500 ${getColumnClass(1 + courseNames.length * 2)}`}>-</td>
+                  <td className={`py-2 px-3 text-slate-700 font-semibold ${getColumnClass(1 + courseNames.length * 2)}`}>
+                    {targetAverage !== null ? `${targetAverage.toFixed(1)}%` : "-"}
+                  </td>
                   <td className={`py-2 px-3 text-gray-500 ${getColumnClass(2 + courseNames.length * 2)}`}>-</td>
                   <td className={`py-2 px-3 text-gray-500 ${getColumnClass(3 + courseNames.length * 2)}`}>-</td>
+                  <td className={`py-2 px-3 text-gray-500 ${getColumnClass(4 + courseNames.length * 2)}`}>-</td>
                 </tr>
               </tfoot>
             </table>

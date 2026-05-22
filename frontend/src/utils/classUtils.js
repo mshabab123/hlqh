@@ -1,4 +1,4 @@
-import { QURAN_SURAHS, getSurahIdFromName, getSurahNameFromId } from "./quranData";
+import { QURAN_SURAHS, getSurahIdFromName, getSurahNameFromId, getMemorizationPosition, getSurahIdFromPosition } from "./quranData";
 
 // Generate surahVerses object from centralized QURAN_SURAHS data
 export const surahVerses = QURAN_SURAHS.reduce((acc, surah) => {
@@ -22,59 +22,52 @@ export const calculateStudentGoalProgress = (studentData) => {
   const targetSurahId = parseInt(studentData.goal.target_surah_id) || 0;
   const targetAyah = parseInt(studentData.goal.target_ayah_number) || 0;
 
-  // Helper function to get max verse count for a surah by ID
-  const getMaxVerseById = (surahId) => {
-    const surah = QURAN_SURAHS.find(s => s.id === parseInt(surahId));
-    return surah ? surah.ayahCount : 0;
-  };
-
   let totalGoalVerses = 0;
   let memorizedVerses = 0;
 
   const currentSurahIdInt = parseInt(currentSurahId) || 0;
   const currentAyahInt = parseInt(currentAyah) || 0;
+  const currentPosition = getMemorizationPosition(currentSurahIdInt);
+  const targetPosition = getMemorizationPosition(targetSurahId);
 
-  if (!currentSurahIdInt || currentSurahIdInt === 0) {
-    // No current memorization - calculate from beginning (Surah 114) to target
-    for (let surahId = 114; surahId >= targetSurahId; surahId--) {
-      const maxVerse = getMaxVerseById(surahId);
-      
-      if (surahId === targetSurahId) {
-        totalGoalVerses += targetAyah;
-      } else {
-        totalGoalVerses += maxVerse;
-      }
+  if (!targetPosition) {
+    return { percentage: 0, memorizedVerses: 0, totalGoalVerses: 0 };
+  }
+
+  if (!currentPosition) {
+    for (let pos = 1; pos <= targetPosition; pos++) {
+      const surahId = getSurahIdFromPosition(pos);
+      const surah = QURAN_SURAHS.find(s => s.id === surahId);
+      if (!surah) continue;
+
+      totalGoalVerses += pos === targetPosition
+        ? Math.min(targetAyah, surah.ayahCount)
+        : surah.ayahCount;
     }
     memorizedVerses = 0;
-  } else if (currentSurahIdInt === targetSurahId) {
-    // Same surah - calculate verses between current and target
+  } else if (currentPosition === targetPosition) {
     if (currentAyahInt >= targetAyah) {
-      // Goal already achieved
       totalGoalVerses = 1;
       memorizedVerses = 1;
     } else {
       totalGoalVerses = targetAyah - currentAyahInt;
-      memorizedVerses = 0; // Haven't reached goal yet
+      memorizedVerses = 0;
     }
-  } else if (currentSurahIdInt > targetSurahId) {
-    // Current surah is before target surah (higher number = earlier in Quran)
-    for (let surahId = currentSurahIdInt; surahId >= targetSurahId; surahId--) {
-      const maxVerse = getMaxVerseById(surahId);
-      
-      if (surahId === currentSurahIdInt) {
-        // For current surah, count from current ayah to end
-        totalGoalVerses += Math.max(0, maxVerse - currentAyahInt);
-        memorizedVerses += 0; // Starting point
-      } else if (surahId === targetSurahId) {
-        // For target surah, count from beginning to target ayah
+  } else if (currentPosition < targetPosition) {
+    for (let pos = currentPosition; pos <= targetPosition; pos++) {
+      const surahId = getSurahIdFromPosition(pos);
+      const surah = QURAN_SURAHS.find(s => s.id === surahId);
+      if (!surah) continue;
+
+      if (pos === currentPosition) {
+        totalGoalVerses += Math.max(0, surah.ayahCount - currentAyahInt);
+      } else if (pos === targetPosition) {
         totalGoalVerses += targetAyah;
       } else {
-        // For surahs in between, count all verses
-        totalGoalVerses += maxVerse;
+        totalGoalVerses += surah.ayahCount;
       }
     }
   } else {
-    // Current surah is after target surah - goal already achieved
     totalGoalVerses = 1;
     memorizedVerses = 1;
   }

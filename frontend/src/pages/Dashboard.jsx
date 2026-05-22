@@ -10,6 +10,10 @@ export default function Dashboard() {
   const [userName, setUserName] = useState("");
   const [stats, setStats] = useState({});
   const [activities, setActivities] = useState([]);
+  const [semesters, setSemesters] = useState([]);
+  const [selectedSemester, setSelectedSemester] = useState("");
+  const [quranPageStats, setQuranPageStats] = useState(null);
+  const [quranStatsLoading, setQuranStatsLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activitiesLoading, setActivitiesLoading] = useState(true);
   const [error, setError] = useState("");
@@ -17,14 +21,25 @@ export default function Dashboard() {
 
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
+    let role = null;
     if (storedUser) {
       const user = JSON.parse(storedUser);
-      setUserRole(user.role);
+      role = user.role;
+      setUserRole(role);
       setUserName(`${user.first_name} ${user.last_name}`);
     }
     fetchStats();
     fetchActivities();
+    if (['admin', 'administrator', 'supervisor'].includes(role)) {
+      fetchSemesters();
+    }
   }, []);
+
+  useEffect(() => {
+    if (selectedSemester && ['admin', 'administrator', 'supervisor'].includes(userRole)) {
+      fetchQuranPageStats(selectedSemester);
+    }
+  }, [selectedSemester, userRole]);
 
   const fetchStats = async () => {
     try {
@@ -55,6 +70,53 @@ export default function Dashboard() {
       console.error('Failed to fetch activities:', err);
     } finally {
       setActivitiesLoading(false);
+    }
+  };
+
+  const fetchSemesters = async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/api/semesters`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      const semesterList = response.data.semesters || response.data || [];
+      setSemesters(semesterList);
+
+      if (semesterList.length > 0) {
+        const now = new Date();
+        const currentSemester = semesterList.find((semester) => {
+          const start = semester.start_date ? new Date(semester.start_date) : null;
+          const end = semester.end_date ? new Date(semester.end_date) : null;
+          return start && end && start <= now && end >= now;
+        });
+        const fallbackSemester = [...semesterList].sort((a, b) => {
+          const aTime = new Date(a.start_date || a.end_date || 0).getTime();
+          const bTime = new Date(b.start_date || b.end_date || 0).getTime();
+          return bTime - aTime;
+        })[0];
+        setSelectedSemester(String((currentSemester || fallbackSemester).id));
+      }
+    } catch (err) {
+      console.error('Failed to fetch semesters:', err);
+    }
+  };
+
+  const fetchQuranPageStats = async (semesterId) => {
+    try {
+      setQuranStatsLoading(true);
+      const response = await axios.get(`${API_BASE}/api/dashboard/quran-semester-pages`, {
+        params: { semester_id: semesterId },
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      setQuranPageStats(response.data);
+    } catch (err) {
+      console.error('Failed to fetch Quran page stats:', err);
+      setQuranPageStats(null);
+    } finally {
+      setQuranStatsLoading(false);
     }
   };
 
@@ -232,6 +294,85 @@ export default function Dashboard() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {['admin', 'administrator', 'supervisor'].includes(userRole) && (
+        <div className="bg-white rounded-xl shadow-md p-6 border mb-8">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">صفحات القرآن المسجلة في الفصل</h2>
+              <p className="text-sm text-gray-600 mt-1">إجمالي الصفحات حسب درجات الحفظ والمراجعة المسجلة.</p>
+            </div>
+            <select
+              value={selectedSemester}
+              onChange={(event) => setSelectedSemester(event.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 min-w-[260px] focus:ring-2 focus:ring-[var(--color-primary-500)] focus:border-transparent"
+            >
+              {semesters.map((semester) => (
+                <option key={semester.id} value={semester.id}>
+                  {semester.display_name || semester.name || `الفصل ${semester.id}`}
+                  {semester.school_name ? ` - ${semester.school_name}` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {quranStatsLoading ? (
+            <div className="flex justify-center items-center py-8 text-gray-600">
+              <AiOutlineLoading3Quarters className="animate-spin text-2xl text-[var(--color-primary-500)]" />
+              <span className="mr-2">جاري تحميل إحصائيات القرآن...</span>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <div className="border rounded-lg p-4 bg-emerald-50">
+                  <p className="text-sm text-emerald-700 mb-1">صفحات الحفظ</p>
+                  <p className="text-3xl font-bold text-emerald-900">{quranPageStats?.totals?.memorized_pages || 0}</p>
+                </div>
+                <div className="border rounded-lg p-4 bg-blue-50">
+                  <p className="text-sm text-blue-700 mb-1">صفحات المراجعة</p>
+                  <p className="text-3xl font-bold text-blue-900">{quranPageStats?.totals?.review_pages || 0}</p>
+                </div>
+                <div className="border rounded-lg p-4 bg-amber-50">
+                  <p className="text-sm text-amber-700 mb-1">سجلات قرآنية أخرى</p>
+                  <p className="text-3xl font-bold text-amber-900">{quranPageStats?.totals?.other_pages || 0}</p>
+                </div>
+                <div className="border rounded-lg p-4 bg-slate-50">
+                  <p className="text-sm text-slate-700 mb-1">إجمالي الصفحات</p>
+                  <p className="text-3xl font-bold text-slate-900">{quranPageStats?.totals?.total_pages || 0}</p>
+                  <p className="text-xs text-slate-500 mt-1">{quranPageStats?.totals?.records || 0} سجل</p>
+                </div>
+              </div>
+
+              {quranPageStats?.by_school?.length > 0 && (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm text-right border">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="p-3 border-b">المجمع</th>
+                        <th className="p-3 border-b">الحفظ</th>
+                        <th className="p-3 border-b">المراجعة</th>
+                        <th className="p-3 border-b">أخرى</th>
+                        <th className="p-3 border-b">الإجمالي</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {quranPageStats.by_school.map((school) => (
+                        <tr key={school.school_id || school.school_name} className="border-b last:border-0">
+                          <td className="p-3 font-medium text-gray-900">{school.school_name}</td>
+                          <td className="p-3 text-emerald-700 font-semibold">{school.memorized_pages}</td>
+                          <td className="p-3 text-blue-700 font-semibold">{school.review_pages}</td>
+                          <td className="p-3 text-amber-700 font-semibold">{school.other_pages}</td>
+                          <td className="p-3 text-gray-900 font-bold">{school.total_pages}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )}
         </div>
       )}
 

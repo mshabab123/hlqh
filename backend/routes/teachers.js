@@ -284,7 +284,7 @@ router.get('/my-classes/:classId/students', authenticateToken, async (req, res) 
 });
 
 // GET /api/teachers/:id - Get user details (teacher, admin, administrator, supervisor)
-router.get('/:id', async (req, res) => {
+router.get('/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     
@@ -354,7 +354,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // GET /api/teachers - Get all users by type (teachers, admins, administrators, supervisors)
-router.get('/', async (req, res) => {
+router.get('/', authenticateToken, async (req, res) => {
   try {
     const { user_type = 'teacher', school_id, is_active } = req.query;
     
@@ -456,7 +456,7 @@ router.get('/', async (req, res) => {
 });
 
 // PUT /api/teachers/:id - Update teacher information
-router.put('/:id', async (req, res) => {
+router.put('/:id', authenticateToken, requireRole(ROLES.ADMINISTRATOR), async (req, res) => {
   const client = await db.connect();
   try {
     const { id } = req.params;
@@ -528,7 +528,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // DELETE /api/teachers/:id - Delete teacher
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', authenticateToken, requireRole(ROLES.ADMINISTRATOR), async (req, res) => {
   const client = await db.connect();
   try {
     const { id } = req.params;
@@ -569,7 +569,7 @@ router.delete('/:id', async (req, res) => {
 });
 
 // PATCH /api/teachers/:id/activate - Toggle teacher activation status
-router.patch('/:id/activate', async (req, res) => {
+router.patch('/:id/activate', authenticateToken, requireRole(ROLES.ADMINISTRATOR), async (req, res) => {
   try {
     const { id } = req.params;
     const { is_active } = req.body;
@@ -596,7 +596,7 @@ router.patch('/:id/activate', async (req, res) => {
 });
 
 // POST /api/teachers/:id/classes - Assign multiple classes to teacher with role designation
-router.post('/:id/classes', async (req, res) => {
+router.post('/:id/classes', authenticateToken, requireRole(ROLES.ADMINISTRATOR), async (req, res) => {
   const client = await db.connect();
   try {
     const { id } = req.params;
