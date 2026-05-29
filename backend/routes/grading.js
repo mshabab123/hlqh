@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../config/database');
 const { authenticateToken: auth } = require('../middleware/auth');
+const { requireRole, ROLES } = require('../middleware/rbac');
 
 const normalizeIntArray = (value, fallback = []) => {
   if (Array.isArray(value)) {
@@ -356,7 +357,7 @@ router.get('/student/:studentId/class/:classId/semester/:semesterId/grades', aut
 
 // PUT /api/grading/grade/:gradeId
 // Edit an existing grade
-router.put('/grade/:gradeId', auth, async (req, res) => {
+router.put('/grade/:gradeId', auth, requireRole(ROLES.TEACHER), async (req, res) => {
   try {
     const { gradeId } = req.params;
     const { 
@@ -416,7 +417,7 @@ router.put('/grade/:gradeId', auth, async (req, res) => {
 
 // DELETE /api/grading/grade/:gradeId
 // Delete a grade
-router.delete('/grade/:gradeId', auth, async (req, res) => {
+router.delete('/grade/:gradeId', auth, requireRole(ROLES.TEACHER), async (req, res) => {
   try {
     const { gradeId } = req.params;
 
@@ -611,7 +612,7 @@ router.get('/teacher/my-classes', auth, async (req, res) => {
 
 // POST /api/grading/grade
 // Add a new grade
-router.post('/grade', auth, async (req, res) => {
+router.post('/grade', auth, requireRole(ROLES.TEACHER), async (req, res) => {
   try {
     const {
       student_id,

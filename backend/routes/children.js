@@ -3,8 +3,18 @@ const router = express.Router();
 const pool = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 
+// Object-level guard: privileged staff may act on any parentId; everyone else
+// may only act on their own (parentId === their own user id).
+const STAFF_ROLES = ['admin', 'administrator', 'supervisor', 'teacher'];
+function ensureOwnParentOrStaff(req, res, next) {
+  const role = req.user?.role?.toLowerCase();
+  if (STAFF_ROLES.includes(role)) return next();
+  if (String(req.user?.id) === String(req.params.parentId)) return next();
+  return res.status(403).json({ error: 'غير مصرح بالوصول إلى بيانات ولي أمر آخر' });
+}
+
 // Get children for a specific parent/user
-router.get('/:parentId', authenticateToken, async (req, res) => {
+router.get('/:parentId', authenticateToken, ensureOwnParentOrStaff, async (req, res) => {
   try {
     const { parentId } = req.params;
     
@@ -42,7 +52,7 @@ router.get('/:parentId', authenticateToken, async (req, res) => {
 
 
 // Get available students (not assigned to this parent)
-router.get('/:parentId/available', authenticateToken, async (req, res) => {
+router.get('/:parentId/available', authenticateToken, ensureOwnParentOrStaff, async (req, res) => {
   try {
     const { parentId } = req.params;
     
@@ -79,7 +89,7 @@ router.get('/:parentId/available', authenticateToken, async (req, res) => {
 });
 
 // Add a child to a parent
-router.post('/:parentId/add', authenticateToken, async (req, res) => {
+router.post('/:parentId/add', authenticateToken, ensureOwnParentOrStaff, async (req, res) => {
   try {
     const { parentId } = req.params;
     const {
@@ -207,7 +217,7 @@ router.post('/:parentId/add', authenticateToken, async (req, res) => {
 });
 
 // Remove a child from a parent
-router.delete('/:parentId/:relationshipId', authenticateToken, async (req, res) => {
+router.delete('/:parentId/:relationshipId', authenticateToken, ensureOwnParentOrStaff, async (req, res) => {
   try {
     const { parentId, relationshipId } = req.params;
     
@@ -233,7 +243,7 @@ router.delete('/:parentId/:relationshipId', authenticateToken, async (req, res) 
 });
 
 // Update relationship details
-router.put('/:parentId/:relationshipId', authenticateToken, async (req, res) => {
+router.put('/:parentId/:relationshipId', authenticateToken, ensureOwnParentOrStaff, async (req, res) => {
   try {
     const { parentId, relationshipId } = req.params;
     const { relationshipType, isPrimary } = req.body;

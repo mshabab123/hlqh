@@ -4,6 +4,7 @@ const router = express.Router();
 const db = require('../config/database');
 const { body, validationResult } = require('express-validator');
 const { authenticateToken: auth } = require('../middleware/auth');
+const { requireRole, ROLES } = require('../middleware/rbac');
 
 const rateLimit = require('express-rate-limit');
 const registerLimiter = rateLimit({
@@ -47,7 +48,7 @@ const administratorValidationRules = [
 ];
 
 // POST /api/administrators - Register an administrator
-router.post('/', auth, registerLimiter, administratorValidationRules, async (req, res) => {
+router.post('/', auth, requireRole(ROLES.ADMIN), registerLimiter, administratorValidationRules, async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ error: errors.array()[0].msg });
@@ -191,7 +192,7 @@ router.get('/:id', auth, async (req, res) => {
 });
 
 // PUT /api/administrators/:id - Update administrator information
-router.put('/:id', auth, async (req, res) => {
+router.put('/:id', auth, requireRole(ROLES.ADMIN), async (req, res) => {
   try {
     const { id } = req.params;
     const {
@@ -263,7 +264,7 @@ router.put('/:id', auth, async (req, res) => {
 });
 
 // PATCH /api/administrators/:id/activate - Toggle administrator activation
-router.patch('/:id/activate', auth, async (req, res) => {
+router.patch('/:id/activate', auth, requireRole(ROLES.ADMIN), async (req, res) => {
   try {
     const { id } = req.params;
     const { is_active } = req.body;
@@ -287,7 +288,7 @@ router.patch('/:id/activate', auth, async (req, res) => {
 });
 
 // DELETE /api/administrators/:id - Delete administrator (soft delete)
-router.delete('/:id', auth, async (req, res) => {
+router.delete('/:id', auth, requireRole(ROLES.ADMIN), async (req, res) => {
   try {
     const { id } = req.params;
 

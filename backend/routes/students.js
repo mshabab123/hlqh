@@ -4,6 +4,7 @@ const router = express.Router();
 const db = require('../config/database');
 const { body, validationResult } = require('express-validator');
 const { authenticateToken: auth } = require('../middleware/auth');
+const { requireRole, ROLES } = require('../middleware/rbac');
 
 const rateLimit = require('express-rate-limit');
 const registerLimiter = rateLimit({
@@ -463,7 +464,7 @@ router.post('/manage', auth, [
 });
 
 // PUT /api/students/:id - Update student information
-router.put('/:id', auth, async (req, res) => {
+router.put('/:id', auth, requireRole(ROLES.TEACHER), async (req, res) => {
   try {
     // Basic validation for required fields if they are provided
     if (req.body.email && req.body.email.trim() && !/\S+@\S+\.\S+/.test(req.body.email)) {
@@ -699,7 +700,7 @@ router.put('/:id', auth, async (req, res) => {
 });
 
 // DELETE /api/students/:id - Delete student (hard delete)
-router.delete('/:id', auth, async (req, res) => {
+router.delete('/:id', auth, requireRole(ROLES.ADMINISTRATOR), async (req, res) => {
   try {
     const { id } = req.params;
 

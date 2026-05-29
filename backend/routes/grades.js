@@ -71,6 +71,40 @@ router.get('/semester/:semesterId/class/:classId', auth, async (req, res) => {
 router.get('/student/:studentId', auth, async (req, res) => {
   try {
     const { studentId } = req.params;
+
+    // Object-level authorization: students may only read their own grades;
+    // parents only their linked children; teachers only students in their classes.
+    const userRole = req.user?.role;
+    const userId = req.user?.id;
+
+    if (userRole === 'student' && String(userId) !== String(studentId)) {
+      return res.status(403).json({ message: 'لا يمكنك عرض درجات طالب آخر' });
+    }
+
+    if (userRole === 'parent' || userRole === 'parent_student') {
+      const parentCheck = await pool.query(
+        'SELECT 1 FROM parent_student_relationships WHERE parent_id = $1 AND student_id = $2',
+        [userId, studentId]
+      );
+      if (parentCheck.rows.length === 0) {
+        return res.status(403).json({ message: 'لا يمكنك عرض درجات هذا الطالب' });
+      }
+    }
+
+    if (userRole === 'teacher') {
+      const teacherCheck = await pool.query(
+        `SELECT 1
+         FROM student_enrollments se
+         JOIN teacher_class_assignments tca ON se.class_id = tca.class_id
+         WHERE tca.teacher_id = $1 AND tca.is_active = true
+           AND se.student_id = $2 AND se.status = 'enrolled'`,
+        [userId, studentId]
+      );
+      if (teacherCheck.rows.length === 0) {
+        return res.status(403).json({ message: 'لا يمكنك عرض درجات هذا الطالب' });
+      }
+    }
+
     const limitValue = req.query.limit ? parseInt(req.query.limit, 10) : null;
     const limitClause = Number.isFinite(limitValue) ? ' LIMIT $2' : '';
     const params = Number.isFinite(limitValue) ? [studentId, limitValue] : [studentId];

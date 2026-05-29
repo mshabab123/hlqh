@@ -10,7 +10,17 @@ if (!process.env.JWT_SECRET) {
 }
 const JWT_SECRET = process.env.JWT_SECRET;
 
-router.post('/login', async (req, res) => {
+// Throttle login attempts to slow down credential brute-forcing.
+const rateLimit = require('express-rate-limit');
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10,                  // 10 attempts per IP per window
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'تم تجاوز عدد محاولات تسجيل الدخول المسموح بها. حاول مرة أخرى بعد قليل.' }
+});
+
+router.post('/login', loginLimiter, async (req, res) => {
   const { id, password } = req.body;
 
   try {
