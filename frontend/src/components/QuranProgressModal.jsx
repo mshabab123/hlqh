@@ -6,6 +6,13 @@ import CircularProgressChart from "./CircularProgressChart";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
+function jsonHeaders(token) {
+  return {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    'Content-Type': 'application/json'
+  };
+}
+
 const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) => {
   const [showForms, setShowForms] = useState(false);
   const [studentGrades, setStudentGrades] = useState([]);
@@ -45,10 +52,8 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
   const fetchSemesterId = async (token) => {
     try {
       const listRes = await fetch(`${API_BASE}/api/semesters`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+        credentials: "include",
+        headers: jsonHeaders(token)
       });
 
       if (!listRes.ok) return null;
@@ -81,10 +86,8 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
 
   const fetchAllSemestersGrades = async (token) => {
     const listRes = await fetch(`${API_BASE}/api/semesters`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
+      credentials: "include",
+      headers: jsonHeaders(token)
     });
 
     if (!listRes.ok) return [];
@@ -103,10 +106,8 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
 
     const requests = ids.map((semesterId) =>
       fetch(`${API_BASE}/api/grades/student/${student.id}?semester_id=${semesterId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+        credentials: "include",
+        headers: jsonHeaders(token)
       }).then(async (res) => (res.ok ? res.json() : null))
     );
 
@@ -162,10 +163,8 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
 
         const response = await fetch(apiUrl,
           {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            }
+            credentials: "include",
+            headers: jsonHeaders(token)
           }
         );
 

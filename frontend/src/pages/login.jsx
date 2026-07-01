@@ -31,10 +31,10 @@ export default function Login() {
       const res = await axios.post(`${API_BASE}/api/auth/login`, {
         id: form.id,
         password: form.password,
-      });
+      }, { withCredentials: true });
 
-      if (res.data.token) {
-        localStorage.setItem("token", res.data.token);
+      if (res.data.user) {
+        localStorage.removeItem("token");
         localStorage.setItem("user", JSON.stringify(res.data.user));
         
         // Check if user is inactive

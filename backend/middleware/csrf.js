@@ -1,15 +1,4 @@
-function parseCookies(cookieHeader) {
-  const cookies = {};
-  if (!cookieHeader) return cookies;
-
-  cookieHeader.split(';').forEach((cookie) => {
-    const [name, ...rest] = cookie.trim().split('=');
-    if (!name) return;
-    cookies[name] = decodeURIComponent(rest.join('='));
-  });
-
-  return cookies;
-}
+const { parseCookies, getBearerToken } = require('../utils/cookies');
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
@@ -18,11 +7,12 @@ function csrfProtection(req, res, next) {
     return next();
   }
 
-  if (req.headers.authorization) {
+  const cookies = parseCookies(req.headers.cookie);
+
+  if (!cookies.auth_token && getBearerToken(req.headers.authorization)) {
     return next();
   }
 
-  const cookies = parseCookies(req.headers.cookie);
   if (!cookies.auth_token) {
     return next();
   }

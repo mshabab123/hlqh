@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import * as XLSX from "xlsx";
 import axios from "axios";
 import { 
   AiOutlineSearch, 
@@ -11,6 +10,7 @@ import {
   AiOutlinePlus,
   AiOutlineClose
 } from "react-icons/ai";
+import { exportRowsToCsv } from "../utils/exportCsv";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
@@ -468,10 +468,7 @@ const ComprehensiveGrading = () => {
     ];
 
     const allRows = [...headerRows, tableHeaders, ...rows];
-    const worksheet = XLSX.utils.aoa_to_sheet(allRows);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Grading");
-    XLSX.writeFile(workbook, "comprehensive-grading.xlsx");
+    exportRowsToCsv(allRows, "comprehensive-grading.csv");
   };
 
   const activeClass = classes[activeTab] || null;

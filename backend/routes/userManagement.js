@@ -2,6 +2,7 @@ const express = require('express');
 const bcrypt = require('bcrypt');
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
+const { BCRYPT_ROUNDS } = require('../config/security');
 const { authenticateToken } = require('../middleware/auth');
 const { requireRole, canManageUser, getUserPermissions, ROLES } = require('../middleware/rbac');
 
@@ -515,12 +516,19 @@ router.post('/reset-password',
       }
 
       // Hash the new password
-      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      const hashedPassword = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
 
       // Update the password
       await db.query(
         'UPDATE users SET password = $1 WHERE id = $2',
         [hashedPassword, userId]
+      );
+
+      // Revoke all of the target user's sessions so any existing token is
+      // invalidated after an admin/administrator reset.
+      await db.query(
+        'UPDATE user_sessions SET is_active = false WHERE user_id = $1 AND is_active = true',
+        [userId]
       );
 
       res.json({

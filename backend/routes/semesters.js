@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../config/database');
 const { authenticateToken: auth } = require('../middleware/auth');
+const { canAccessSchool, canAccessClass } = require('../utils/accessScope');
 
 // Get all semesters (optionally filtered by school)
 router.get('/', auth, async (req, res) => {
@@ -12,6 +13,9 @@ router.get('/', auth, async (req, res) => {
     let params = [];
     
     if (school_id) {
+      if (!(await canAccessSchool(pool, req.user, school_id)) && !['teacher', 'student', 'parent', 'parent_student'].includes(req.user?.role)) {
+        return res.status(403).json({ message: 'Access denied for this school' });
+      }
       query = `
         SELECT s.*, sc.name as school_name 
         FROM semesters s
@@ -96,6 +100,10 @@ router.post('/', auth, async (req, res) => {
       return res.status(400).json({ message: 'يجب تحديد المجمع للفصل الدراسي' });
     }
     
+    if (!(await canAccessSchool(pool, req.user, school_id))) {
+      return res.status(403).json({ message: 'Access denied for this school' });
+    }
+
     // Check if school exists
     const schoolCheck = await pool.query('SELECT id FROM schools WHERE id = $1', [school_id]);
     if (schoolCheck.rows.length === 0) {
@@ -137,6 +145,9 @@ router.put('/:id', auth, async (req, res) => {
 
     // If school_id is provided, validate it
     if (school_id) {
+      if (!(await canAccessSchool(pool, req.user, school_id))) {
+        return res.status(403).json({ message: 'Access denied for this school' });
+      }
       const schoolCheck = await pool.query('SELECT id FROM schools WHERE id = $1', [school_id]);
       if (schoolCheck.rows.length === 0) {
         return res.status(404).json({ message: 'المجمع غير موجود' });
@@ -215,6 +226,9 @@ router.delete('/:id', auth, async (req, res) => {
 router.get('/:id/courses/:schoolId', auth, async (req, res) => {
   try {
     const { id: semesterId, schoolId } = req.params;
+    if (!(await canAccessSchool(pool, req.user, schoolId)) && !['teacher', 'student', 'parent', 'parent_student'].includes(req.user?.role)) {
+      return res.status(403).json({ message: 'Access denied for this school' });
+    }
     
     const result = await pool.query(
       'SELECT * FROM semester_courses WHERE semester_id = $1 AND school_id = $2 AND class_id IS NULL ORDER BY name',
@@ -232,6 +246,9 @@ router.get('/:id/courses/:schoolId', auth, async (req, res) => {
 router.get('/:id/classes/:classId/courses', auth, async (req, res) => {
   try {
     const { id: semesterId, classId } = req.params;
+    if (!(await canAccessClass(pool, req.user, classId))) {
+      return res.status(403).json({ message: 'Access denied for this class' });
+    }
     
     const result = await pool.query(
       `
@@ -267,6 +284,13 @@ router.post('/:id/courses', auth, async (req, res) => {
 
     const { id: semesterId } = req.params;
     const { name, percentage, requires_surah, description, school_id, class_id, grade_type } = req.body;
+    if (class_id) {
+      if (!(await canAccessClass(pool, req.user, class_id))) {
+        return res.status(403).json({ message: 'Access denied for this class' });
+      }
+    } else if (!(await canAccessSchool(pool, req.user, school_id))) {
+      return res.status(403).json({ message: 'Access denied for this school' });
+    }
 
     const result = await pool.query(
       'INSERT INTO semester_courses (semester_id, school_id, class_id, name, percentage, requires_surah, description, grade_type, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW()) RETURNING *',
@@ -290,6 +314,9 @@ router.post('/:id/classes/:classId/courses', auth, async (req, res) => {
 
     const { id: semesterId, classId } = req.params;
     const { name, percentage, requires_surah, description, grade_type } = req.body;
+    if (!(await canAccessClass(pool, req.user, classId))) {
+      return res.status(403).json({ message: 'Access denied for this class' });
+    }
 
     // Get class info to determine school_id
     const classResult = await pool.query('SELECT school_id FROM classes WHERE id = $1', [classId]);

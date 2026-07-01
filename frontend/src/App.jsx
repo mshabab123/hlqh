@@ -45,7 +45,7 @@ import useVersionCheck from "./hooks/useVersionCheck";
 
 export default function App() {
   const location = useLocation();
-  const isLoggedIn = !!localStorage.getItem("token");
+  const isLoggedIn = !!localStorage.getItem("user") || !!localStorage.getItem("token");
   const { updateAvailable, refresh } = useVersionCheck();
   // Routes that shouldn't show navbar
   const noNavbarRoutes = ["/login", "/Login", "/forgot-password", "/reset-password"];

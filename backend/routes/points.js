@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../config/database');
 const { authenticateToken: auth } = require('../middleware/auth');
+const { canAccessStudent, canAccessClass } = require('../utils/accessScope');
 
 // Initialize points table
 const initializePointsTable = async () => {
@@ -59,11 +60,16 @@ initializePointsTable();
 router.get('/student/:studentId', auth, async (req, res) => {
   try {
     const { studentId } = req.params;
-    const { semester_id, date_from, date_to, page = 1, limit = 50 } = req.query;
+    const { semester_id, date_from, date_to } = req.query;
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200);
     
     // Check if user can view this student's points
     const userRole = req.user?.role;
     const userId = req.user?.id;
+    if (!(await canAccessStudent(db, req.user, studentId))) {
+      return res.status(403).json({ error: 'Access denied for this student' });
+    }
     
     if (userRole === 'student' && userId !== studentId) {
       return res.status(403).json({ error: 'لا يمكنك عرض نقاط طالب آخر' });
@@ -85,7 +91,8 @@ router.get('/student/:studentId', auth, async (req, res) => {
         return res.status(403).json({ error: 'لا يمكنك عرض نقاط هذا الطالب' });
       }
     }
-    
+    // Administrator/supervisor school scoping is already handled by canAccessStudent above.
+
     let query = `
       SELECT
         dp.id,
@@ -140,22 +147,39 @@ router.get('/student/:studentId', auth, async (req, res) => {
     
     const result = await db.query(query, params);
     
-    // Get total points summary
-    const summaryQuery = `
-      SELECT 
+    // Get total points summary (parameterized to prevent SQL injection)
+    let summaryQuery = `
+      SELECT
         COUNT(*) as total_entries,
         SUM(points_given) as total_points,
         AVG(points_given) as average_points,
         MAX(points_given) as max_points,
         MIN(points_given) as min_points
-      FROM daily_points 
+      FROM daily_points
       WHERE student_id = $1
-      ${semester_id ? `AND semester_id = ${semester_id}` : ''}
-      ${date_from ? `AND points_date >= '${date_from}'` : ''}
-      ${date_to ? `AND points_date <= '${date_to}'` : ''}
     `;
-    
-    const summaryResult = await db.query(summaryQuery, [studentId]);
+    const summaryParams = [studentId];
+    let summaryIndex = 2;
+
+    if (semester_id) {
+      summaryQuery += ` AND semester_id = $${summaryIndex}`;
+      summaryParams.push(semester_id);
+      summaryIndex++;
+    }
+
+    if (date_from) {
+      summaryQuery += ` AND points_date >= $${summaryIndex}`;
+      summaryParams.push(date_from);
+      summaryIndex++;
+    }
+
+    if (date_to) {
+      summaryQuery += ` AND points_date <= $${summaryIndex}`;
+      summaryParams.push(date_to);
+      summaryIndex++;
+    }
+
+    const summaryResult = await db.query(summaryQuery, summaryParams);
     
     res.json({
       points: result.rows,
@@ -411,16 +435,29 @@ router.put('/:id', auth, async (req, res) => {
       const pointsCheck = await db.query(`
         SELECT id FROM daily_points WHERE id = $1 AND teacher_id = $2
       `, [id, teacher_id]);
-      
+
       if (pointsCheck.rows.length === 0) {
         return res.status(403).json({ error: 'لا يمكنك تحديث نقاط معلم آخر' });
       }
+    } else if (userRole === 'administrator' || userRole === 'supervisor') {
+      // Administrators/supervisors may only update points within their own school.
+      const scopeTable = userRole === 'administrator' ? 'administrators' : 'supervisors';
+      const pointsCheck = await db.query(`
+        SELECT dp.id FROM daily_points dp
+        JOIN classes c ON dp.class_id = c.id
+        JOIN ${scopeTable} sc ON c.school_id = sc.school_id
+        WHERE dp.id = $1 AND sc.id = $2
+      `, [id, teacher_id]);
+
+      if (pointsCheck.rows.length === 0) {
+        return res.status(403).json({ error: 'لا يمكنك تحديث نقاط خارج نطاق مجمعك' });
+      }
     } else {
-      // Admins, administrators, and supervisors can update any points
+      // Admin can update any points.
       const pointsCheck = await db.query(`
         SELECT id FROM daily_points WHERE id = $1
       `, [id]);
-      
+
       if (pointsCheck.rows.length === 0) {
         return res.status(404).json({ error: 'النقاط غير موجودة' });
       }
@@ -462,12 +499,25 @@ router.delete('/:id', auth, async (req, res) => {
       const pointsCheck = await db.query(`
         SELECT id FROM daily_points WHERE id = $1 AND teacher_id = $2
       `, [id, teacher_id]);
-      
+
       if (pointsCheck.rows.length === 0) {
         return res.status(403).json({ error: 'لا يمكنك حذف نقاط معلم آخر' });
       }
+    } else if (userRole === 'administrator' || userRole === 'supervisor') {
+      // Administrators/supervisors may only delete points within their own school.
+      const scopeTable = userRole === 'administrator' ? 'administrators' : 'supervisors';
+      const pointsCheck = await db.query(`
+        SELECT dp.id FROM daily_points dp
+        JOIN classes c ON dp.class_id = c.id
+        JOIN ${scopeTable} sc ON c.school_id = sc.school_id
+        WHERE dp.id = $1 AND sc.id = $2
+      `, [id, teacher_id]);
+
+      if (pointsCheck.rows.length === 0) {
+        return res.status(403).json({ error: 'لا يمكنك حذف نقاط خارج نطاق مجمعك' });
+      }
     }
-    
+
     const result = await db.query(`
       DELETE FROM daily_points WHERE id = $1 RETURNING *
     `, [id]);

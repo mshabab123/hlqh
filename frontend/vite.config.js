@@ -23,11 +23,15 @@ function versionPlugin() {
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   const apiBase = env.VITE_API_BASE || "http://localhost:5000";
+  const isProduction = mode === "production";
 
   return {
     plugins: [react(), tailwindcss(), versionPlugin()],
     define: {
       __APP_VERSION__: JSON.stringify(BUILD_VERSION),
+    },
+    esbuild: {
+      drop: isProduction ? ["console", "debugger"] : [],
     },
     server: {
       proxy: {

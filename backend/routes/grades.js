@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../config/database');
 const { authenticateToken: auth } = require('../middleware/auth');
+const { requireRole, ROLES } = require('../middleware/rbac');
+const { canAccessStudent, canAccessClass } = require('../utils/accessScope');
 
 
 
@@ -10,6 +12,9 @@ const { authenticateToken: auth } = require('../middleware/auth');
 router.get('/semester/:semesterId/class/:classId', auth, async (req, res) => {
   try {
     const { semesterId, classId } = req.params;
+    if (!(await canAccessClass(pool, req.user, classId))) {
+      return res.status(403).json({ message: 'Access denied for this class' });
+    }
     
     // If user is a teacher, verify they are assigned to this class
     if (req.user.role === 'teacher') {
@@ -71,6 +76,9 @@ router.get('/semester/:semesterId/class/:classId', auth, async (req, res) => {
 router.get('/student/:studentId', auth, async (req, res) => {
   try {
     const { studentId } = req.params;
+    if (!(await canAccessStudent(pool, req.user, studentId))) {
+      return res.status(403).json({ message: 'Access denied for this student' });
+    }
 
     // Object-level authorization: students may only read their own grades;
     // parents only their linked children; teachers only students in their classes.
@@ -163,6 +171,9 @@ router.get('/student/:studentId', auth, async (req, res) => {
 router.get('/student/:studentId/semester/:semesterId', auth, async (req, res) => {
   try {
     const { studentId, semesterId } = req.params;
+    if (!(await canAccessStudent(pool, req.user, studentId))) {
+      return res.status(403).json({ message: 'Access denied for this student' });
+    }
     
     // If user is a teacher, verify the student is in their assigned classes
     if (req.user.role === 'teacher') {
@@ -219,6 +230,9 @@ router.post('/', auth, async (req, res) => {
       end_reference,
       grade_date
     } = req.body;
+    if (!(await canAccessClass(pool, req.user, class_id))) {
+      return res.status(403).json({ message: 'Access denied for this class' });
+    }
 
     // If user is a teacher, verify they are assigned to the class
     if (req.user.role === 'teacher') {
@@ -317,6 +331,13 @@ router.put('/:id', auth, async (req, res) => {
       end_reference,
       grade_date
     } = req.body;
+    const existingGradeScope = await pool.query('SELECT class_id FROM grades WHERE id = $1', [id]);
+    if (existingGradeScope.rows.length === 0) {
+      return res.status(404).json({ message: 'Grade not found' });
+    }
+    if (!(await canAccessClass(pool, req.user, existingGradeScope.rows[0].class_id))) {
+      return res.status(403).json({ message: 'Access denied for this grade' });
+    }
 
     // If user is a teacher, verify they can edit this grade
     if (req.user.role === 'teacher') {
@@ -395,6 +416,13 @@ router.delete('/:id', auth, async (req, res) => {
     }
 
     const { id } = req.params;
+    const existingGradeScope = await pool.query('SELECT class_id FROM grades WHERE id = $1', [id]);
+    if (existingGradeScope.rows.length === 0) {
+      return res.status(404).json({ message: 'Grade not found' });
+    }
+    if (!(await canAccessClass(pool, req.user, existingGradeScope.rows[0].class_id))) {
+      return res.status(403).json({ message: 'Access denied for this grade' });
+    }
 
     // If user is a teacher, verify they can delete this grade
     if (req.user.role === 'teacher') {
@@ -444,9 +472,12 @@ router.delete('/:id', auth, async (req, res) => {
 });
 
 // Get class grades summary
-router.get('/class/:classId/semester/:semesterId/summary', auth, async (req, res) => {
+router.get('/class/:classId/semester/:semesterId/summary', auth, requireRole(ROLES.TEACHER), async (req, res) => {
   try {
     const { classId, semesterId } = req.params;
+    if (!(await canAccessClass(pool, req.user, classId))) {
+      return res.status(403).json({ message: 'Access denied for this class' });
+    }
     
     const result = await pool.query(`
       SELECT 

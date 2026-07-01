@@ -287,7 +287,7 @@ const PermissionEditorModal = ({ user, isOpen, onClose, onSave, allPermissions, 
             onClick={onClose}
             className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
           >
-            ط¥ظ„ط؛ط§ط،
+            إلغاء
           </button>
           <button
             onClick={handleSave}
@@ -344,7 +344,7 @@ export default function PrivilegeManagement() {
       setUsers(allUsers);
       setError("");
     } catch (err) {
-      setError("ظپط´ظ„ ظپظٹ طھط­ظ…ظٹظ„ ط§ظ„ظ…ط³طھط®ط¯ظ…ظٹظ†");
+      setError("فشل في تحميل المستخدمين");
       setUsers([]);
     } finally {
       setLoading(false);
@@ -358,7 +358,7 @@ export default function PrivilegeManagement() {
 
   const handleSavePermissions = async (userId, permissions) => {
     if (currentRole !== "admin") {
-      throw new Error("ط؛ظٹط± ظ…ط³ظ…ظˆط­ ط¨ط§ظ„طھط¹ط¯ظٹظ„");
+      throw new Error("غير مسموح بالتعديل");
     }
     try {
       await axiosInstance.put(`${API_BASE}/api/privileges/${userId}`, {
@@ -372,7 +372,7 @@ export default function PrivilegeManagement() {
           : user
       ));
     } catch (error) {
-      throw new Error(error.response?.data?.error || 'ظپط´ظ„ ظپظٹ ط­ظپط¸ ط§ظ„طµظ„ط§ط­ظٹط§طھ');
+      throw new Error(error.response?.data?.error || 'فشل في حفظ الصلاحيات');
     }
   };
 
@@ -389,7 +389,7 @@ export default function PrivilegeManagement() {
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
-        <div className="text-lg">ط¬ط§ط±ظٹ ط§ظ„طھط­ظ…ظٹظ„...</div>
+        <div className="text-lg">جاري التحميل...</div>
       </div>
     );
   }
@@ -485,10 +485,10 @@ export default function PrivilegeManagement() {
                       <div className="text-sm">
                         {customPermissions.length > 0 ? (
                           <span className="text-blue-600">
-                            {customPermissions.length} طµظ„ط§ط­ظٹط© ظ…ط®طµطµط©
+                            {customPermissions.length} صلاحية مخصصة
                           </span>
                         ) : (
-                          <span className="text-gray-500">طµظ„ط§ط­ظٹط§طھ ط§ظپطھط±ط§ط¶ظٹط©</span>
+                          <span className="text-gray-500">صلاحيات افتراضية</span>
                         )}
                       </div>
                     </td>

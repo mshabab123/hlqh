@@ -1,14 +1,40 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const router = express.Router();
 const db = require('../config/database');
+const {
+  hashToken,
+  TOKEN_TTL,
+  TOKEN_TTL_MS,
+  LOGIN_MAX_ATTEMPTS,
+  LOCKOUT_MINUTES,
+} = require('../config/security');
+const { authenticateToken } = require('../middleware/auth');
+const { authCookieOptions, csrfCookieOptions } = require('../utils/cookies');
 
 // JWT_SECRET must be set in environment variables
 if (!process.env.JWT_SECRET) {
   throw new Error('JWT_SECRET environment variable is required but not set');
 }
 const JWT_SECRET = process.env.JWT_SECRET;
+
+function setAuthCookies(res, token) {
+  res.cookie('auth_token', token, {
+    ...authCookieOptions(),
+    maxAge: TOKEN_TTL_MS,
+  });
+  res.cookie('csrf_token', crypto.randomBytes(32).toString('hex'), {
+    ...csrfCookieOptions(),
+    maxAge: TOKEN_TTL_MS,
+  });
+}
+
+function clearAuthCookies(res) {
+  res.clearCookie('auth_token', authCookieOptions());
+  res.clearCookie('csrf_token', csrfCookieOptions());
+}
 
 // Throttle login attempts to slow down credential brute-forcing.
 const rateLimit = require('express-rate-limit');
@@ -27,8 +53,9 @@ router.post('/login', loginLimiter, async (req, res) => {
     // 1. Find user by id and determine their role(s)
     const result = await db.query(`
       SELECT 
-        u.id, u.first_name, u.second_name, u.third_name, u.last_name, 
+        u.id, u.first_name, u.second_name, u.third_name, u.last_name,
         u.email, u.phone, u.password, u.is_active,
+        u.failed_login_attempts, u.lockout_until,
         CASE 
           WHEN p.id IS NOT NULL AND s.id IS NOT NULL THEN 'parent_student'
           WHEN p.id IS NOT NULL THEN 'parent'
@@ -56,10 +83,39 @@ router.post('/login', loginLimiter, async (req, res) => {
     }
     const user = result.rows[0];
 
+    // 1b. Enforce per-account lockout to slow targeted brute-forcing.
+    if (user.lockout_until && new Date(user.lockout_until) > new Date()) {
+      const minutesLeft = Math.ceil((new Date(user.lockout_until) - new Date()) / 60000);
+      return res.status(429).json({
+        error: `تم قفل الحساب مؤقتاً بسبب محاولات دخول خاطئة متكررة. حاول مرة أخرى بعد ${minutesLeft} دقيقة.`
+      });
+    }
+
     // 2. Check password
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) {
+      // Increment failed attempts and lock the account once the threshold is hit.
+      const attempts = (user.failed_login_attempts || 0) + 1;
+      if (attempts >= LOGIN_MAX_ATTEMPTS) {
+        await db.query(
+          'UPDATE users SET failed_login_attempts = 0, lockout_until = $1 WHERE id = $2',
+          [new Date(Date.now() + LOCKOUT_MINUTES * 60 * 1000), user.id]
+        );
+      } else {
+        await db.query(
+          'UPDATE users SET failed_login_attempts = $1 WHERE id = $2',
+          [attempts, user.id]
+        );
+      }
       return res.status(401).json({ error: 'رقم الهوية أو كلمة المرور غير صحيحة' });
+    }
+
+    // Successful password check — clear any failed-attempt / lockout state.
+    if (user.failed_login_attempts > 0 || user.lockout_until) {
+      await db.query(
+        'UPDATE users SET failed_login_attempts = 0, lockout_until = NULL WHERE id = $1',
+        [user.id]
+      );
     }
 
     // 3. Check if user is inactive and inform them
@@ -79,23 +135,24 @@ router.post('/login', loginLimiter, async (req, res) => {
         account_status: 'pending_activation'
       };
 
-      const token = jwt.sign(inactivePayload, JWT_SECRET, { expiresIn: '4d' });
+      const token = jwt.sign(inactivePayload, JWT_SECRET, { expiresIn: TOKEN_TTL });
 
       // Create session record
       await db.query(`
-        INSERT INTO user_sessions (user_id, token_hash, device_info, ip_address, expires_at)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO user_sessions (user_id, token_hash, device_info, ip_address, expires_at, is_active)
+        VALUES ($1, $2, $3, $4, $5, true)
       `, [
         id,
-        require('crypto').createHash('sha256').update(token).digest('hex'),
+        hashToken(token),
         req.headers['user-agent'] || 'Unknown',
         req.ip || req.connection.remoteAddress,
-        new Date(Date.now() + 4 * 24 * 60 * 60 * 1000)
+        new Date(Date.now() + TOKEN_TTL_MS)
       ]);
+
+      setAuthCookies(res, token);
 
       return res.json({
         message: '⚠️ تم تسجيل الدخول بنجاح، لكن حسابك غير مفعل بعد',
-        token,
         user: inactivePayload,
         warning: 'حسابك قيد المراجعة من الإدارة. سيتم إشعارك عند تفعيل الحساب.',
         account_status: 'pending_activation',
@@ -164,25 +221,26 @@ router.post('/login', loginLimiter, async (req, res) => {
       ...additionalData
     };
 
-    // 6. Sign JWT (1 day expiry)
-    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '4d' });
+    // 6. Sign JWT (TOKEN_TTL, default 1 day)
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: TOKEN_TTL });
 
     // 7. Create session record for security
     await db.query(`
-      INSERT INTO user_sessions (user_id, token_hash, device_info, ip_address, expires_at)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO user_sessions (user_id, token_hash, device_info, ip_address, expires_at, is_active)
+      VALUES ($1, $2, $3, $4, $5, true)
     `, [
       id,
-      require('crypto').createHash('sha256').update(token).digest('hex'),
+      hashToken(token),
       req.headers['user-agent'] || 'Unknown',
       req.ip || req.connection.remoteAddress,
-      new Date(Date.now() + 4 * 24 * 60 * 60 * 1000) // 4 days
+      new Date(Date.now() + TOKEN_TTL_MS)
     ]);
+
+    setAuthCookies(res, token);
 
     // 8. Respond with JWT
     res.json({
       message: 'تم تسجيل الدخول بنجاح',
-      token,
       user: payload,
       account_status: 'active'
     });
@@ -190,6 +248,36 @@ router.post('/login', loginLimiter, async (req, res) => {
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).json({ error: 'حدث خطأ أثناء تسجيل الدخول' });
+  }
+});
+
+// POST /api/auth/logout - Revoke the current session's token
+router.post('/logout', authenticateToken, async (req, res) => {
+  try {
+    await db.query(
+      'UPDATE user_sessions SET is_active = false WHERE token_hash = $1',
+      [hashToken(req.token)]
+    );
+    clearAuthCookies(res);
+    res.json({ message: 'تم تسجيل الخروج بنجاح' });
+  } catch (err) {
+    console.error('Logout error:', err);
+    res.status(500).json({ error: 'حدث خطأ أثناء تسجيل الخروج' });
+  }
+});
+
+// POST /api/auth/logout-all - Revoke every active session for the current user
+router.post('/logout-all', authenticateToken, async (req, res) => {
+  try {
+    await db.query(
+      'UPDATE user_sessions SET is_active = false WHERE user_id = $1 AND is_active = true',
+      [req.user.id]
+    );
+    clearAuthCookies(res);
+    res.json({ message: 'تم تسجيل الخروج من جميع الأجهزة' });
+  } catch (err) {
+    console.error('Logout-all error:', err);
+    res.status(500).json({ error: 'حدث خطأ أثناء تسجيل الخروج' });
   }
 });
 

@@ -1,5 +1,4 @@
 import { useState, useEffect, Fragment } from "react";
-import * as XLSX from "xlsx";
 import axios from "../utils/axiosConfig";
 import { AiOutlinePlus, AiOutlineEdit, AiOutlineDelete, AiOutlineUser, AiOutlineBook, AiOutlineReload, AiOutlineStar, AiOutlineFileText, AiOutlineBarChart, AiOutlineCopy, AiOutlineRollback } from "react-icons/ai";
 import ClassForm from "../components/ClassForm";
@@ -11,6 +10,7 @@ import {
   getFilteredTeachers 
 } from "../utils/classUtils";
 import { calculateTargetCompletionData } from "../utils/studentUtils";
+import { exportRowsToCsv } from "../utils/exportCsv";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 const ALL_SEMESTERS = "__all__";
@@ -1789,10 +1789,7 @@ const ClassGradesModal = ({ classItem, onClose }) => {
     ];
 
     const allRows = [...headerRows, tableHeaders, ...rows];
-    const worksheet = XLSX.utils.aoa_to_sheet(allRows);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Grades");
-    XLSX.writeFile(workbook, "class-grades.xlsx");
+    exportRowsToCsv(allRows, "class-grades.csv");
   };
 
   return (
@@ -2035,10 +2032,7 @@ const ClassGradesModal = ({ classItem, onClose }) => {
 
     const tableHeaders = ["الطالب", "إجمالي النقاط"];
     const allRows = [...headerRows, tableHeaders, ...rows];
-    const worksheet = XLSX.utils.aoa_to_sheet(allRows);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Points");
-    XLSX.writeFile(workbook, "class-points.xlsx");
+    exportRowsToCsv(allRows, "class-points.csv");
   };
 
   return (

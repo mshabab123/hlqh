@@ -1,6 +1,7 @@
 // src/pages/Home.jsx
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { performLogout } from "../utils/logout";
 import { AiOutlineExclamationCircle } from "react-icons/ai";
 import { FaChalkboardTeacher, FaSchool, FaUsers, FaUserGraduate, FaUserTie, FaClipboardCheck, FaTrophy, FaChartBar, FaChild, FaUserFriends, FaCog, FaDatabase, FaUserShield, FaStar } from "react-icons/fa";
 import { MdAssignment, MdDashboard, MdSettings } from "react-icons/md";
@@ -22,9 +23,8 @@ export default function Home() {
     }
   }, [navigate]);
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
+  const handleLogout = async () => {
+    await performLogout();
     navigate("/login");
   };
 

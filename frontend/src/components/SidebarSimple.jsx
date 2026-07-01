@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { performLogout } from "../utils/logout";
 
 const Sidebar = () => {
   const location = useLocation();
@@ -15,9 +16,8 @@ const Sidebar = () => {
     }
   }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
+  const handleLogout = async () => {
+    await performLogout();
     navigate("/login");
   };
 

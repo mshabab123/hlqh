@@ -147,7 +147,7 @@ router.post('/table/:tableName/record', requireAdmin, async (req, res) => {
     });
   } catch (error) {
     console.error('Error adding record:', error);
-    res.status(500).json({ error: 'فشل في إضافة السجل: ' + error.message });
+    res.status(500).json({ error: 'فشل في إضافة السجل' });
   }
 });
 
@@ -210,7 +210,7 @@ router.put('/table/:tableName/record/:id', requireAdmin, async (req, res) => {
     });
   } catch (error) {
     console.error('Error updating record:', error);
-    res.status(500).json({ error: 'فشل في تحديث السجل: ' + error.message });
+    res.status(500).json({ error: 'فشل في تحديث السجل' });
   }
 });
 
@@ -269,7 +269,7 @@ router.delete('/table/:tableName/record/:id', requireAdmin, async (req, res) => 
       });
     }
     
-    res.status(500).json({ error: 'فشل في حذف السجل: ' + error.message });
+    res.status(500).json({ error: 'فشل في حذف السجل' });
   }
 });
 

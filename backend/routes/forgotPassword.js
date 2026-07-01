@@ -3,9 +3,27 @@ const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const { body, validationResult } = require('express-validator');
 const pool = require('../config/database');
+const { BCRYPT_ROUNDS } = require('../config/security');
 const { authenticateToken, authorizeRoles } = require('../middleware/auth');
+const rateLimit = require('express-rate-limit');
 
 const router = express.Router();
+
+const passwordResetLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many password reset attempts. Please try again later.' }
+});
+
+const resetTokenLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many reset token attempts. Please try again later.' }
+});
 
 const hashResetToken = (token) =>
   crypto.createHash('sha256').update(token).digest('hex');
@@ -79,7 +97,8 @@ const generateResetToken = () => {
 };
 
 // POST /api/forgot-password/request - Request password reset
-router.post('/request', 
+router.post('/request',
+  passwordResetLimiter,
   [
     body('identifier')
       .notEmpty()
@@ -156,6 +175,7 @@ router.post('/request',
 
 // POST /api/forgot-password/reset - Reset password using token
 router.post('/reset',
+  resetTokenLimiter,
   [
     body('token').notEmpty().withMessage('Reset token is required'),
     body('newPassword')
@@ -199,7 +219,7 @@ router.post('/reset',
       const tokenData = tokenResult.rows[0];
       
       // Hash new password
-      const hashedPassword = await bcrypt.hash(newPassword, 12);
+      const hashedPassword = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
       
       const client = await pool.connect();
       await client.query('BEGIN');
@@ -222,7 +242,14 @@ router.post('/reset',
           'UPDATE password_reset_tokens SET used = true WHERE user_id = $1 AND token_hash != $2',
           [tokenData.user_id, tokenHash]
         );
-        
+
+        // Revoke all active login sessions so any token issued before the
+        // reset (potentially attacker-held) can no longer be used.
+        await client.query(
+          'UPDATE user_sessions SET is_active = false WHERE user_id = $1 AND is_active = true',
+          [tokenData.user_id]
+        );
+
         await client.query('COMMIT');
         
         // Log password reset for security audit
@@ -248,6 +275,7 @@ router.post('/reset',
 
 // POST /api/forgot-password/verify-token - Verify if reset token is valid
 router.post('/verify-token',
+  resetTokenLimiter,
   [
     body('token').notEmpty().withMessage('Reset token is required')
   ],

@@ -2,6 +2,7 @@ const express = require('express');
 const bcrypt = require('bcrypt');
 const { body, validationResult } = require('express-validator');
 const pool = require('../config/database');
+const { BCRYPT_ROUNDS, hashToken } = require('../config/security');
 const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
@@ -60,12 +61,19 @@ router.post('/change-password',
       }
 
       // Hash the new password
-      const hashedNewPassword = await bcrypt.hash(newPassword, 12);
+      const hashedNewPassword = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
 
       // Update password in database
       await pool.query(
         'UPDATE users SET password = $1, updated_at = NOW() WHERE id = $2',
         [hashedNewPassword, userId]
+      );
+
+      // Revoke all other sessions for this user so a stolen token can't
+      // survive a password change. Keep the current session active.
+      await pool.query(
+        'UPDATE user_sessions SET is_active = false WHERE user_id = $1 AND token_hash <> $2 AND is_active = true',
+        [userId, hashToken(req.token)]
       );
 
       // Return success without sensitive data

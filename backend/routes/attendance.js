@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../config/database');
 const { authenticateToken: auth } = require('../middleware/auth');
+const { canAccessClass } = require('../utils/accessScope');
 
 // Helper function to get working days for a semester
 const getWorkingDays = (startDate, endDate, weekendDays = [4, 5, 6], vacationDays = []) => {
@@ -266,6 +267,10 @@ router.get('/semester/:semesterId/class/:classId', auth, async (req, res) => {
       }
     }
 
+    if ((userRole === 'administrator' || userRole === 'supervisor') && !(await canAccessClass(pool, req.user, classId))) {
+      return res.status(403).json({ error: 'Access denied for this class' });
+    }
+
     // Get semester information
     const semesterResult = await pool.query(`
       SELECT id, display_name, start_date, end_date, weekend_days, vacation_days
@@ -425,9 +430,7 @@ router.get('/semester/:semesterId/class/:classId', auth, async (req, res) => {
 
   } catch (error) {
     console.error('Error fetching attendance data:', error);
-    console.error('Error details:', error.message);
-    console.error('Error stack:', error.stack);
-    res.status(500).json({ error: 'فشل في جلب بيانات الحضور', details: error.message });
+    res.status(500).json({ error: 'فشل في جلب بيانات الحضور' });
   }
 });
 
@@ -454,6 +457,17 @@ router.post('/mark', auth, async (req, res) => {
       `, [userId, class_id]);
 
       if (teacherCheck.rows.length === 0) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية للوصول لهذه الحلقة' });
+      }
+    } else if (userRole === 'administrator') {
+      // Administrators may only mark attendance for classes in their own school.
+      const adminCheck = await pool.query(`
+        SELECT 1 FROM classes c
+        JOIN administrators a ON c.school_id = a.school_id
+        WHERE a.id = $1 AND c.id = $2
+      `, [userId, class_id]);
+
+      if (adminCheck.rows.length === 0) {
         return res.status(403).json({ error: 'ليس لديك صلاحية للوصول لهذه الحلقة' });
       }
     }
@@ -545,9 +559,7 @@ router.get('/classes', auth, async (req, res) => {
 
   } catch (error) {
     console.error('Error fetching classes:', error);
-    console.error('Error details:', error.message);
-    console.error('Error stack:', error.stack);
-    res.status(500).json({ error: 'فشل في جلب الحلقات', details: error.message });
+    res.status(500).json({ error: 'فشل في جلب الحلقات' });
   }
 });
 

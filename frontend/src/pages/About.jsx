@@ -5,11 +5,12 @@ const API_BASE = import.meta.env.VITE_API_BASE || "";
 
 async function refreshCurrentUser() {
   const token = localStorage.getItem("token");
-  if (!token) return null;
+  const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
   try {
     const response = await fetch(`${API_BASE}/api/profile/me`, {
-      headers: { Authorization: `Bearer ${token}` },
+      credentials: "include",
+      headers,
     });
 
     if (!response.ok) return null;

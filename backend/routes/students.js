@@ -5,6 +5,7 @@ const db = require('../config/database');
 const { body, validationResult } = require('express-validator');
 const { authenticateToken: auth } = require('../middleware/auth');
 const { requireRole, ROLES } = require('../middleware/rbac');
+const { BCRYPT_ROUNDS, generateTempPassword } = require('../config/security');
 
 const rateLimit = require('express-rate-limit');
 const registerLimiter = rateLimit({
@@ -12,6 +13,46 @@ const registerLimiter = rateLimit({
   max: 10,             // limit each IP to 10 requests per windowMs
   message: { error: "لقد تجاوزت الحد المسموح لمحاولات التسجيل. حاول لاحقًا." }
 });
+
+// Returns true if the caller is allowed to view a given student's data:
+// staff (supervisor+), the student themselves, a linked parent, or an
+// assigned teacher.
+async function canViewStudent(user, studentId) {
+  const role = user.role?.toLowerCase();
+  if (['admin', 'administrator', 'supervisor'].includes(role)) return true;
+  if (String(user.id) === String(studentId)) return true;
+  if (role === 'parent') {
+    const r = await db.query(
+      'SELECT 1 FROM parent_student_relationships WHERE parent_id = $1 AND student_id = $2',
+      [user.id, studentId]
+    );
+    return r.rows.length > 0;
+  }
+  if (role === 'teacher') {
+    const r = await db.query(
+      `SELECT 1 FROM student_enrollments se
+       JOIN teacher_class_assignments tca ON tca.class_id = se.class_id
+       WHERE se.student_id = $1 AND tca.teacher_id = $2
+         AND tca.is_active = true AND se.status = 'enrolled'`,
+      [studentId, user.id]
+    );
+    return r.rows.length > 0;
+  }
+  return false;
+}
+
+// Middleware guarding a route that exposes a single student's data.
+// Reads the student id from :id or :studentId.
+async function requireStudentAccess(req, res, next) {
+  try {
+    const studentId = req.params.studentId || req.params.id;
+    if (await canViewStudent(req.user, studentId)) return next();
+    return res.status(403).json({ error: 'لا يمكنك عرض بيانات هذا الطالب' });
+  } catch (err) {
+    console.error('Student access check error:', err);
+    return res.status(500).json({ error: 'فشل التحقق من الصلاحية' });
+  }
+}
 
 // Student registration validation rules
 const studentValidationRules = [
@@ -46,8 +87,8 @@ const studentValidationRules = [
     .withMessage('رقم هوية ولي الأمر يجب أن يكون 10 أرقام')
 ];
 
-// POST /api/students - Register a student
-router.post('/', registerLimiter, studentValidationRules, async (req, res) => {
+// POST /api/students - Create a student account (staff only)
+router.post('/', auth, requireRole(ROLES.TEACHER), studentValidationRules, async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ error: errors.array()[0].msg });
@@ -72,7 +113,7 @@ router.post('/', registerLimiter, studentValidationRules, async (req, res) => {
     await client.query('BEGIN');
 
     // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
     // Insert into users table (inactive by default) with proper role
     await client.query(`
@@ -146,7 +187,7 @@ router.post('/', registerLimiter, studentValidationRules, async (req, res) => {
 });
 
 // GET /api/students/:studentId/enrollments - Get student enrollments
-router.get('/:studentId/enrollments', auth, async (req, res) => {
+router.get('/:studentId/enrollments', auth, requireStudentAccess, async (req, res) => {
   try {
     const { studentId } = req.params;
     
@@ -169,7 +210,7 @@ router.get('/:studentId/enrollments', auth, async (req, res) => {
 });
 
 // GET /api/students - Get all students (with filters)
-router.get('/', auth, async (req, res) => {
+router.get('/', auth, requireRole(ROLES.TEACHER), async (req, res) => {
   try {
     const { school_level, status, parent_id, class_id, page = 1, limit = 50 } = req.query;
     
@@ -258,7 +299,7 @@ router.get('/', auth, async (req, res) => {
 });
 
 // GET /api/students/:id - Get student details
-router.get('/:id', auth, async (req, res) => {
+router.get('/:id', auth, requireStudentAccess, async (req, res) => {
   try {
     const { id } = req.params;
     
@@ -316,7 +357,7 @@ router.get('/:id', auth, async (req, res) => {
 });
 
 // POST /api/students/manage - Create new student for management (different from registration)
-router.post('/manage', auth, [
+router.post('/manage', auth, requireRole(ROLES.TEACHER), [
   body('id')
     .optional()
     .isLength({ min: 10, max: 10 })
@@ -371,8 +412,11 @@ router.post('/manage', auth, [
         }
       }
 
-      // Create user record with default password
-      const hashedPassword = await bcrypt.hash('123456', 10);
+      // Create user record with a random temporary password.
+      // The plaintext is returned once in the response so the creator can
+      // deliver it to the student; it is never stored or logged.
+      const tempPassword = generateTempPassword();
+      const hashedPassword = await bcrypt.hash(tempPassword, BCRYPT_ROUNDS);
       const userQuery = `
         INSERT INTO users (id, first_name, second_name, third_name, last_name, email, phone, address, date_of_birth, password, is_active, role)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
@@ -444,7 +488,11 @@ router.post('/manage', auth, [
       }
 
       await client.query('COMMIT');
-      res.status(201).json({ message: 'تم إضافة الطالب بنجاح', studentId: id });
+      res.status(201).json({
+        message: 'تم إضافة الطالب بنجاح',
+        studentId: id,
+        tempPassword // shown once so it can be handed to the student
+      });
 
     } catch (error) {
       await client.query('ROLLBACK');
@@ -743,7 +791,7 @@ router.delete('/:id', auth, requireRole(ROLES.ADMINISTRATOR), async (req, res) =
 
 
 // GET /api/students/available - Get students available for parent linking
-router.get('/available', auth, async (req, res) => {
+router.get('/available', auth, requireRole(ROLES.TEACHER), async (req, res) => {
   try {
     const result = await db.query(`
       SELECT 
@@ -814,7 +862,7 @@ const initializeGoalsTable = async () => {
 initializeGoalsTable();
 
 // Get goals for a specific student
-router.get('/:studentId/goals', auth, async (req, res) => {
+router.get('/:studentId/goals', auth, requireStudentAccess, async (req, res) => {
   try {
     const { studentId } = req.params;
     
@@ -837,7 +885,7 @@ router.get('/:studentId/goals', auth, async (req, res) => {
 });
 
 // Create a new goal for a student
-router.post('/:studentId/goals', auth, async (req, res) => {
+router.post('/:studentId/goals', auth, requireRole(ROLES.TEACHER), async (req, res) => {
   try {
     const { studentId } = req.params;
     const { title, description, target_date } = req.body;
@@ -865,7 +913,7 @@ router.post('/:studentId/goals', auth, async (req, res) => {
 });
 
 // Update a goal
-router.put('/:studentId/goals/:goalId', auth, async (req, res) => {
+router.put('/:studentId/goals/:goalId', auth, requireRole(ROLES.TEACHER), async (req, res) => {
   try {
     const { studentId, goalId } = req.params;
     const { title, description, target_date, completed } = req.body;
@@ -897,7 +945,7 @@ router.put('/:studentId/goals/:goalId', auth, async (req, res) => {
 });
 
 // Delete a goal
-router.delete('/:studentId/goals/:goalId', auth, async (req, res) => {
+router.delete('/:studentId/goals/:goalId', auth, requireRole(ROLES.TEACHER), async (req, res) => {
   try {
     const { studentId, goalId } = req.params;
     

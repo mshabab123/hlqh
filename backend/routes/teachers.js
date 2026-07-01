@@ -2,6 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const router = express.Router();
 const db = require('../config/database');
+const { BCRYPT_ROUNDS } = require('../config/security');
 const { body, validationResult } = require('express-validator');
 const { authenticateToken } = require('../middleware/auth');
 const { requireRole, ROLES } = require('../middleware/rbac');
@@ -50,8 +51,9 @@ const teacherValidationRules = [
     .withMessage('المؤهلات يجب أن تكون أقل من 1000 حرف')
 ];
 
-// POST /api/teachers - Register a teacher, admin, administrator, or supervisor
-router.post('/', registerLimiter, teacherValidationRules, async (req, res) => {
+// POST /api/teachers - Create a teacher/admin/administrator/supervisor account.
+// Admin-only: this endpoint can mint privileged staff roles.
+router.post('/', authenticateToken, requireRole(ROLES.ADMIN), teacherValidationRules, async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ error: errors.array()[0].msg });
@@ -88,7 +90,7 @@ router.post('/', registerLimiter, teacherValidationRules, async (req, res) => {
     }
 
     // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
     // Insert into users table (inactive by default) with proper role
     await client.query(`
@@ -284,7 +286,7 @@ router.get('/my-classes/:classId/students', authenticateToken, async (req, res) 
 });
 
 // GET /api/teachers/:id - Get user details (teacher, admin, administrator, supervisor)
-router.get('/:id', authenticateToken, async (req, res) => {
+router.get('/:id', authenticateToken, requireRole(ROLES.SUPERVISOR), async (req, res) => {
   try {
     const { id } = req.params;
     
@@ -354,7 +356,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
 });
 
 // GET /api/teachers - Get all users by type (teachers, admins, administrators, supervisors)
-router.get('/', authenticateToken, async (req, res) => {
+router.get('/', authenticateToken, requireRole(ROLES.SUPERVISOR), async (req, res) => {
   try {
     const { user_type = 'teacher', school_id, is_active } = req.query;
     

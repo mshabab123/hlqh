@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require('../config/database');
 const { authenticateToken: auth } = require('../middleware/auth');
 const { requireRole, ROLES } = require('../middleware/rbac');
+const { canAccessSchool, canAccessClass, canAccessStudent } = require('../utils/accessScope');
 
 const normalizeIntArray = (value, fallback = []) => {
   if (Array.isArray(value)) {
@@ -97,11 +98,14 @@ const getAttendanceCourseWeight = (courses) => {
 
 // GET /api/grading/school/:schoolId/semester/:semesterId
 // Get comprehensive grading data for all classes in a school/semester
-router.get('/school/:schoolId/semester/:semesterId', auth, async (req, res) => {
+router.get('/school/:schoolId/semester/:semesterId', auth, requireRole(ROLES.TEACHER), async (req, res) => {
   try {
     const { schoolId, semesterId } = req.params;
     const userId = req.user.id;
     const userRole = req.user.role;
+    if ((userRole === 'administrator' || userRole === 'supervisor') && !(await canAccessSchool(db, req.user, schoolId))) {
+      return res.status(403).json({ success: false, error: 'Access denied for this school' });
+    }
     const semesterResult = await db.query(
       'SELECT start_date, end_date, weekend_days, vacation_days FROM semesters WHERE id = $1',
       [semesterId]
@@ -290,6 +294,9 @@ router.get('/school/:schoolId/semester/:semesterId', auth, async (req, res) => {
 router.get('/student/:studentId/class/:classId/semester/:semesterId/grades', auth, async (req, res) => {
   try {
     const { studentId, classId, semesterId } = req.params;
+    if (!(await canAccessStudent(db, req.user, studentId)) || !(await canAccessClass(db, req.user, classId))) {
+      return res.status(403).json({ success: false, error: 'Access denied for this student or class' });
+    }
 
     // Get all grades for this student
     const gradesResult = await db.query(`
@@ -360,8 +367,29 @@ router.get('/student/:studentId/class/:classId/semester/:semesterId/grades', aut
 router.put('/grade/:gradeId', auth, requireRole(ROLES.TEACHER), async (req, res) => {
   try {
     const { gradeId } = req.params;
-    const { 
-      grade_value, 
+    const gradeScope = await db.query('SELECT class_id FROM grades WHERE id = $1', [gradeId]);
+    if (gradeScope.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Grade not found' });
+    }
+    if (!(await canAccessClass(db, req.user, gradeScope.rows[0].class_id))) {
+      return res.status(403).json({ success: false, error: 'Access denied for this grade' });
+    }
+
+    // Teachers may only modify grades for classes they are assigned to.
+    if (req.user.role === 'teacher') {
+      const owns = await db.query(
+        `SELECT 1 FROM grades g
+         JOIN teacher_class_assignments tca ON tca.class_id = g.class_id
+         WHERE g.id = $1 AND tca.teacher_id = $2 AND tca.is_active = true`,
+        [gradeId, req.user.id]
+      );
+      if (owns.rows.length === 0) {
+        return res.status(403).json({ success: false, error: 'ليس لديك صلاحية لتعديل درجات هذه الحلقة' });
+      }
+    }
+
+    const {
+      grade_value,
       max_grade, 
       notes, 
       grade_type,
@@ -420,6 +448,26 @@ router.put('/grade/:gradeId', auth, requireRole(ROLES.TEACHER), async (req, res)
 router.delete('/grade/:gradeId', auth, requireRole(ROLES.TEACHER), async (req, res) => {
   try {
     const { gradeId } = req.params;
+    const gradeScope = await db.query('SELECT class_id FROM grades WHERE id = $1', [gradeId]);
+    if (gradeScope.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Grade not found' });
+    }
+    if (!(await canAccessClass(db, req.user, gradeScope.rows[0].class_id))) {
+      return res.status(403).json({ success: false, error: 'Access denied for this grade' });
+    }
+
+    // Teachers may only delete grades for classes they are assigned to.
+    if (req.user.role === 'teacher') {
+      const owns = await db.query(
+        `SELECT 1 FROM grades g
+         JOIN teacher_class_assignments tca ON tca.class_id = g.class_id
+         WHERE g.id = $1 AND tca.teacher_id = $2 AND tca.is_active = true`,
+        [gradeId, req.user.id]
+      );
+      if (owns.rows.length === 0) {
+        return res.status(403).json({ success: false, error: 'ليس لديك صلاحية لحذف درجات هذه الحلقة' });
+      }
+    }
 
     const result = await db.query(`
       DELETE FROM grades WHERE id = $1 RETURNING *
@@ -627,10 +675,35 @@ router.post('/grade', auth, requireRole(ROLES.TEACHER), async (req, res) => {
       end_reference,
       date_graded
     } = req.body;
+    if (!(await canAccessClass(db, req.user, class_id))) {
+      return res.status(403).json({ success: false, error: 'Access denied for this class' });
+    }
+    if (!(await canAccessStudent(db, req.user, student_id))) {
+      return res.status(403).json({ success: false, error: 'Access denied for this student' });
+    }
+
+    // Teachers may only add grades for a class they are assigned to,
+    // and only for a student enrolled in that class.
+    if (req.user.role === 'teacher') {
+      const assigned = await db.query(
+        'SELECT 1 FROM teacher_class_assignments WHERE teacher_id = $1 AND class_id = $2 AND is_active = true',
+        [req.user.id, class_id]
+      );
+      if (assigned.rows.length === 0) {
+        return res.status(403).json({ success: false, error: 'ليس لديك صلاحية لإضافة درجات لهذه الحلقة' });
+      }
+      const enrolled = await db.query(
+        "SELECT 1 FROM student_enrollments WHERE student_id = $1 AND class_id = $2 AND status = 'enrolled'",
+        [student_id, class_id]
+      );
+      if (enrolled.rows.length === 0) {
+        return res.status(403).json({ success: false, error: 'هذا الطالب غير مسجل في حلقتك' });
+      }
+    }
 
     const result = await db.query(`
       INSERT INTO grades (
-        student_id, course_id, semester_id, class_id, 
+        student_id, course_id, semester_id, class_id,
         grade_value, max_grade, notes, grade_type,
         start_reference, end_reference, date_graded, created_at
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW()) 

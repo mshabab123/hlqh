@@ -832,8 +832,9 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
 
         // Fetch fresh student data from same endpoint as students page
         const studentResponse = await fetch(`/api/students/${student.id}`, {
+          credentials: "include",
           headers: {
-            'Authorization': `Bearer ${token}`,
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
             'Content-Type': 'application/json'
           }
         });
@@ -848,8 +849,9 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
 
         // Fetch grades using simple endpoint (no class_id or semester_id)
         const gradesResponse = await fetch(`/api/grades/student/${student.id}`, {
+          credentials: "include",
           headers: {
-            'Authorization': `Bearer ${token}`,
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
             'Content-Type': 'application/json'
           }
         });
@@ -1211,8 +1213,9 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                 try {
                   const token = localStorage.getItem('token');
                   const response = await fetch(`/api/students/${student.id}`, {
+                    credentials: "include",
                     headers: {
-                      'Authorization': `Bearer ${token}`,
+                      ...(token ? { Authorization: `Bearer ${token}` } : {}),
                       'Content-Type': 'application/json'
                     }
                   });
@@ -1418,8 +1421,9 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                       try {
                         const token = localStorage.getItem('token');
                         const response = await fetch(`/api/students/${student.id}`, {
+                          credentials: "include",
                           headers: {
-                            'Authorization': `Bearer ${token}`,
+                            ...(token ? { Authorization: `Bearer ${token}` } : {}),
                             'Content-Type': 'application/json'
                           }
                         });

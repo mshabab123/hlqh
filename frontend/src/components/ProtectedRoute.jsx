@@ -4,7 +4,7 @@ import { hasRouteAccess, canAccessNavItem } from "../utils/privilegeUtils";
 
 // Utility: checks if token exists
 function isAuthenticated() {
-  return !!localStorage.getItem("token");
+  return !!localStorage.getItem("user") || !!localStorage.getItem("token");
 }
 
 // Utility: checks if user is active

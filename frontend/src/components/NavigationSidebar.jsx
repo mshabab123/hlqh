@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { 
+import { performLogout } from "../utils/logout";
+import {
   AiOutlineHome, 
   AiOutlineUser, 
   AiOutlineLogout, 
@@ -63,13 +64,12 @@ const NavigationSidebar = ({ isOpen, setIsOpen, className = "" }) => {
     };
   }, [setIsOpen]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     // Clear privilege cache on logout
     if (privilegeUtils && privilegeUtils.clearPrivilegeCache) {
       privilegeUtils.clearPrivilegeCache();
     }
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
+    await performLogout();
     navigate("/login");
   };
 

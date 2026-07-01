@@ -2,6 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const router = express.Router();
 const db = require('../config/database');
+const { BCRYPT_ROUNDS } = require('../config/security');
 const { body, validationResult } = require('express-validator');
 const { authenticateToken: auth } = require('../middleware/auth');
 const { requireRole, ROLES } = require('../middleware/rbac');
@@ -75,7 +76,7 @@ router.post('/', auth, requireRole(ROLES.ADMIN), registerLimiter, administratorV
     await client.query('BEGIN');
 
     // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
     // Insert into users table (inactive by default until activated by admin) with proper role
     await client.query(`
@@ -123,7 +124,7 @@ router.post('/', auth, requireRole(ROLES.ADMIN), registerLimiter, administratorV
 });
 
 // GET /api/administrators - Get all administrators
-router.get('/', auth, async (req, res) => {
+router.get('/', auth, requireRole(ROLES.SUPERVISOR), async (req, res) => {
   try {
     const { role, is_active } = req.query;
     
@@ -164,7 +165,7 @@ router.get('/', auth, async (req, res) => {
 });
 
 // GET /api/administrators/:id - Get administrator details
-router.get('/:id', auth, async (req, res) => {
+router.get('/:id', auth, requireRole(ROLES.SUPERVISOR), async (req, res) => {
   try {
     const { id } = req.params;
     

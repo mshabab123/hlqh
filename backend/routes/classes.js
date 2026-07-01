@@ -6,6 +6,7 @@ const { TOTAL_QURAN_PAGES, QURAN_SURAHS, getSurahIdFromName, getSurahNameFromId,
 
 // Import authentication middleware
 const { authenticateToken: requireAuth } = require('../middleware/auth');
+const { requireRole, ROLES } = require('../middleware/rbac');
 
 // Helper functions are now imported from QuranData.js
 
@@ -299,7 +300,7 @@ router.get('/:id', requireAuth, async (req, res) => {
 });
 
 // POST /api/classes - Create new class
-router.post('/', requireAuth, classValidationRules, async (req, res) => {
+router.post('/', requireAuth, requireRole(ROLES.ADMINISTRATOR), classValidationRules, async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ error: errors.array()[0].msg });
@@ -482,7 +483,7 @@ router.post('/copy-semester', requireAuth, async (req, res) => {
 });
 
 // PUT /api/classes/:id - Update class
-router.put('/:id', requireAuth, async (req, res) => {
+router.put('/:id', requireAuth, requireRole(ROLES.ADMINISTRATOR), async (req, res) => {
   const client = await db.connect();
   try {
     const { id } = req.params;
@@ -538,7 +539,7 @@ router.put('/:id', requireAuth, async (req, res) => {
 });
 
 // DELETE /api/classes/:id - Delete class
-router.delete('/:id', requireAuth, async (req, res) => {
+router.delete('/:id', requireAuth, requireRole(ROLES.ADMINISTRATOR), async (req, res) => {
   const client = await db.connect();
   try {
     const { id } = req.params;
@@ -582,7 +583,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
 });
 
 // Get students in a class
-router.get('/:id/students', requireAuth, async (req, res) => {
+router.get('/:id/students', requireAuth, requireRole(ROLES.TEACHER), async (req, res) => {
   try {
     const { id: classId } = req.params;
     
@@ -615,7 +616,7 @@ router.get('/:id/students', requireAuth, async (req, res) => {
 });
 
 // Add student to class
-router.post('/:id/students', requireAuth, async (req, res) => {
+router.post('/:id/students', requireAuth, requireRole(ROLES.TEACHER), async (req, res) => {
   try {
     const { id: classId } = req.params;
     const { student_id } = req.body;
@@ -657,7 +658,7 @@ router.post('/:id/students', requireAuth, async (req, res) => {
 });
 
 // Remove student from class
-router.delete('/:id/students/:studentId', requireAuth, async (req, res) => {
+router.delete('/:id/students/:studentId', requireAuth, requireRole(ROLES.TEACHER), async (req, res) => {
   try {
     const { id: classId, studentId } = req.params;
     
@@ -681,7 +682,7 @@ router.delete('/:id/students/:studentId', requireAuth, async (req, res) => {
 });
 
 // Get available students (not in any class or in specific school)
-router.get('/:id/available-students', requireAuth, async (req, res) => {
+router.get('/:id/available-students', requireAuth, requireRole(ROLES.TEACHER), async (req, res) => {
   try {
     const { id: classId } = req.params;
     
@@ -715,7 +716,7 @@ router.get('/:id/available-students', requireAuth, async (req, res) => {
 });
 
 // Get class with students and courses for grading
-router.get('/:id/grading', requireAuth, async (req, res) => {
+router.get('/:id/grading', requireAuth, requireRole(ROLES.TEACHER), async (req, res) => {
   try {
     const { id: classId } = req.params;
     
@@ -779,7 +780,7 @@ router.get('/:id/grading', requireAuth, async (req, res) => {
 });
 
 // Add new grade entry (allows multiple grades per course)
-router.post('/:id/grades', requireAuth, async (req, res) => {
+router.post('/:id/grades', requireAuth, requireRole(ROLES.TEACHER), async (req, res) => {
   try {
     const { id: classId } = req.params;
     const { student_id, course_id, grade_type, grade_value, max_grade, notes, start_reference, end_reference, grade_date, error_details, quran_error_display } = req.body;
@@ -885,7 +886,7 @@ router.post('/:id/grades', requireAuth, async (req, res) => {
 });
 
 // Get grades summary for a class
-router.get('/:id/grades-summary', requireAuth, async (req, res) => {
+router.get('/:id/grades-summary', requireAuth, requireRole(ROLES.TEACHER), async (req, res) => {
   try {
     const { id: classId } = req.params;
 
@@ -988,7 +989,7 @@ router.get('/:id/grades-summary', requireAuth, async (req, res) => {
 });
 
 // Update student goal (using target fields for consistency)
-router.put('/:id/student/:studentId/goal', requireAuth, async (req, res) => {
+router.put('/:id/student/:studentId/goal', requireAuth, requireRole(ROLES.TEACHER), async (req, res) => {
   try {
     const { id: classId, studentId } = req.params;
     const { target_surah_id, target_ayah_number } = req.body;
@@ -1020,12 +1021,12 @@ router.put('/:id/student/:studentId/goal', requireAuth, async (req, res) => {
     
   } catch (error) {
     console.error('Error updating student goal:', error);
-    res.status(500).json({ error: 'حدث خطأ في تحديث الهدف: ' + error.message });
+    res.status(500).json({ error: 'حدث خطأ في تحديث الهدف' });
   }
 });
 
 // Get individual student profile with complete grade history
-router.get('/:id/student/:studentId/profile', requireAuth, async (req, res) => {
+router.get('/:id/student/:studentId/profile', requireAuth, requireRole(ROLES.TEACHER), async (req, res) => {
   try {
     const { id: classId, studentId } = req.params;
     
@@ -1103,7 +1104,7 @@ router.get('/:id/student/:studentId/profile', requireAuth, async (req, res) => {
 });
 
 // POST /api/classes/:id/teachers - Assign multiple teachers to class with primary/secondary roles
-router.post('/:id/teachers', requireAuth, async (req, res) => {
+router.post('/:id/teachers', requireAuth, requireRole(ROLES.ADMINISTRATOR), async (req, res) => {
   const client = await db.connect();
   try {
     const { id } = req.params;
@@ -1164,7 +1165,7 @@ router.post('/:id/teachers', requireAuth, async (req, res) => {
 });
 
 // GET /api/classes/:id/teachers - Get teachers assigned to class with their roles
-router.get('/:id/teachers', requireAuth, async (req, res) => {
+router.get('/:id/teachers', requireAuth, requireRole(ROLES.TEACHER), async (req, res) => {
   try {
     const { id } = req.params;
     

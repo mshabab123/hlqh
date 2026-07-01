@@ -22,8 +22,9 @@ const StudentCard = ({ student, onView, onEdit, onToggleStatus, onQuranProgress,
         const apiUrl = `/api/grades/student/${student.id}`;
 
         const response = await fetch(apiUrl, {
+          credentials: "include",
           headers: {
-            'Authorization': `Bearer ${token}`,
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
             'Content-Type': 'application/json'
           }
         });

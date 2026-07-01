@@ -2,6 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const router = express.Router();
 const db = require('../config/database'); // adjust based on your DB connection setup
+const { BCRYPT_ROUNDS } = require('../config/security');
 const { body, validationResult } = require('express-validator');
 const { authenticateToken } = require('../middleware/auth');
 const { requireRole, ROLES } = require('../middleware/rbac');
@@ -129,7 +130,7 @@ router.get('/', authenticateToken, requireRole(ROLES.SUPERVISOR), async (req, re
 });
 
   router.post(
-  '/',registerLimiter,
+  '/', authenticateToken, requireRole(ROLES.ADMINISTRATOR),
   [
     body('id')
       .isLength({ min: 10, max: 10 })
@@ -180,7 +181,7 @@ router.get('/', authenticateToken, requireRole(ROLES.SUPERVISOR), async (req, re
     let parentRole = registerSelf ? 'Student' : 'Parent';
 
     // Hash parent password
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
     // Insert into users table (base user data) with proper role
     await client.query(`
@@ -213,7 +214,7 @@ router.get('/', authenticateToken, requireRole(ROLES.SUPERVISOR), async (req, re
 
     // Insert children (if any)
     for (const child of children) {
-      const childHashedPassword = await bcrypt.hash(child.password, 10);
+      const childHashedPassword = await bcrypt.hash(child.password, BCRYPT_ROUNDS);
       
       // Insert child into users table with proper role
       await client.query(`

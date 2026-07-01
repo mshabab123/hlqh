@@ -7,8 +7,12 @@ const { body, validationResult } = require('express-validator');
 const { authenticateToken: requireAuth } = require('../middleware/auth');
 
 const requireAdmin = (req, res, next) => {
-  // TODO: Check if user has admin role
-  // For now, we'll assume the user is an admin
+  if (!req.user) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  if (req.user.role?.toLowerCase() !== 'admin') {
+    return res.status(403).json({ error: 'Access denied: admin only' });
+  }
   next();
 };
 

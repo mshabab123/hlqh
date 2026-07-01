@@ -2,8 +2,9 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const router = express.Router();
 const db = require('../config/database');
+const { BCRYPT_ROUNDS } = require('../config/security');
 const { authenticateToken } = require('../middleware/auth');
-const { requireRole } = require('../middleware/rbac');
+const { requireRole, ROLES } = require('../middleware/rbac');
 const { body, validationResult } = require('express-validator');
 
 const rateLimit = require('express-rate-limit');
@@ -53,8 +54,8 @@ const parentValidationRules = [
     .withMessage('يرجى اختيار المرحلة الدراسية')
 ];
 
-// POST /api/parents - Register a parent
-router.post('/', registerLimiter, parentValidationRules, async (req, res) => {
+// POST /api/parents - Create a parent account (staff only)
+router.post('/', authenticateToken, requireRole(ROLES.ADMINISTRATOR), parentValidationRules, async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ error: errors.array()[0].msg });
@@ -80,7 +81,7 @@ router.post('/', registerLimiter, parentValidationRules, async (req, res) => {
     await client.query('BEGIN');
 
     // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
     // Determine role based on whether parent is also a student
     const userRole = registerSelf ? 'parent_student' : 'parent';

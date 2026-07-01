@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { 
+import { performLogout } from "../utils/logout";
+import {
   AiOutlineHome, 
   AiOutlineUser, 
   AiOutlineLogout, 
@@ -48,9 +49,8 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
     return () => document.removeEventListener('keydown', handleEscape);
   }, [setIsOpen]);
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
+  const handleLogout = async () => {
+    await performLogout();
     navigate("/login");
   };
 

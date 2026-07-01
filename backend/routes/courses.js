@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../config/database');
 const { authenticateToken: auth } = require('../middleware/auth');
+const { canAccessCourse } = require('../utils/accessScope');
 
 // Update course
 router.put('/:id', auth, async (req, res) => {
@@ -12,6 +13,10 @@ router.put('/:id', auth, async (req, res) => {
     }
 
     const { id } = req.params;
+    if (!(await canAccessCourse(pool, req.user, id))) {
+      return res.status(403).json({ message: 'Access denied for this course' });
+    }
+
     const { name, percentage, requires_surah, description, grade_type } = req.body;
 
     const result = await pool.query(
@@ -39,6 +44,9 @@ router.delete('/:id', auth, async (req, res) => {
     }
 
     const { id } = req.params;
+    if (!(await canAccessCourse(pool, req.user, id))) {
+      return res.status(403).json({ message: 'Access denied for this course' });
+    }
     
     // Delete course - CASCADE will handle related grades automatically
     const result = await pool.query('DELETE FROM semester_courses WHERE id = $1 RETURNING *', [id]);

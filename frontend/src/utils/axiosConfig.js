@@ -3,20 +3,52 @@ import axios from 'axios';
 
 // Set base URL
 const API_BASE = import.meta.env.VITE_API_BASE || "";
+const UNSAFE_METHODS = new Set(['post', 'put', 'patch', 'delete']);
+
+function getCookie(name) {
+  return document.cookie
+    .split('; ')
+    .find((row) => row.startsWith(`${name}=`))
+    ?.split('=')
+    .slice(1)
+    .join('=');
+}
+
+function applyAuthHeaders(config) {
+  config.headers = config.headers || {};
+
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+
+  const method = (config.method || 'get').toLowerCase();
+  const csrfToken = getCookie('csrf_token');
+  if (csrfToken && UNSAFE_METHODS.has(method)) {
+    config.headers['X-CSRF-Token'] = decodeURIComponent(csrfToken);
+  }
+
+  return config;
+}
+
+axios.defaults.withCredentials = true;
+
+axios.interceptors.request.use(
+  (config) => applyAuthHeaders(config),
+  (error) => Promise.reject(error)
+);
 
 // Create axios instance with default config
 const axiosInstance = axios.create({
   baseURL: API_BASE,
   timeout: 30000, // 30 second timeout
+  withCredentials: true,
 });
 
 // Request interceptor - add auth token to all requests
 axiosInstance.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
+    applyAuthHeaders(config);
 
     // Add cache-busting headers to prevent browser caching
     config.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';

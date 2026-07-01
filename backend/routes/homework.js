@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../config/database');
 const { authenticateToken: requireAuth } = require('../middleware/auth');
+const { requireRole, ROLES } = require('../middleware/rbac');
 
 // GET /api/homework - Get all homework assignments
 router.get('/', requireAuth, async (req, res) => {
@@ -92,7 +93,7 @@ router.get('/:id', requireAuth, async (req, res) => {
 });
 
 // POST /api/homework - Create new homework assignment
-router.post('/', requireAuth, async (req, res) => {
+router.post('/', requireAuth, requireRole(ROLES.TEACHER), async (req, res) => {
   const client = await db.connect();
   try {
     const {
@@ -164,7 +165,7 @@ router.post('/', requireAuth, async (req, res) => {
 });
 
 // PUT /api/homework/:id - Update homework assignment
-router.put('/:id', requireAuth, async (req, res) => {
+router.put('/:id', requireAuth, requireRole(ROLES.TEACHER), async (req, res) => {
   const client = await db.connect();
   try {
     const { id } = req.params;
@@ -239,7 +240,7 @@ router.put('/:id', requireAuth, async (req, res) => {
 });
 
 // DELETE /api/homework/:id - Delete homework assignment
-router.delete('/:id', requireAuth, async (req, res) => {
+router.delete('/:id', requireAuth, requireRole(ROLES.TEACHER), async (req, res) => {
   const client = await db.connect();
   try {
     const { id } = req.params;
@@ -269,7 +270,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
 });
 
 // POST /api/homework/:id/complete - Mark homework as completed
-router.post('/:id/complete', requireAuth, async (req, res) => {
+router.post('/:id/complete', requireAuth, requireRole(ROLES.TEACHER), async (req, res) => {
   const client = await db.connect();
   try {
     const { id } = req.params;
