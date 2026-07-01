@@ -146,6 +146,12 @@
 .shadow-primary { box-shadow: 0 4px 6px -1px var(--color-shadow-light); }
 .shadow-accent { box-shadow: 0 4px 12px var(--color-shadow-medium); }
 
+@media (max-width: 1023px) {
+  body.mobile-sidebar-open .auth-navbar-brand {
+    transform: translateX(-2rem);
+  }
+}
+
 
 @keyframes gradientMove {
   0% {

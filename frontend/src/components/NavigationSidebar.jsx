@@ -370,7 +370,7 @@ const NavigationSidebar = ({ isOpen, setIsOpen, className = "" }) => {
       {/* Overlay for mobile */}
       {isOpen && (
         <div 
-          className="fixed inset-0 bg-black bg-opacity-50 lg:hidden z-30"
+          className="fixed inset-0 bg-black bg-opacity-50 lg:hidden z-50"
           onClick={() => setIsOpen(false)}
         />
       )}
@@ -381,24 +381,40 @@ const NavigationSidebar = ({ isOpen, setIsOpen, className = "" }) => {
         text-white border-l border-primary-400/20
         ${!isOpen ? 'translate-x-full lg:translate-x-0' : 'translate-x-0'}
         ${isCollapsed ? 'lg:w-20' : 'w-80 lg:w-72'}
-        overflow-hidden flex flex-col z-40 lg:z-10
+        overflow-hidden flex flex-col z-[70]
         ${className}
       `} 
       style={{
         background: 'linear-gradient(180deg, var(--color-primary-600), var(--color-primary-800), var(--color-primary-900))',
       }}
       dir="rtl">
-        
+        <button
+          onClick={() => {
+            if (window.innerWidth < 1024) {
+              setIsOpen(false);
+            } else {
+              setIsCollapsed(!isCollapsed);
+            }
+          }}
+          className="hidden lg:block absolute left-4 top-24 z-10 p-3 rounded-xl bg-red-600 hover:bg-red-700 text-white shadow-xl transition-colors"
+          title={isCollapsed ? "توسيع الشريط الجانبي" : "طي الشريط الجانبي"}
+        >
+          {isCollapsed ? 
+            <AiOutlineMenu className="text-white text-lg" /> : 
+            <AiOutlineClose className="text-white text-lg" />
+          }
+        </button>
+
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-white/20 bg-primary-700/30">
-          <div className={`flex items-center gap-3 ${isCollapsed ? 'hidden lg:flex' : ''}`}>
-            <div className="h-10 w-10 bg-gradient-to-br from-primary-400 to-primary-500 rounded-full flex items-center justify-center shadow-lg">
+        <div className="flex items-center gap-3 p-4 border-b border-white/20 bg-primary-700/30">
+          <div className={`flex min-w-0 flex-1 items-center gap-3 ${isCollapsed ? 'hidden lg:flex' : ''}`}>
+            <div className="h-10 w-10 shrink-0 bg-gradient-to-br from-primary-400 to-primary-500 rounded-full flex items-center justify-center shadow-lg">
               <AiOutlineBook className="text-white text-lg" />
             </div>
             {!isCollapsed && (
-              <div>
-                <h1 className="font-bold text-lg text-white">منصة الحلقات</h1>
-                <p className="text-xs text-primary-100">نظام إدارة الحلقات القرآنية</p>
+              <div className="min-w-0">
+                <h1 className="font-bold text-lg text-white truncate">منصة الحلقات</h1>
+                <p className="text-xs text-primary-100 truncate">نظام إدارة الحلقات القرآنية</p>
               </div>
             )}
           </div>
@@ -411,7 +427,7 @@ const NavigationSidebar = ({ isOpen, setIsOpen, className = "" }) => {
                 setIsCollapsed(!isCollapsed);
               }
             }}
-            className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+            className="hidden shrink-0 p-2 rounded-lg hover:bg-white/10 transition-colors"
             title={isCollapsed ? "توسيع الشريط الجانبي" : "طي الشريط الجانبي"}
           >
             {isCollapsed ? 

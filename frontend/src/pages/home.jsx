@@ -225,7 +225,7 @@ export default function Home() {
 
   // Main content component
   const HomeContent = () => (
-    <div className="bg-[url('/baground.svg')] bg-cover bg-center bg-no-repeat min-h-[calc(100vh-5rem)] flex flex-col items-center font-[var(--font-family-arabic)] p-3">
+    <div className="bg-[url('/baground.svg')] bg-cover bg-center bg-no-repeat min-h-[calc(100vh-5rem)] flex flex-col items-center font-[var(--font-family-arabic)] px-4 py-14">
         
         {/* Inactive User Warning */}
         {user && (user.is_active === false || user.account_status === 'pending_activation') && (
@@ -247,17 +247,17 @@ export default function Home() {
 
         {/* Welcome Card */}
         <div
-          className="bg-white/90 p-3.5 rounded-xl max-w-lg w-full shadow-xl space-y-1.5 text-center mb-3 shrink-0"
+          className="bg-white/90 p-6 rounded-xl max-w-xl w-full shadow-xl space-y-3 text-center mb-8 shrink-0"
           style={{ backdropFilter: "blur(2px)" }}
         >
-          <h1 className="text-lg sm:text-xl font-bold text-[var(--color-primary-700)]">
+          <h1 className="text-2xl font-bold text-[var(--color-primary-700)]">
             مرحباً بك في المنصة!
           </h1>
-          <div className="text-base font-semibold text-[var(--color-primary-700)]">
+          <div className="text-lg font-semibold text-[var(--color-primary-700)]">
             {user.first_name} {user.second_name} {user.third_name}{" "}
             {user.last_name}
           </div>
-          <div className="text-sm text-[var(--color-text-secondary)]">
+          <div className="text-base text-[var(--color-text-secondary)]">
             {user.role === "parent"
               ? "ولي أمر"
               : user.role === "student"
@@ -311,7 +311,7 @@ export default function Home() {
 
 
         {/* Navigation Cards */}
-        <div className="grid grid-cols-1 min-[420px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 auto-rows-auto content-start gap-3 max-w-7xl w-full px-1 mb-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 auto-rows-auto content-start gap-6 max-w-7xl w-full px-2 mb-8">
           {navigationCards.map((card, index) => {
             if (!hasAccess(card.roles)) return null;
             
@@ -319,20 +319,20 @@ export default function Home() {
               <div
                 key={index}
                 onClick={() => navigate(card.path)}
-                className="bg-white/95 p-3 rounded-lg shadow-lg cursor-pointer hover:shadow-xl transform hover:scale-[1.015] transition-all duration-300 group flex flex-col items-center justify-start min-h-[126px]"
+                className="bg-white/95 p-6 rounded-lg shadow-lg cursor-pointer hover:shadow-xl transform hover:scale-[1.02] transition-all duration-300 group flex flex-col items-center justify-center min-h-[188px]"
                 style={{ backdropFilter: "blur(2px)" }}
               >
-                <div className={`${card.color} w-11 h-11 rounded-full flex items-center justify-center mb-2 mx-auto group-hover:scale-105 transition-transform shrink-0`}>
+                <div className={`${card.color} w-14 h-14 rounded-full flex items-center justify-center mb-4 mx-auto group-hover:scale-110 transition-transform shrink-0`}>
                   {typeof card.icon === 'string' ? (
-                    <span className="text-white text-base">{card.icon}</span>
+                    <span className="text-white text-xl">{card.icon}</span>
                   ) : (
-                    <card.icon className="text-white text-base" />
+                    <card.icon className="text-white text-xl" />
                   )}
                 </div>
-                <h3 className="text-sm font-bold text-[var(--color-primary-700)] mb-1 text-center leading-tight">
+                <h3 className="text-lg font-bold text-[var(--color-primary-700)] mb-2 text-center leading-tight">
                   {card.title}
                 </h3>
-                <p className="text-[var(--color-text-secondary)] text-center text-[11px] leading-snug">
+                <p className="text-[var(--color-text-secondary)] text-center text-sm leading-relaxed">
                   {card.description}
                 </p>
               </div>
@@ -342,7 +342,7 @@ export default function Home() {
 
         {/* User Info and Logout */}
         <div
-          className="bg-white/90 p-2.5 rounded-xl max-w-lg w-full shadow-xl space-y-1.5 text-center shrink-0"
+          className="bg-white/90 p-4 rounded-xl max-w-xl w-full shadow-xl space-y-2 text-center shrink-0"
           style={{ backdropFilter: "blur(2px)" }}
         >
           <div className="text-xs text-[var(--color-text-secondary)]">

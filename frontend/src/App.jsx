@@ -69,6 +69,7 @@ export default function App() {
         {/* Show appropriate navbar */}
         {showNavbar && (isLoggedIn ? <AuthNavbar /> : <Navbar />)}
 
+        <div className={showNavbar ? "pt-20" : ""}>
         <Routes>
           <Route
             path="/"
@@ -370,6 +371,7 @@ export default function App() {
             }
           />
         </Routes>
+        </div>
       </div>
     </>
   );
