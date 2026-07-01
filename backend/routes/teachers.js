@@ -51,6 +51,91 @@ const teacherValidationRules = [
     .withMessage('المؤهلات يجب أن تكون أقل من 1000 حرف')
 ];
 
+// Public pending registration for teachers and school administrators only.
+// Root admin and supervisor accounts must still be created by an active admin.
+router.post('/register', registerLimiter, teacherValidationRules, async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ error: errors.array()[0].msg });
+  }
+
+  const {
+    id,
+    first_name,
+    second_name,
+    third_name,
+    last_name,
+    email,
+    phone,
+    password,
+    address,
+    user_type,
+    school_id,
+    specialization,
+    qualifications,
+  } = req.body;
+
+  if (!['teacher', 'administrator'].includes(user_type)) {
+    return res.status(400).json({ error: 'نوع التسجيل غير متاح من الصفحة العامة' });
+  }
+
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+
+    if (school_id) {
+      const schoolCheck = await client.query('SELECT id FROM schools WHERE id = $1', [school_id]);
+      if (schoolCheck.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'مجمع الحلقات المحدد غير موجود' });
+      }
+    }
+
+    const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
+
+    await client.query(`
+      INSERT INTO users (
+        id, first_name, second_name, third_name, last_name, email,
+        phone, password, address, is_active, role
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, false, $10)
+    `, [id, first_name, second_name, third_name, last_name, email, phone, hashedPassword, address || null, user_type]);
+
+    if (user_type === 'teacher') {
+      await client.query(`
+        INSERT INTO teachers (
+          id, specialization, qualifications, salary, school_id
+        ) VALUES ($1, $2, $3, NULL, $4)
+      `, [id, specialization || null, qualifications || null, school_id || null]);
+    } else {
+      await client.query(`
+        INSERT INTO administrators (
+          id, role, qualifications, salary, school_id
+        ) VALUES ($1, 'administrator', $2, NULL, $3)
+      `, [id, qualifications || null, school_id || null]);
+    }
+
+    await client.query('COMMIT');
+
+    res.status(201).json({
+      message: 'تم استلام طلب التسجيل بنجاح. سيتم مراجعة الطلب من الإدارة قبل تفعيل الحساب.',
+      userId: id,
+      userType: user_type,
+      status: 'pending_activation',
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Public staff registration error:', err);
+
+    if (err.code === '23505') {
+      return res.status(400).json({ error: 'رقم الهوية أو البريد الإلكتروني مستخدم من قبل' });
+    }
+
+    res.status(500).json({ error: 'حدث خطأ أثناء التسجيل' });
+  } finally {
+    client.release();
+  }
+});
+
 // POST /api/teachers - Create a teacher/admin/administrator/supervisor account.
 // Admin-only: this endpoint can mint privileged staff roles.
 router.post('/', authenticateToken, requireRole(ROLES.ADMIN), teacherValidationRules, async (req, res) => {

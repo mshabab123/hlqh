@@ -126,7 +126,7 @@ export default function AuthNavbar() {
 
   const handleLogout = async () => {
     await performLogout();
-    navigate("/login");
+    navigate("/");
   };
 
   const toggleMobileMenu = () => {

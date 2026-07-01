@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import NavigationSidebar from "./NavigationSidebar";
 import { AiOutlineMenu, AiOutlineClose } from "react-icons/ai";
 
-const Layout = ({ children }) => {
+const Layout = ({ children, fitViewport = false }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Auto-open sidebar on desktop, close on mobile
@@ -23,7 +23,7 @@ const Layout = ({ children }) => {
   }, []);
 
   return (
-    <div className="min-h-screen" dir="rtl">
+    <div className={fitViewport ? "h-[calc(100vh-5rem)] overflow-hidden" : "min-h-screen"} dir="rtl">
       <NavigationSidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
       
       {/* Mobile menu button - Always visible on mobile */}
@@ -40,12 +40,13 @@ const Layout = ({ children }) => {
       </button>
       
       <main className={`
-        min-h-screen transition-all duration-300
+        transition-all duration-300
+        ${fitViewport ? 'h-full overflow-hidden' : 'min-h-screen'}
         ${sidebarOpen ? 'lg:mr-72' : 'lg:mr-20'}
         pt-16 lg:pt-0
       `}>
         {/* Main content */}
-        <div className="p-4 lg:p-6">
+        <div className={fitViewport ? "h-full p-3 lg:p-4 overflow-hidden" : "p-4 lg:p-6"}>
           {children}
         </div>
       </main>

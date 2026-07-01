@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../config/database');
 const { authenticateToken: auth } = require('../middleware/auth');
+const { canAccessSchool, getAccessibleSchoolIds } = require('../utils/accessScope');
 
 // Check if user has permission to manage reports
 const checkReportPermission = (req, res, next) => {
@@ -12,13 +13,45 @@ const checkReportPermission = (req, res, next) => {
   next();
 };
 
+// Sentinels returned by resolveSchoolFilter to signal special cases.
+const ACCESS_DENIED = Symbol('access_denied');
+const EMPTY_SCOPE = Symbol('empty_scope');
+
+// Resolve which school ids a list/stats query should be limited to.
+//   null          -> no restriction (admin, all schools)
+//   string[]      -> restrict to these school ids
+//   EMPTY_SCOPE   -> user is scoped to no schools; caller returns an empty result
+//   ACCESS_DENIED -> requested school is out of the user's scope; 403 already sent
+async function resolveSchoolFilter(req, res, requestedSchoolId) {
+  const scoped = await getAccessibleSchoolIds(db, req.user);
+  if (scoped === null) {
+    return requestedSchoolId ? [requestedSchoolId] : null;
+  }
+  if (scoped.length === 0) return EMPTY_SCOPE;
+  if (requestedSchoolId) {
+    if (!scoped.map(String).includes(String(requestedSchoolId))) {
+      res.status(403).json({ error: 'ليس لديك صلاحية للوصول لهذا المجمع' });
+      return ACCESS_DENIED;
+    }
+    return [requestedSchoolId];
+  }
+  return scoped;
+}
+
 // GET /api/daily-reports - Get daily reports with filters
 router.get('/', auth, checkReportPermission, async (req, res) => {
   try {
     const { school_id, date_from, date_to, page = 1, limit = 20 } = req.query;
-    
+
+    // Restrict administrators/supervisors to their own school(s).
+    const schoolFilter = await resolveSchoolFilter(req, res, school_id);
+    if (schoolFilter === ACCESS_DENIED) return; // response already sent
+    if (schoolFilter === EMPTY_SCOPE) {
+      return res.json({ reports: [], pagination: { page: parseInt(page), limit: parseInt(limit), total: 0, pages: 0 } });
+    }
+
     let query = `
-      SELECT 
+      SELECT
         dr.*,
         s.name as school_name,
         u.first_name || ' ' || u.last_name as reporter_name,
@@ -28,63 +61,63 @@ router.get('/', auth, checkReportPermission, async (req, res) => {
       JOIN users u ON dr.reporter_id = u.id
       WHERE 1=1
     `;
-    
+
     const params = [];
     let paramIndex = 1;
-    
-    if (school_id) {
-      query += ` AND dr.school_id = $${paramIndex}`;
-      params.push(school_id);
+
+    if (schoolFilter) {
+      query += ` AND dr.school_id = ANY($${paramIndex})`;
+      params.push(schoolFilter);
       paramIndex++;
     }
-    
+
     if (date_from) {
       query += ` AND dr.report_date >= $${paramIndex}`;
       params.push(date_from);
       paramIndex++;
     }
-    
+
     if (date_to) {
       query += ` AND dr.report_date <= $${paramIndex}`;
       params.push(date_to);
       paramIndex++;
     }
-    
+
     // Add pagination
     const offset = (page - 1) * limit;
     query += ` ORDER BY dr.report_date DESC, dr.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
     params.push(limit, offset);
-    
+
     const result = await db.query(query, params);
-    
+
     // Get total count for pagination
     let countQuery = `
       SELECT COUNT(*) as total
       FROM daily_reports dr
       WHERE 1=1
     `;
-    
+
     const countParams = [];
     let countParamIndex = 1;
-    
-    if (school_id) {
-      countQuery += ` AND dr.school_id = $${countParamIndex}`;
-      countParams.push(school_id);
+
+    if (schoolFilter) {
+      countQuery += ` AND dr.school_id = ANY($${countParamIndex})`;
+      countParams.push(schoolFilter);
       countParamIndex++;
     }
-    
+
     if (date_from) {
       countQuery += ` AND dr.report_date >= $${countParamIndex}`;
       countParams.push(date_from);
       countParamIndex++;
     }
-    
+
     if (date_to) {
       countQuery += ` AND dr.report_date <= $${countParamIndex}`;
       countParams.push(date_to);
       countParamIndex++;
     }
-    
+
     const countResult = await db.query(countQuery, countParams);
     const totalCount = parseInt(countResult.rows[0].total);
     
@@ -125,9 +158,14 @@ router.get('/:id', auth, checkReportPermission, async (req, res) => {
     if (reportResult.rows.length === 0) {
       return res.status(404).json({ error: 'التقرير غير موجود' });
     }
-    
+
     const report = reportResult.rows[0];
-    
+
+    // Enforce school scope (admin passes automatically).
+    if (!(await canAccessSchool(db, req.user, report.school_id))) {
+      return res.status(403).json({ error: 'ليس لديك صلاحية للوصول لهذا التقرير' });
+    }
+
     // Get class reports for this daily report
     const classReportsResult = await db.query(`
       SELECT 
@@ -164,7 +202,12 @@ router.post('/', auth, checkReportPermission, async (req, res) => {
     if (!school_id || !report_date) {
       return res.status(400).json({ error: 'معرف مجمع الحلقات وتاريخ التقرير مطلوبان' });
     }
-    
+
+    // Enforce school scope (admin passes automatically).
+    if (!(await canAccessSchool(db, req.user, school_id))) {
+      return res.status(403).json({ error: 'ليس لديك صلاحية لإنشاء تقرير لهذا المجمع' });
+    }
+
     const client = await db.connect();
     
     try {
@@ -274,7 +317,13 @@ router.put('/:id', auth, checkReportPermission, async (req, res) => {
       if (existingResult.rows.length === 0) {
         return res.status(404).json({ error: 'التقرير غير موجود' });
       }
-      
+
+      // Enforce school scope (admin passes automatically).
+      if (!(await canAccessSchool(db, req.user, existingResult.rows[0].school_id))) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({ error: 'ليس لديك صلاحية لتعديل هذا التقرير' });
+      }
+
       // Recalculate statistics
       let totalClasses = class_reports.length;
       let totalStudents = 0;
@@ -358,13 +407,18 @@ router.put('/:id', auth, checkReportPermission, async (req, res) => {
 router.delete('/:id', auth, checkReportPermission, async (req, res) => {
   try {
     const { id } = req.params;
-    
-    const result = await db.query('DELETE FROM daily_reports WHERE id = $1 RETURNING *', [id]);
-    
-    if (result.rows.length === 0) {
+
+    // Fetch first so we can enforce school scope before deleting.
+    const existing = await db.query('SELECT school_id FROM daily_reports WHERE id = $1', [id]);
+    if (existing.rows.length === 0) {
       return res.status(404).json({ error: 'التقرير غير موجود' });
     }
-    
+    if (!(await canAccessSchool(db, req.user, existing.rows[0].school_id))) {
+      return res.status(403).json({ error: 'ليس لديك صلاحية لحذف هذا التقرير' });
+    }
+
+    await db.query('DELETE FROM daily_reports WHERE id = $1', [id]);
+
     res.json({ message: 'تم حذف التقرير اليومي بنجاح' });
     
   } catch (error) {
@@ -381,7 +435,12 @@ router.get('/auto-fill/:schoolId/:date', auth, checkReportPermission, async (req
     if (!schoolId || !date) {
       return res.status(400).json({ error: 'معرف مجمع الحلقات والتاريخ مطلوبان' });
     }
-    
+
+    // Enforce school scope (admin passes automatically).
+    if (!(await canAccessSchool(db, req.user, schoolId))) {
+      return res.status(403).json({ error: 'ليس لديك صلاحية للوصول لهذا المجمع' });
+    }
+
     // Get current semester (you might need to adjust this logic based on your semester structure)
     const currentSemesterResult = await db.query(`
       SELECT id FROM semesters 
@@ -494,9 +553,16 @@ router.get('/auto-fill/:schoolId/:date', auth, checkReportPermission, async (req
 router.get('/statistics/summary', auth, checkReportPermission, async (req, res) => {
   try {
     const { school_id, date_from, date_to } = req.query;
-    
+
+    // Restrict administrators/supervisors to their own school(s).
+    const schoolFilter = await resolveSchoolFilter(req, res, school_id);
+    if (schoolFilter === ACCESS_DENIED) return; // response already sent
+    if (schoolFilter === EMPTY_SCOPE) {
+      return res.json({ total_reports: '0', total_classes: null, total_students: null, total_present: null, total_absent: null, total_teachers: null, total_pages: null, avg_attendance_rate: null });
+    }
+
     let query = `
-      SELECT 
+      SELECT
         COUNT(*) as total_reports,
         SUM(total_classes) as total_classes,
         SUM(total_students) as total_students,
@@ -508,16 +574,16 @@ router.get('/statistics/summary', auth, checkReportPermission, async (req, res) 
       FROM daily_reports
       WHERE 1=1
     `;
-    
+
     const params = [];
     let paramIndex = 1;
-    
-    if (school_id) {
-      query += ` AND school_id = $${paramIndex}`;
-      params.push(school_id);
+
+    if (schoolFilter) {
+      query += ` AND school_id = ANY($${paramIndex})`;
+      params.push(schoolFilter);
       paramIndex++;
     }
-    
+
     if (date_from) {
       query += ` AND report_date >= $${paramIndex}`;
       params.push(date_from);

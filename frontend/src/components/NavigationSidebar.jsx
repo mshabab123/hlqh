@@ -70,7 +70,7 @@ const NavigationSidebar = ({ isOpen, setIsOpen, className = "" }) => {
       privilegeUtils.clearPrivilegeCache();
     }
     await performLogout();
-    navigate("/login");
+    navigate("/");
   };
 
   // Import privilege utils at component level to use in async function

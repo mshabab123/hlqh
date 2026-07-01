@@ -143,6 +143,16 @@ router.put('/:id', auth, async (req, res) => {
     const { id } = req.params;
     const { type, year, start_date, end_date, display_name, school_id, weekend_days, vacation_days } = req.body;
 
+    // Verify the user can access the EXISTING semester before editing it.
+    // Prevents an administrator from hijacking another school's semester.
+    const existingSemester = await pool.query('SELECT school_id FROM semesters WHERE id = $1', [id]);
+    if (existingSemester.rows.length === 0) {
+      return res.status(404).json({ message: 'الفصل الدراسي غير موجود' });
+    }
+    if (!(await canAccessSchool(pool, req.user, existingSemester.rows[0].school_id))) {
+      return res.status(403).json({ message: 'ليس لديك صلاحية لتعديل هذا الفصل الدراسي' });
+    }
+
     // If school_id is provided, validate it
     if (school_id) {
       if (!(await canAccessSchool(pool, req.user, school_id))) {

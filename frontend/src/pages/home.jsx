@@ -19,13 +19,13 @@ export default function Home() {
       setUser(JSON.parse(stored));
     } else {
       // Not logged in, redirect to login
-      navigate("/login");
+      navigate("/");
     }
   }, [navigate]);
 
   const handleLogout = async () => {
     await performLogout();
-    navigate("/login");
+    navigate("/");
   };
 
   const navigationCards = [
@@ -225,11 +225,11 @@ export default function Home() {
 
   // Main content component
   const HomeContent = () => (
-    <div className="bg-[url('/baground.svg')] bg-cover bg-center bg-no-repeat bg-fixed min-h-screen flex flex-col items-center justify-center font-[var(--font-family-arabic)] py-8">
+    <div className="bg-[url('/baground.svg')] bg-cover bg-center bg-no-repeat min-h-[calc(100vh-5rem)] flex flex-col items-center font-[var(--font-family-arabic)] p-3">
         
         {/* Inactive User Warning */}
         {user && (user.is_active === false || user.account_status === 'pending_activation') && (
-          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6 max-w-2xl w-full mx-auto">
+          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 mb-3 max-w-2xl w-full mx-auto shrink-0">
             <div className="flex items-center">
               <div className="flex-shrink-0">
                 <AiOutlineExclamationCircle className="h-5 w-5 text-yellow-400" />
@@ -247,17 +247,17 @@ export default function Home() {
 
         {/* Welcome Card */}
         <div
-          className="bg-white/90 p-6 rounded-xl max-w-lg w-full shadow-xl space-y-4 text-center mb-8"
+          className="bg-white/90 p-3.5 rounded-xl max-w-lg w-full shadow-xl space-y-1.5 text-center mb-3 shrink-0"
           style={{ backdropFilter: "blur(2px)" }}
         >
-          <h1 className="text-2xl font-bold text-[var(--color-primary-700)]">
+          <h1 className="text-lg sm:text-xl font-bold text-[var(--color-primary-700)]">
             مرحباً بك في المنصة!
           </h1>
-          <div className="text-lg font-semibold text-[var(--color-primary-700)]">
+          <div className="text-base font-semibold text-[var(--color-primary-700)]">
             {user.first_name} {user.second_name} {user.third_name}{" "}
             {user.last_name}
           </div>
-          <div className="text-[var(--color-text-secondary)]">
+          <div className="text-sm text-[var(--color-text-secondary)]">
             {user.role === "parent"
               ? "ولي أمر"
               : user.role === "student"
@@ -275,14 +275,14 @@ export default function Home() {
           
           {/* Class Information */}
           {user.class_name && (
-            <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+            <div className="mt-2 p-2 bg-blue-50 rounded-lg">
               <div className="text-sm font-semibold text-blue-700">الحلقة:</div>
               <div className="text-blue-600">{user.class_name}</div>
             </div>
           )}
           
           {user.school_name && (
-            <div className="mt-2 p-3 bg-green-50 rounded-lg">
+            <div className="mt-2 p-2 bg-green-50 rounded-lg">
               <div className="text-sm font-semibold text-green-700">
                 {user.role === "student" ? "المركز:" : "مجمع الحلقات:"}
               </div>
@@ -291,7 +291,7 @@ export default function Home() {
           )}
           
           {user.classes && user.classes.length > 0 && (
-            <div className="mt-3 p-3 bg-purple-50 rounded-lg">
+            <div className="mt-2 p-2 bg-purple-50 rounded-lg">
               <div className="text-sm font-semibold text-purple-700 mb-2">
                 {user.role === "teacher" ? "الحلقات التي تدرس فيها:" : "الحلقات:"}
               </div>
@@ -311,7 +311,7 @@ export default function Home() {
 
 
         {/* Navigation Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 max-w-7xl w-full px-4 mb-8">
+        <div className="grid grid-cols-1 min-[420px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 auto-rows-auto content-start gap-3 max-w-7xl w-full px-1 mb-3">
           {navigationCards.map((card, index) => {
             if (!hasAccess(card.roles)) return null;
             
@@ -319,20 +319,20 @@ export default function Home() {
               <div
                 key={index}
                 onClick={() => navigate(card.path)}
-                className="bg-white/95 p-5 rounded-xl shadow-lg cursor-pointer hover:shadow-2xl transform hover:scale-105 transition-all duration-300 group"
+                className="bg-white/95 p-3 rounded-lg shadow-lg cursor-pointer hover:shadow-xl transform hover:scale-[1.015] transition-all duration-300 group flex flex-col items-center justify-start min-h-[126px]"
                 style={{ backdropFilter: "blur(2px)" }}
               >
-                <div className={`${card.color} w-14 h-14 rounded-full flex items-center justify-center mb-3 mx-auto group-hover:scale-110 transition-transform`}>
+                <div className={`${card.color} w-11 h-11 rounded-full flex items-center justify-center mb-2 mx-auto group-hover:scale-105 transition-transform shrink-0`}>
                   {typeof card.icon === 'string' ? (
-                    <span className="text-white text-xl">{card.icon}</span>
+                    <span className="text-white text-base">{card.icon}</span>
                   ) : (
-                    <card.icon className="text-white text-xl" />
+                    <card.icon className="text-white text-base" />
                   )}
                 </div>
-                <h3 className="text-lg font-bold text-[var(--color-primary-700)] mb-1 text-center">
+                <h3 className="text-sm font-bold text-[var(--color-primary-700)] mb-1 text-center leading-tight">
                   {card.title}
                 </h3>
-                <p className="text-[var(--color-text-secondary)] text-center text-xs leading-relaxed">
+                <p className="text-[var(--color-text-secondary)] text-center text-[11px] leading-snug">
                   {card.description}
                 </p>
               </div>
@@ -342,20 +342,20 @@ export default function Home() {
 
         {/* User Info and Logout */}
         <div
-          className="bg-white/90 p-4 rounded-xl max-w-lg w-full shadow-xl space-y-3 text-center"
+          className="bg-white/90 p-2.5 rounded-xl max-w-lg w-full shadow-xl space-y-1.5 text-center shrink-0"
           style={{ backdropFilter: "blur(2px)" }}
         >
-          <div className="text-sm text-[var(--color-text-secondary)]">
+          <div className="text-xs text-[var(--color-text-secondary)]">
             <span className="font-bold">البريد الإلكتروني:</span> {user.email}
           </div>
           {user.phone && (
-            <div className="text-sm text-[var(--color-text-secondary)]">
+            <div className="text-xs text-[var(--color-text-secondary)]">
               <span className="font-bold">الجوال:</span> {user.phone}
             </div>
           )}
           <button
             onClick={handleLogout}
-            className="w-full bg-[var(--color-primary-500)] hover:bg-[var(--color-primary-700)] text-white py-2 rounded-lg font-semibold transition-colors text-sm"
+            className="w-full bg-[var(--color-primary-500)] hover:bg-[var(--color-primary-700)] text-white py-1.5 rounded-lg font-semibold transition-colors text-sm"
           >
             تسجيل الخروج
           </button>

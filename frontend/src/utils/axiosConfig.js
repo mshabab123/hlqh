@@ -113,7 +113,7 @@ function handleAuthenticationFailure(message) {
   localStorage.setItem('authErrorMessage', message);
   
   // Redirect to login
-  window.location.href = '/login';
+  window.location.href = '/';
 }
 
 // Export configured axios instance

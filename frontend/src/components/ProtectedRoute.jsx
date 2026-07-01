@@ -1,6 +1,7 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { hasRouteAccess, canAccessNavItem } from "../utils/privilegeUtils";
+import NoSchoolBanner from "./NoSchoolBanner";
 
 // Utility: checks if token exists
 function isAuthenticated() {
@@ -89,7 +90,7 @@ export default function ProtectedRoute({ children, requiredRole }) {
   }
   
   if (!isAuthenticated()) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/" replace />;
   }
   
   // Redirect inactive users to about page (except if they're already on about or profile)
@@ -103,6 +104,11 @@ export default function ProtectedRoute({ children, requiredRole }) {
   if (!hasAccess) {
     return <Navigate to="/home" replace />;
   }
-  
-  return children;
+
+  return (
+    <>
+      <NoSchoolBanner />
+      {children}
+    </>
+  );
 }

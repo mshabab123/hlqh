@@ -55,10 +55,10 @@ export default function Login() {
   };
 
   return (
-    <div className="bg-[url('/baground.svg')] bg-cover bg-center bg-no-repeat bg-blend-overlay min-h-screen flex flex-col items-center justify-center font-[var(--font-family-arabic)] py-8">
+    <div className="fixed inset-0 bg-[url('/baground.svg')] bg-cover bg-center bg-no-repeat bg-blend-overlay overflow-hidden box-border flex flex-col items-center justify-center font-[var(--font-family-arabic)] p-4">
       <form
         onSubmit={handleSubmit}
-        className="bg-white/90 p-8 rounded-xl w-full max-w-md shadow-xl space-y-6"
+        className="bg-white/90 p-6 sm:p-8 rounded-xl w-full max-w-md shadow-xl space-y-5 sm:space-y-6"
         style={{ backdropFilter: "blur(2px)" }}
       >
         <h1 className="text-xl sm:text-3xl font-bold mb-6 text-center text-[var(--color-primary-700)] bg-gradient-to-r from-[var(--color-primary-500)] to-[var(--color-primary-700)] bg-clip-text text-transparent">
@@ -125,17 +125,6 @@ export default function Login() {
             className="text-[var(--color-primary-600)] hover:text-[var(--color-primary-700)] text-sm font-medium hover:underline transition-colors"
           >
             هل نسيت كلمة المرور؟
-          </Link>
-        </div>
-
-        {/* Register link */}
-        <div className="mt-4 text-center text-gray-700">
-          ليس لديك حساب؟
-          <Link
-            to="/registration"
-            className="text-[var(--color-primary-700)] hover:underline font-bold mx-1"
-          >
-            إنشاء حساب جديد
           </Link>
         </div>
       </form>

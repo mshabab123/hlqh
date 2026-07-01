@@ -3,21 +3,14 @@ import { Link, useLocation } from "react-router-dom";
 import {
   AiOutlineMenu,
   AiOutlineClose,
-  AiOutlineLogin,
-  AiOutlineUserAdd,
-  AiOutlineTeam,
-  AiOutlineBook,
+  AiOutlineHome,
   AiOutlineInfoCircle,
+  AiOutlineUserAdd,
 } from "react-icons/ai";
 
 const navLinks = [
-  { to: "/login", label: "الدخول", icon: <AiOutlineLogin />, primary: true },
-  {
-    to: "/registration",
-    label: "التسجيل في الحقات",
-    icon: <AiOutlineUserAdd />,
-  },
-  { to: "/TeacherRegister", label: "تسجيل معلم", icon: <AiOutlineTeam /> },
+  { to: "/", label: "الرئيسية", icon: <AiOutlineHome /> },
+  { to: "/registration", label: "التسجيل", icon: <AiOutlineUserAdd /> },
   { to: "/about", label: "عن المنصة", icon: <AiOutlineInfoCircle /> },
 ];
 
@@ -59,7 +52,7 @@ export default function Navbar() {
 
           {/* Desktop Navigation */}
           <div className="hidden lg:flex items-center gap-2">
-            {navLinks.map((link) => (
+            {navLinks.filter((link) => link.to !== "/login" && link.to !== "/Login").map((link) => (
               <Link
                 key={link.to}
                 to={link.to}
@@ -96,7 +89,7 @@ export default function Navbar() {
           }`}
         >
           <div className="flex flex-col gap-2 pt-2 border-t border-white/20">
-            {navLinks.map((link) => (
+            {navLinks.filter((link) => link.to !== "/login" && link.to !== "/Login").map((link) => (
               <Link
                 key={link.to}
                 to={link.to}

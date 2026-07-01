@@ -98,6 +98,26 @@ async function canAccessStudent(db, user, studentId) {
   return false;
 }
 
+// Returns the list of school ids a user is scoped to.
+// - admin: null  (means "all schools", no restriction)
+// - administrator/supervisor: array of their school ids (possibly empty)
+// - everyone else: [] (no school-level access)
+async function getAccessibleSchoolIds(db, user) {
+  const role = user?.role;
+  const userId = user?.id;
+  if (!role || !userId) return [];
+  if (role === 'admin') return null;
+  if (role === 'administrator' || role === 'supervisor') {
+    const tableName = role === 'administrator' ? 'administrators' : 'supervisors';
+    const result = await db.query(
+      `SELECT school_id FROM ${tableName} WHERE id = $1`,
+      [userId]
+    );
+    return result.rows.map((r) => r.school_id).filter(Boolean);
+  }
+  return [];
+}
+
 async function canAccessCourse(db, user, courseId) {
   const role = user?.role;
   if (!role || !courseId) return false;
@@ -120,4 +140,5 @@ module.exports = {
   canAccessClass,
   canAccessStudent,
   canAccessCourse,
+  getAccessibleSchoolIds,
 };

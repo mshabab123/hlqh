@@ -79,6 +79,9 @@ export default function TeacherRegister() {
       errors.password = "كلمة المرور يجب أن تكون 6 أحرف أو أكثر";
 
     if (!form.user_type) errors.user_type = "يرجى اختيار نوع المستخدم";
+    else if (!["teacher", "administrator"].includes(form.user_type)) {
+      errors.user_type = "نوع التسجيل غير متاح";
+    }
 
     // Only require school_id for non-administrators
     if (form.user_type !== 'administrator' && !form.school_id) {
@@ -96,7 +99,7 @@ export default function TeacherRegister() {
     if (Object.keys(errors).length > 0) return;
 
     try {
-      const response = await axios.post(`${API_BASE}/api/teachers`, form);
+      const response = await axios.post(`${API_BASE}/api/teachers/register`, form);
       setRegistrationResponse(response.data);
       setSuccess(true);
       setShowModal(true);
@@ -144,9 +147,7 @@ export default function TeacherRegister() {
               } rounded-lg focus:border-accent focus:outline-none transition-colors bg-white`}
             >
               <option value="teacher">معلم</option>
-              <option value="admin">مدير منصة</option>
               <option value="administrator">مدير مجمع</option>
-              <option value="supervisor">مشرف</option>
             </select>
             {inputErrors.user_type && (
               <div className="flex items-center mt-1 text-[var(--color-error-600)] text-sm">
@@ -375,7 +376,7 @@ export default function TeacherRegister() {
           type="submit"
           className="w-full bg-[var(--color-primary-500)] hover:bg-[var(--color-primary-700)] text-white py-3 rounded-lg font-semibold transition-colors"
         >
-          تسجيل ك{form.user_type === 'teacher' ? 'معلم' : form.user_type === 'admin' ? 'مدير منصة' : form.user_type === 'administrator' ? 'مدير مجمع' : 'مشرف'}
+          تسجيل ك{form.user_type === 'teacher' ? 'معلم' : 'مدير مجمع'}
         </button>
       </form>
       {showModal && (

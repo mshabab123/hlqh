@@ -189,17 +189,23 @@ router.post('/login', loginLimiter, async (req, res) => {
       additionalData.classes = classesResult.rows;
     }
 
-    if (user.role === 'administrator') {
-      // For now, just get all schools - administrators can manage any school
-      // TODO: Add proper school assignment logic later
+    if (user.role === 'administrator' || user.role === 'supervisor') {
+      // Report the user's actual assigned school. Administrators/supervisors are
+      // scoped to a single school; if they have been removed from one, they are
+      // connected to no school and cannot access any school-scoped data.
+      const scopeTable = user.role === 'administrator' ? 'administrators' : 'supervisors';
       const schoolResult = await db.query(`
-        SELECT s.id, s.name 
-        FROM schools s
-        WHERE s.is_active = true
-        LIMIT 1
-      `);
+        SELECT s.id, s.name
+        FROM ${scopeTable} scoped
+        JOIN schools s ON scoped.school_id = s.id
+        WHERE scoped.id = $1
+      `, [id]);
       if (schoolResult.rows.length > 0) {
         additionalData.assigned_school = schoolResult.rows[0];
+        additionalData.no_school_assigned = false;
+      } else {
+        additionalData.assigned_school = null;
+        additionalData.no_school_assigned = true;
       }
     }
 

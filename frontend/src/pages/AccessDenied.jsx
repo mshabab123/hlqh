@@ -47,7 +47,7 @@ export default function AccessDenied() {
         window.location.href = '/';
       }
     } else {
-      window.location.href = '/login';
+      window.location.href = '/';
     }
   };
 

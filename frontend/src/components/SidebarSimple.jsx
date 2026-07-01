@@ -18,7 +18,7 @@ const Sidebar = () => {
 
   const handleLogout = async () => {
     await performLogout();
-    navigate("/login");
+    navigate("/");
   };
 
   // Check if user has access to a specific route

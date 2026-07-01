@@ -1,10 +1,6 @@
 import { Routes, Route, useLocation, Navigate } from "react-router-dom";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Login from "./pages/login";
-import Registration from "./pages/registration";
-import ParentRegistration from "./pages/ParentRegistration";
-import StudentRegistration from "./pages/StudentRegistration";
-import TeacherRegister from "./pages/TeacherRegister";
 import SchoolManagement from "./pages/SchoolManagement";
 import ClassManagement from "./pages/ClassManagement";
 import TeacherManagement from "./pages/TeacherManagement";
@@ -29,6 +25,10 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import AccessDenied from "./pages/AccessDenied";
 import About from "./pages/About";
+import Registration from "./pages/registration";
+import StudentRegistration from "./pages/StudentRegistration";
+import ParentRegistration from "./pages/ParentRegistration";
+import TeacherRegister from "./pages/TeacherRegister";
 import QuranReader from "./pages/QuranReader";
 import Home from "./pages/home";
 import DailyReports from "./pages/DailyReports";
@@ -53,7 +53,7 @@ export default function App() {
 
   return (
     <>
-      <div className="min-h-screen text-primary font-arabic">
+      <div className={`${showNavbar ? "min-h-screen" : "h-screen overflow-hidden"} text-primary font-arabic`}>
         {/* Update notification banner */}
         {updateAvailable && (
           <div className="bg-amber-500 text-white text-center py-2 px-4 text-sm flex items-center justify-center gap-3 z-[9999] relative">
@@ -85,11 +85,11 @@ export default function App() {
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/access-denied" element={<AccessDenied />} />
-          <Route path="/registration" element={<Registration />} />
-          <Route path="/parent-registration" element={<ParentRegistration />} />
-          <Route path="/student-registration" element={<StudentRegistration />} />
-          <Route path="/TeacherRegister" element={<TeacherRegister />} />
           <Route path="/about" element={<About />} />
+          <Route path="/registration" element={<Registration />} />
+          <Route path="/student-registration" element={<StudentRegistration />} />
+          <Route path="/parent-registration" element={<ParentRegistration />} />
+          <Route path="/TeacherRegister" element={<TeacherRegister />} />
           <Route path="/quran" element={<QuranReader />} />
 
           {/* Protected routes */}
