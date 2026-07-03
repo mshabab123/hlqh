@@ -29,14 +29,14 @@ import {
   FaSchool, 
   FaUsers, 
   FaUserGraduate, 
-  FaUserTie 
+  FaUserTie,
+  FaCertificate
 } from "react-icons/fa";
 
-const NavigationSidebar = ({ isOpen, setIsOpen, className = "" }) => {
+const NavigationSidebar = ({ isOpen, setIsOpen, isCollapsed, setIsCollapsed, className = "" }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
-  const [isCollapsed, setIsCollapsed] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem("user");
@@ -238,6 +238,13 @@ const NavigationSidebar = ({ isOpen, setIsOpen, className = "" }) => {
           description: "إدارة الفصول الدراسية"
         },
         {
+          path: "/certificates",
+          title: "الشهادات",
+          icon: FaCertificate,
+          roles: ["admin", "administrator"],
+          description: "منح وإلغاء وطباعة شهادات الطلاب"
+        },
+        {
           title: "مقررات الحلقات",
           path: "/class-courses",
           icon: AiOutlineBook,
@@ -370,14 +377,14 @@ const NavigationSidebar = ({ isOpen, setIsOpen, className = "" }) => {
       {/* Overlay for mobile */}
       {isOpen && (
         <div 
-          className="fixed inset-0 bg-black bg-opacity-50 lg:hidden z-50"
+          className="fixed top-20 inset-x-0 bottom-0 bg-transparent lg:hidden z-[60]"
           onClick={() => setIsOpen(false)}
         />
       )}
       
       {/* Sidebar */}
       <div className={`
-        fixed top-0 right-0 h-full shadow-2xl transition-all duration-300 ease-in-out
+        fixed top-20 right-0 h-[calc(100vh-5rem)] shadow-2xl transition-all duration-300 ease-in-out
         text-white border-l border-primary-400/20
         ${!isOpen ? 'translate-x-full lg:translate-x-0' : 'translate-x-0'}
         ${isCollapsed ? 'lg:w-20' : 'w-80 lg:w-72'}
@@ -388,25 +395,8 @@ const NavigationSidebar = ({ isOpen, setIsOpen, className = "" }) => {
         background: 'linear-gradient(180deg, var(--color-primary-600), var(--color-primary-800), var(--color-primary-900))',
       }}
       dir="rtl">
-        <button
-          onClick={() => {
-            if (window.innerWidth < 1024) {
-              setIsOpen(false);
-            } else {
-              setIsCollapsed(!isCollapsed);
-            }
-          }}
-          className="hidden lg:block absolute left-4 top-24 z-10 p-3 rounded-xl bg-red-600 hover:bg-red-700 text-white shadow-xl transition-colors"
-          title={isCollapsed ? "توسيع الشريط الجانبي" : "طي الشريط الجانبي"}
-        >
-          {isCollapsed ? 
-            <AiOutlineMenu className="text-white text-lg" /> : 
-            <AiOutlineClose className="text-white text-lg" />
-          }
-        </button>
-
         {/* Header */}
-        <div className="flex items-center gap-3 p-4 border-b border-white/20 bg-primary-700/30">
+        <div className="flex items-center justify-between gap-3 p-4 border-b border-white/20 bg-primary-700/30">
           <div className={`flex min-w-0 flex-1 items-center gap-3 ${isCollapsed ? 'hidden lg:flex' : ''}`}>
             <div className="h-10 w-10 shrink-0 bg-gradient-to-br from-primary-400 to-primary-500 rounded-full flex items-center justify-center shadow-lg">
               <AiOutlineBook className="text-white text-lg" />
@@ -427,7 +417,7 @@ const NavigationSidebar = ({ isOpen, setIsOpen, className = "" }) => {
                 setIsCollapsed(!isCollapsed);
               }
             }}
-            className="hidden shrink-0 p-2 rounded-lg hover:bg-white/10 transition-colors"
+            className="shrink-0 p-2.5 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 text-white shadow-sm transition-colors"
             title={isCollapsed ? "توسيع الشريط الجانبي" : "طي الشريط الجانبي"}
           >
             {isCollapsed ? 
@@ -485,7 +475,7 @@ const NavigationSidebar = ({ isOpen, setIsOpen, className = "" }) => {
             onClick={handleLogout}
             className={`
               w-full flex items-center gap-3 px-3 py-3 rounded-lg 
-              bg-gradient-to-r from-red-500/80 to-red-600/80 hover:from-red-500 hover:to-red-600 
+              bg-white/10 hover:bg-white/20 border border-white/15
               transition-all duration-200 text-white font-medium shadow-lg
               ${isCollapsed ? 'justify-center px-2' : ''}
               group

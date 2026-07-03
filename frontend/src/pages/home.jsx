@@ -3,10 +3,12 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { performLogout } from "../utils/logout";
 import { AiOutlineExclamationCircle } from "react-icons/ai";
-import { FaChalkboardTeacher, FaSchool, FaUsers, FaUserGraduate, FaUserTie, FaClipboardCheck, FaTrophy, FaChartBar, FaChild, FaUserFriends, FaCog, FaDatabase, FaUserShield, FaStar } from "react-icons/fa";
+import { FaChalkboardTeacher, FaSchool, FaUsers, FaUserGraduate, FaUserTie, FaClipboardCheck, FaTrophy, FaChartBar, FaChild, FaUserFriends, FaCog, FaDatabase, FaUserShield, FaStar, FaCertificate } from "react-icons/fa";
 import { MdAssignment, MdDashboard, MdSettings } from "react-icons/md";
 import AuthNavbar from "../components/AuthNavbar";
 import Layout from "../components/Layout";
+import axios from "../utils/axiosConfig";
+import Children from "./Children";
 
 export default function Home() {
   const [user, setUser] = useState(null);
@@ -16,7 +18,22 @@ export default function Home() {
   useEffect(() => {
     const stored = localStorage.getItem("user");
     if (stored) {
-      setUser(JSON.parse(stored));
+      const parsedUser = JSON.parse(stored);
+      setUser(parsedUser);
+
+      axios.get("/api/profile/me")
+        .then((response) => {
+          const refreshedUser = {
+            ...parsedUser,
+            ...response.data.user,
+            user_type: response.data.user.role || parsedUser.user_type,
+          };
+          localStorage.setItem("user", JSON.stringify(refreshedUser));
+          setUser(refreshedUser);
+        })
+        .catch(() => {
+          // Keep the locally stored user if the profile refresh is unavailable.
+        });
     } else {
       // Not logged in, redirect to login
       navigate("/");
@@ -83,6 +100,14 @@ export default function Home() {
       icon: "📅",
       path: "/semesters",
       color: "bg-indigo-500",
+      roles: ["admin", "administrator"]
+    },
+    {
+      title: "الشهادات",
+      description: "منح وإلغاء وطباعة شهادات الطلاب حسب الفصل الدراسي والدرجات",
+      icon: FaCertificate,
+      path: "/certificates",
+      color: "bg-amber-500",
       roles: ["admin", "administrator"]
     },
     {
@@ -221,6 +246,10 @@ export default function Home() {
 
   if (!user) {
     return null; // Or a loading spinner
+  }
+
+  if (user.role === "student") {
+    return <Children />;
   }
 
   // Main content component

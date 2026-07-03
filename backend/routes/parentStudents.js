@@ -30,14 +30,22 @@ router.get('/my-students', authenticateToken, async (req, res) => {
         u.created_at,
         s.school_level,
         s.enrollment_date,
+        sch.id as school_id,
         sch.name as school_name,
         c.name as class_name,
-        c.level as class_level
+        c.school_level as class_level
       FROM parent_student_relationships psr
       JOIN users u ON psr.student_id = u.id
       LEFT JOIN students s ON u.id = s.id
-      LEFT JOIN schools sch ON s.school_id = sch.id
-      LEFT JOIN classes c ON s.class_id = c.id
+      LEFT JOIN LATERAL (
+        SELECT se.class_id
+        FROM student_enrollments se
+        WHERE se.student_id = u.id AND se.status = 'enrolled'
+        ORDER BY se.enrollment_date DESC
+        LIMIT 1
+      ) current_enrollment ON true
+      LEFT JOIN classes c ON current_enrollment.class_id = c.id
+      LEFT JOIN schools sch ON c.school_id = sch.id
       WHERE psr.parent_id = $1
       ORDER BY psr.is_primary DESC, u.first_name, u.last_name
     `, [parentId]);
@@ -87,15 +95,23 @@ router.get('/student/:studentId', authenticateToken, async (req, res) => {
         s.school_level,
         s.enrollment_date,
         s.notes as student_notes,
+        sch.id as school_id,
         sch.name as school_name,
         sch.address as school_address,
         c.name as class_name,
-        c.level as class_level,
-        c.description as class_description
+        c.school_level as class_level,
+        c.schedule_info as class_description
       FROM users u
       LEFT JOIN students s ON u.id = s.id
-      LEFT JOIN schools sch ON s.school_id = sch.id
-      LEFT JOIN classes c ON s.class_id = c.id
+      LEFT JOIN LATERAL (
+        SELECT se.class_id
+        FROM student_enrollments se
+        WHERE se.student_id = u.id AND se.status = 'enrolled'
+        ORDER BY se.enrollment_date DESC
+        LIMIT 1
+      ) current_enrollment ON true
+      LEFT JOIN classes c ON current_enrollment.class_id = c.id
+      LEFT JOIN schools sch ON c.school_id = sch.id
       WHERE u.id = $1
     `, [studentId]);
     
@@ -112,13 +128,14 @@ router.get('/student/:studentId', authenticateToken, async (req, res) => {
         g.id,
         g.grade_value,
         g.grade_type,
-        g.semester,
+        COALESCE(sem.display_name, CONCAT('الفصل ', sem.type, ' ', sem.year)) as semester,
         g.notes as grade_notes,
-        g.created_at as grade_date,
-        c.name as course_name,
-        c.code as course_code
+        COALESCE(g.date_graded, g.created_at::date) as grade_date,
+        sc.name as course_name,
+        sc.id as course_code
       FROM grades g
-      LEFT JOIN courses c ON g.course_id = c.id
+      LEFT JOIN semester_courses sc ON g.course_id = sc.id
+      LEFT JOIN semesters sem ON g.semester_id = sem.id
       WHERE g.student_id = $1
       ORDER BY g.created_at DESC
       LIMIT 20

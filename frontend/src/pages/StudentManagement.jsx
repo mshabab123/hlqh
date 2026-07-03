@@ -44,6 +44,11 @@ export default function StudentManagement() {
   const [schoolFilter, setSchoolFilter] = useState("all");
   const [semesterFilter, setSemesterFilter] = useState("all");
   const [classFilter, setClassFilter] = useState("all");
+  const [activationSetting, setActivationSetting] = useState({
+    auto_activation_enabled: false,
+    requires_manual_activation: true
+  });
+  const [savingActivationSetting, setSavingActivationSetting] = useState(false);
   
   const [currentStudent, setCurrentStudent] = useState({
     id: "",
@@ -67,7 +72,12 @@ export default function StudentManagement() {
     fetchSchools();
     fetchSemesters();
     fetchClasses();
+    fetchActivationSetting();
   }, []);
+
+  const authHeaders = () => ({
+    Authorization: `Bearer ${localStorage.getItem('token')}`
+  });
 
   const fetchStudents = async () => {
     try {
@@ -83,6 +93,35 @@ export default function StudentManagement() {
       setStudents([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchActivationSetting = async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/api/settings/student-activation`, {
+        headers: authHeaders()
+      });
+      setActivationSetting(response.data);
+    } catch (err) {
+      console.error("Error fetching activation setting:", err);
+    }
+  };
+
+  const toggleActivationSetting = async () => {
+    try {
+      setSavingActivationSetting(true);
+      const nextValue = !activationSetting.auto_activation_enabled;
+      const response = await axios.put(
+        `${API_BASE}/api/settings/student-activation`,
+        { auto_activation_enabled: nextValue },
+        { headers: authHeaders() }
+      );
+      setActivationSetting(response.data);
+    } catch (err) {
+      setError(err.response?.data?.error || "فشل في تحديث إعداد تفعيل الطلاب");
+      console.error("Error updating activation setting:", err);
+    } finally {
+      setSavingActivationSetting(false);
     }
   };
 
@@ -517,6 +556,35 @@ export default function StudentManagement() {
             {error}
           </div>
         )}
+
+        <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-sm mb-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">إعداد تفعيل الطلاب</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                {activationSetting.auto_activation_enabled
+                  ? "الطلاب الجدد يتم تفعيلهم تلقائيا عند التسجيل."
+                  : "الطلاب الجدد يبقون بانتظار التفعيل من الإدارة أو عند إضافتهم للحلقة."}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={toggleActivationSetting}
+              disabled={savingActivationSetting}
+              className={`px-5 py-3 rounded-lg text-white font-semibold transition-colors ${
+                activationSetting.auto_activation_enabled
+                  ? "bg-emerald-600 hover:bg-emerald-700"
+                  : "bg-slate-700 hover:bg-slate-800"
+              } disabled:opacity-60`}
+            >
+              {savingActivationSetting
+                ? "جاري الحفظ..."
+                : activationSetting.auto_activation_enabled
+                  ? "إيقاف التفعيل التلقائي"
+                  : "تشغيل التفعيل التلقائي"}
+            </button>
+          </div>
+        </div>
 
         <div className="bg-white p-6 rounded-xl shadow-lg mb-6">
                                         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">

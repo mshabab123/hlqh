@@ -86,6 +86,17 @@ export default function AuthNavbar() {
       setUser(parsedUser);
       const isActive = parsedUser.is_active !== false; // Default to true if undefined
       setNavLinks(getNavLinks(parsedUser.role || parsedUser.user_type, isActive));
+
+      refreshCurrentUser().then((refreshedUser) => {
+        if (!refreshedUser) return;
+
+        const refreshedIsActive = refreshedUser.is_active !== false;
+        setUser(refreshedUser);
+        setNavLinks(getNavLinks(refreshedUser.role || refreshedUser.user_type, refreshedIsActive));
+        if (refreshedIsActive) {
+          setShowInactiveModal(false);
+        }
+      });
       
       // Show modal for inactive users, but only on certain pages
       if (parsedUser.is_active === false && location.pathname !== "/about") {

@@ -161,7 +161,8 @@ router.post('/', authenticateToken, requireRole(ROLES.ADMIN), teacherValidationR
       specialization,
       qualifications,
       salary,
-      created_by
+      created_by,
+      can_assign_registered_students = true
     } = req.body;
 
     await client.query('BEGIN');
@@ -192,9 +193,9 @@ router.post('/', authenticateToken, requireRole(ROLES.ADMIN), teacherValidationR
         // Store school_id and qualifications in separate columns
         await client.query(`
           INSERT INTO teachers (
-            id, specialization, qualifications, salary, school_id
-          ) VALUES ($1, $2, $3, $4, $5)
-        `, [id, specialization || null, qualifications || null, salary || null, school_id || null]);
+            id, specialization, qualifications, salary, school_id, can_assign_registered_students
+          ) VALUES ($1, $2, $3, $4, $5, $6)
+        `, [id, specialization || null, qualifications || null, salary || null, school_id || null, Boolean(can_assign_registered_students)]);
         break;
 
       case 'admin':
@@ -288,11 +289,13 @@ router.get('/my-classes', authenticateToken, async (req, res) => {
         s.id as school_id,
         sem.display_name as semester_name,
         sem.id as semester_id,
+        COALESCE(t.can_assign_registered_students, true) as can_assign_registered_students,
         tca.teacher_role,
         COALESCE(CONCAT(ptu.first_name, ' ', ptu.last_name), '-') as teacher_name,
         (SELECT COUNT(*) FROM student_enrollments se WHERE se.class_id = c.id AND se.status = 'enrolled') as student_count
       FROM teacher_class_assignments tca
       JOIN classes c ON tca.class_id = c.id
+      LEFT JOIN teachers t ON t.id = tca.teacher_id
       JOIN schools s ON c.school_id = s.id
       LEFT JOIN semesters sem ON c.semester_id = sem.id
       LEFT JOIN teacher_class_assignments tca_primary ON c.id = tca_primary.class_id
@@ -481,6 +484,7 @@ router.get('/', authenticateToken, requireRole(ROLES.SUPERVISOR), async (req, re
           u.role as role_type,
           u.role as user_type,
           t.specialization,
+          COALESCE(t.can_assign_registered_students, true) as can_assign_registered_students,
           COALESCE(c.school_id, t.school_id) as school_id,
           t.qualifications,
           COALESCE(
@@ -494,7 +498,7 @@ router.get('/', authenticateToken, requireRole(ROLES.SUPERVISOR), async (req, re
         ${whereClause}
         GROUP BY u.id, u.first_name, u.second_name, u.third_name, u.last_name,
                  u.email, u.phone, u.address, u.is_active, u.created_at,
-                 u.role, c.school_id, t.school_id, t.qualifications, t.specialization
+                 u.role, c.school_id, t.school_id, t.qualifications, t.specialization, t.can_assign_registered_students
         ORDER BY u.is_active DESC, u.first_name, u.last_name
       `;
     } else {
@@ -516,6 +520,7 @@ router.get('/', authenticateToken, requireRole(ROLES.SUPERVISOR), async (req, re
           t.qualifications,
           t.specialization,
           t.school_id,
+          COALESCE(t.can_assign_registered_students, true) as can_assign_registered_students,
           COALESCE(
             ARRAY_AGG(DISTINCT tca.class_id) FILTER (WHERE tca.class_id IS NOT NULL),
             ARRAY[]::UUID[]
@@ -526,7 +531,7 @@ router.get('/', authenticateToken, requireRole(ROLES.SUPERVISOR), async (req, re
         ${whereClause}
         GROUP BY u.id, u.first_name, u.second_name, u.third_name, u.last_name,
                  u.email, u.phone, u.address, u.is_active, u.created_at,
-                 u.role, t.qualifications, t.specialization, t.school_id
+                 u.role, t.qualifications, t.specialization, t.school_id, t.can_assign_registered_students
         ORDER BY u.is_active DESC, u.first_name, u.last_name
       `;
     }
@@ -557,7 +562,8 @@ router.put('/:id', authenticateToken, requireRole(ROLES.ADMINISTRATOR), async (r
       address,
       school_id,
       specialization,
-      qualifications
+      qualifications,
+      can_assign_registered_students
     } = req.body;
 
     await client.query('BEGIN');
@@ -594,9 +600,16 @@ router.put('/:id', authenticateToken, requireRole(ROLES.ADMINISTRATOR), async (r
       UPDATE teachers SET
         specialization = COALESCE($1, specialization),
         qualifications = COALESCE($2, qualifications),
-        school_id = COALESCE($3, school_id)
-      WHERE id = $4
-    `, [specialization, qualifications, school_id, id]);
+        school_id = COALESCE($3, school_id),
+        can_assign_registered_students = COALESCE($4, can_assign_registered_students)
+      WHERE id = $5
+    `, [
+      specialization,
+      qualifications,
+      school_id,
+      typeof can_assign_registered_students === 'boolean' ? can_assign_registered_students : null,
+      id
+    ]);
 
     await client.query('COMMIT');
     

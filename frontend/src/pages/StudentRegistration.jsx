@@ -1,5 +1,4 @@
 import { useState } from "react";
-import axios from "axios";
 import { useNavigate, Link } from "react-router-dom";
 import {
   AiOutlineExclamationCircle,
@@ -8,6 +7,7 @@ import {
 } from "react-icons/ai";
 import SuccessModal from "../components/SuccessModal";
 import SchoolLevelSelect from "../components/SchoolLevelSelect";
+import { axiosRaw } from "../utils/axiosConfig";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
@@ -91,11 +91,19 @@ export default function StudentRegistration() {
         parent_id: form.parent_id || null, // Send null if empty
       };
       
-      const response = await axios.post(`${API_BASE}/api/students`, registrationData);
+      const response = await axiosRaw.post(`${API_BASE}/api/students`, registrationData);
       setRegistrationResponse(response.data);
       setShowModal(true);
     } catch (err) {
-      setError(err.response?.data?.error || "Registration failed");
+      const status = err.response?.status;
+      const apiError = err.response?.data?.error;
+      if (status === 401) {
+        setError("تعذر إرسال طلب التسجيل. حدّث الصفحة ثم حاول مرة أخرى.");
+      } else if (status === 403) {
+        setError(apiError || "تعذر إرسال طلب التسجيل من هذه الصفحة.");
+      } else {
+        setError(apiError || "فشل تسجيل الطالب");
+      }
     }
   };
 
@@ -285,6 +293,7 @@ export default function StudentRegistration() {
             <input
               type={showPassword ? "text" : "password"}
               name="password"
+              autoComplete="new-password"
               placeholder="كلمة المرور"
               value={form.password}
               onChange={handleChange}

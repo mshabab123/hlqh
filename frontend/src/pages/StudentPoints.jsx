@@ -15,6 +15,7 @@ const StudentPoints = () => {
   const [dateTo, setDateTo] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [registeringSemesterId, setRegisteringSemesterId] = useState(null);
 
   // Load user data
   const [user, setUser] = useState(null);
@@ -40,12 +41,37 @@ const StudentPoints = () => {
 
   const loadSemesters = async () => {
     try {
-      const response = await axios.get(`${API_BASE}/api/semesters`, {
+      const response = await axios.get(`${API_BASE}/api/semesters/registration-options`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
       setSemesters(response.data.semesters || response.data || []);
     } catch (error) {
       console.error("Error loading semesters:", error);
+    }
+  };
+
+  const handleRegisterSemester = async (semesterId) => {
+    try {
+      setRegisteringSemesterId(semesterId);
+      await axios.post(`${API_BASE}/api/semesters/${semesterId}/register`, {}, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      await loadSemesters();
+    } catch (error) {
+      console.error("Error registering in semester:", error);
+      setError(error.response?.data?.message || "تعذر التسجيل في الفصل");
+      setTimeout(() => setError(""), 3000);
+    } finally {
+      setRegisteringSemesterId(null);
+    }
+  };
+
+  const getSemesterTypeText = (type) => {
+    switch (type) {
+      case 'first': return 'الأول';
+      case 'second': return 'الثاني';
+      case 'summer': return 'الصيفي';
+      default: return type || 'غير محدد';
     }
   };
 
@@ -227,6 +253,63 @@ const StudentPoints = () => {
             </div>
           )}
 
+          {semesters.length > 0 && (
+            <div className="mb-6">
+              <h2 className="mb-3 text-lg font-bold text-gray-900">الفصول الدراسية والتسجيل</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {semesters.map((semester) => {
+                  const isOpen = Boolean(semester.registration_open);
+                  const isRegistered = Boolean(semester.registration_status);
+                  return (
+                    <div
+                      key={semester.id}
+                      className={`rounded-lg border p-4 ${
+                        isOpen
+                          ? 'border-teal-200 bg-teal-50'
+                          : 'border-gray-200 bg-gray-50 opacity-60'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-bold text-gray-900">
+                            الفصل {getSemesterTypeText(semester.type)} {semester.year}
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            {semester.school_name || 'بدون مجمع محدد'}
+                          </p>
+                        </div>
+                        <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${
+                          isOpen ? 'bg-teal-100 text-teal-800' : 'bg-gray-200 text-gray-600'
+                        }`}>
+                          {isOpen ? 'متاح' : 'غير متاح'}
+                        </span>
+                      </div>
+                      <div className="mt-4 flex items-center justify-between gap-3">
+                        <span className="text-xs text-gray-600">
+                          {isRegistered
+                            ? semester.registered_class_name
+                              ? `مسجل في ${semester.registered_class_name}`
+                              : 'مسجل بانتظار الحلقة'
+                            : 'لم يتم التسجيل'}
+                        </span>
+                        {isOpen && !isRegistered && (
+                          <button
+                            type="button"
+                            onClick={() => handleRegisterSemester(semester.id)}
+                            disabled={registeringSemesterId === semester.id}
+                            className="rounded-lg bg-teal-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-teal-700 disabled:opacity-60"
+                          >
+                            {registeringSemesterId === semester.id ? 'جارٍ التسجيل...' : 'تسجيل'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Filters */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
@@ -239,7 +322,7 @@ const StudentPoints = () => {
                 <option value="">جميع الفصول</option>
                 {semesters.map(semester => (
                   <option key={semester.id} value={semester.id}>
-                    {semester.name}
+                    الفصل {getSemesterTypeText(semester.type)} {semester.year}
                   </option>
                 ))}
               </select>

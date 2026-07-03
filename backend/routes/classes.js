@@ -617,43 +617,124 @@ router.get('/:id/students', requireAuth, requireRole(ROLES.TEACHER), async (req,
 
 // Add student to class
 router.post('/:id/students', requireAuth, requireRole(ROLES.TEACHER), async (req, res) => {
+  const client = await db.connect();
   try {
     const { id: classId } = req.params;
-    const { student_id } = req.body;
+    const { student_id, target_surah_id, target_ayah_number } = req.body;
     
     if (!student_id) {
       return res.status(400).json({ error: 'معرف الطالب مطلوب' });
     }
     
-    // Check if student exists
-    const studentCheck = await db.query('SELECT s.id FROM students s JOIN users u ON s.id = u.id WHERE s.id = $1', [student_id]);
+    await client.query('BEGIN');
+
+    // Check if student exists.
+    const studentCheck = await client.query(
+      `SELECT s.id, s.target_surah_id, s.target_ayah_number
+       FROM students s
+       JOIN users u ON s.id = u.id
+       WHERE s.id = $1`,
+      [student_id]
+    );
     if (studentCheck.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'الطالب غير موجود' });
     }
+    const studentData = studentCheck.rows[0];
     
     // Check if class exists
-    const classCheck = await db.query('SELECT id FROM classes WHERE id = $1', [classId]);
+    const classCheck = await client.query('SELECT id, semester_id, school_id FROM classes WHERE id = $1', [classId]);
     if (classCheck.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'الحلقة غير موجودة' });
     }
+    const classData = classCheck.rows[0];
+
+    const previousEnrollment = await client.query(
+      `SELECT c.semester_id
+       FROM student_enrollments se
+       JOIN classes c ON c.id = se.class_id
+       WHERE se.student_id = $1
+         AND se.status = 'enrolled'
+       ORDER BY se.enrollment_date DESC NULLS LAST
+       LIMIT 1`,
+      [student_id]
+    );
+    const previousSemesterId = previousEnrollment.rows[0]?.semester_id;
+    const isNewSemester = !previousSemesterId || String(previousSemesterId) !== String(classData.semester_id);
+
+    await client.query(
+      `UPDATE student_enrollments se
+       SET status = 'dropped', completion_date = NOW()
+       FROM classes c
+       WHERE se.class_id = c.id
+         AND c.semester_id = $1
+         AND se.student_id = $2
+         AND se.class_id <> $3
+         AND se.status = 'enrolled'`,
+      [classData.semester_id, student_id, classId]
+    );
     
     // Add student to class (use UPSERT to handle duplicates)
-    const result = await db.query(`
+    const result = await client.query(`
       INSERT INTO student_enrollments (student_id, class_id, enrollment_date, status)
       VALUES ($1, $2, NOW(), 'enrolled')
       ON CONFLICT (student_id, class_id) 
-      DO UPDATE SET status = 'enrolled', enrollment_date = NOW()
+      DO UPDATE SET status = 'enrolled', enrollment_date = NOW(), completion_date = NULL
       RETURNING *
     `, [student_id, classId]);
+
+    const studentUpdates = ['status = $1'];
+    const studentValues = ['active'];
+    let paramIndex = 2;
+
+    if (target_surah_id !== undefined) {
+      studentUpdates.push(`target_surah_id = $${paramIndex++}`);
+      studentValues.push(target_surah_id || null);
+    }
+    if (target_ayah_number !== undefined) {
+      studentUpdates.push(`target_ayah_number = $${paramIndex++}`);
+      studentValues.push(target_ayah_number || null);
+    }
+    if (isNewSemester && target_surah_id === undefined && target_ayah_number === undefined) {
+      studentUpdates.push('target_surah_id = NULL');
+      studentUpdates.push('target_ayah_number = NULL');
+    }
+    studentValues.push(student_id);
+
+    await client.query(
+      `UPDATE students SET ${studentUpdates.join(', ')} WHERE id = $${paramIndex}`,
+      studentValues
+    );
+
+    await client.query(
+      'UPDATE users SET is_active = true, updated_at = NOW() WHERE id = $1',
+      [student_id]
+    );
+
+    await client.query(
+      `INSERT INTO semester_registrations (semester_id, student_id, registered_by, class_id, status, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, 'assigned', NOW(), NOW())
+       ON CONFLICT (semester_id, student_id)
+       DO UPDATE SET class_id = EXCLUDED.class_id,
+                     status = 'assigned',
+                     updated_at = NOW()`,
+      [classData.semester_id, student_id, req.user.id, classId]
+    );
+
+    await client.query('COMMIT');
     
     res.status(201).json({ 
-      message: 'تم إضافة الطالب للحلقة بنجاح',
+      message: 'تم إضافة الطالب للحلقة وتفعيل حسابه بنجاح',
       enrollment: result.rows[0]
     });
     
   } catch (error) {
+    await client.query('ROLLBACK');
     console.error('Error adding student to class:', error);
     res.status(500).json({ error: 'حدث خطأ في إضافة الطالب للحلقة' });
+  } finally {
+    client.release();
   }
 });
 
@@ -681,13 +762,29 @@ router.delete('/:id/students/:studentId', requireAuth, requireRole(ROLES.TEACHER
   }
 });
 
-// Get available students (not in any class or in specific school)
+// Get active students available to be assigned to this class.
 router.get('/:id/available-students', requireAuth, requireRole(ROLES.TEACHER), async (req, res) => {
   try {
     const { id: classId } = req.params;
-    
-    // Get students not in this class
+
+    const classCheck = await db.query(
+      `SELECT c.id, c.semester_id, c.school_id, sem.end_date
+       FROM classes c
+       LEFT JOIN semesters sem ON sem.id = c.semester_id
+       WHERE c.id = $1`,
+      [classId]
+    );
+
+    if (classCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'الحلقة غير موجودة' });
+    }
+
     const result = await db.query(`
+      WITH class_info AS (
+        SELECT c.id, c.semester_id, c.school_id
+        FROM classes c
+        WHERE c.id = $1
+      )
       SELECT DISTINCT
         s.id,
         u.first_name,
@@ -695,15 +792,49 @@ router.get('/:id/available-students', requireAuth, requireRole(ROLES.TEACHER), a
         u.third_name, 
         u.last_name,
         s.school_level,
+        s.target_surah_id,
+        s.target_ayah_number,
         u.date_of_birth,
         u.is_active,
-        1 as priority
+        sr.status as registration_status,
+        sr.created_at as registered_at,
+        CASE
+          WHEN sr.id IS NOT NULL THEN 0
+          ELSE 1
+        END as priority,
+        CASE
+          WHEN s.target_surah_id IS NOT NULL AND s.target_surah_id > 0
+           AND s.target_ayah_number IS NOT NULL AND s.target_ayah_number > 0
+          THEN true
+          ELSE false
+        END as has_goal
       FROM students s
       JOIN users u ON s.id = u.id
-      LEFT JOIN student_enrollments se ON s.id = se.student_id AND se.class_id = $1 AND se.status = 'enrolled'
-      WHERE se.student_id IS NULL
+      CROSS JOIN class_info ci
+      LEFT JOIN semester_registrations sr
+        ON sr.student_id = s.id
+       AND sr.semester_id = ci.semester_id
+       AND sr.class_id IS NULL
+      WHERE NOT EXISTS (
+          SELECT 1
+          FROM student_enrollments se_same
+          JOIN classes c_same ON c_same.id = se_same.class_id
+          WHERE se_same.student_id = s.id
+            AND se_same.status = 'enrolled'
+            AND c_same.semester_id = ci.semester_id
+        )
+        AND NOT EXISTS (
+          SELECT 1
+          FROM student_enrollments se_open
+          JOIN classes c_open ON c_open.id = se_open.class_id
+          LEFT JOIN semesters sem_open ON sem_open.id = c_open.semester_id
+          WHERE se_open.student_id = s.id
+            AND se_open.status = 'enrolled'
+            AND c_open.semester_id <> ci.semester_id
+            AND (sem_open.end_date IS NULL OR sem_open.end_date >= CURRENT_DATE)
+        )
         AND u.is_active = true
-      ORDER BY u.first_name, u.last_name
+      ORDER BY priority, u.first_name, u.last_name
       LIMIT 100
     `, [classId]);
     

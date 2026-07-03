@@ -16,7 +16,8 @@ import {
   AiOutlinePlus,
   AiOutlineUserSwitch,
   AiOutlinePhone,
-  AiOutlineMail
+  AiOutlineMail,
+  AiOutlineLoading
 } from "react-icons/ai";
 import SimpleChildrenManagement from "../components/SimpleChildrenManagement";
 
@@ -30,6 +31,90 @@ const ROLE_CONFIG = {
     icon: AiOutlineUser,
     level: 1 
   }
+};
+
+const ChildLinkRequestsPanel = ({ requests, loading, actionLoadingId, onApprove, onReject, onRefresh }) => {
+  const fullName = (item, prefix) => [
+    item[`${prefix}_first_name`],
+    item[`${prefix}_second_name`],
+    item[`${prefix}_third_name`],
+    item[`${prefix}_last_name`]
+  ].filter(Boolean).join(' ');
+
+  return (
+    <div className="bg-white p-6 rounded-xl shadow-lg mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
+        <div>
+          <h2 className="text-xl font-bold text-gray-900">طلبات ربط الأبناء</h2>
+          <p className="text-sm text-gray-600">مراجعة طلبات أولياء الأمور قبل إنشاء الربط.</p>
+        </div>
+        <button
+          type="button"
+          onClick={onRefresh}
+          className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
+        >
+          تحديث
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center items-center py-8">
+          <AiOutlineLoading className="animate-spin text-2xl text-gray-400 ml-2" />
+          <span className="text-gray-600">جاري تحميل الطلبات...</span>
+        </div>
+      ) : requests.length === 0 ? (
+        <div className="rounded-lg bg-gray-50 p-6 text-center text-gray-500">
+          لا توجد طلبات ربط معلقة حالياً
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {requests.map((request) => (
+            <div key={request.id} className="border border-gray-200 rounded-lg p-4">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <div>
+                  <div className="text-xs text-gray-500 mb-1">ولي الأمر</div>
+                  <div className="font-semibold text-gray-900">{fullName(request, 'parent') || request.parent_id}</div>
+                  <div className="text-sm text-gray-600">الهوية: {request.parent_id}</div>
+                  {request.parent_phone && <div className="text-sm text-gray-600">الجوال: {request.parent_phone}</div>}
+                </div>
+
+                <div>
+                  <div className="text-xs text-gray-500 mb-1">الطالب</div>
+                  <div className="font-semibold text-gray-900">{fullName(request, 'student') || request.student_id}</div>
+                  <div className="text-sm text-gray-600">الهوية: {request.student_id}</div>
+                  {request.student_school_level && <div className="text-sm text-gray-600">المستوى: {request.student_school_level}</div>}
+                </div>
+
+                <div className="flex flex-col justify-between gap-3">
+                  <div className="text-sm text-gray-600">
+                    تاريخ الطلب: {request.created_at ? new Date(request.created_at).toLocaleString('ar-SA') : '-'}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      disabled={actionLoadingId === request.id}
+                      onClick={() => onApprove(request)}
+                      className="flex-1 px-3 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+                    >
+                      اعتماد
+                    </button>
+                    <button
+                      type="button"
+                      disabled={actionLoadingId === request.id}
+                      onClick={() => onReject(request)}
+                      className="flex-1 px-3 py-2 rounded-lg bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 disabled:opacity-50"
+                    >
+                      رفض
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 };
 
 // Profile Edit Modal Component
@@ -258,7 +343,6 @@ const ProfileEditModal = ({ user, onClose, onSubmit }) => {
 
 // Parent Card Component
 const ParentCard = ({ parent, onView, onToggleActive, onEditProfile, onDeleteUser, onManageChildren }) => {
-  const [isFlipped, setIsFlipped] = useState(false);
   const RoleIcon = ROLE_CONFIG[parent.role]?.icon || AiOutlineUser;
   
   const getRoleGradient = (role) => {
@@ -273,169 +357,127 @@ const ParentCard = ({ parent, onView, onToggleActive, onEditProfile, onDeleteUse
   };
 
   return (
-    <div className="group perspective-1000 h-[420px] sm:h-[400px] md:h-[420px] lg:h-[380px] cursor-pointer">
-      <div className={`relative w-full h-full transition-transform duration-700 transform-style-preserve-3d ${isFlipped ? 'rotate-y-180' : ''} group-hover:rotate-y-180`}
-           onClick={() => setIsFlipped(!isFlipped)}>
-        
-        {/* FRONT SIDE */}
-        <div className="absolute inset-0 w-full h-full backface-hidden">
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-200 h-full overflow-hidden">
-            {/* Header */}
-            <div className={`p-4 bg-gradient-to-br ${getRoleGradient(parent.role)} relative`}>
-              <div className="absolute inset-0 bg-black/10"></div>
-              <div className="relative z-10 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="bg-white/20 p-3 rounded-xl backdrop-blur-sm">
-                    <RoleIcon className="text-white text-2xl drop-shadow-sm" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-lg text-white drop-shadow-sm">
-                      {parent.first_name} {parent.last_name}
-                    </h3>
-                    <p className="text-white/80 text-sm">{parent.phone || 'لا يوجد رقم هاتف'}</p>
-                  </div>
-                </div>
-                <div className="flex flex-col items-end gap-2">
-                  <span className={`px-3 py-1 rounded-full text-xs font-semibold bg-white/20 text-white backdrop-blur-sm`}>
-                    {ROLE_CONFIG[parent.role]?.name || parent.role}
-                  </span>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    parent.is_active 
-                      ? 'bg-green-100 text-green-800' 
-                      : 'bg-red-100 text-red-800'
-                  }`}>
-                    {parent.is_active ? 'نشط' : 'غير نشط'}
-                  </span>
-                </div>
-              </div>
+    <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden flex flex-col">
+      {/* Header */}
+      <div className={`p-4 bg-gradient-to-br ${getRoleGradient(parent.role)} relative`}>
+        <div className="absolute inset-0 bg-black/10"></div>
+        <div className="relative z-10 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="bg-white/20 p-3 rounded-xl backdrop-blur-sm">
+              <RoleIcon className="text-white text-2xl drop-shadow-sm" />
             </div>
-
-            {/* Body */}
-            <div className="p-4 space-y-3">
-              {/* ID */}
-              <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-blue-50 to-blue-100 rounded-lg">
-                <AiOutlineIdcard className="text-blue-500 text-xl flex-shrink-0" />
-                <div>
-                  <div className="text-xs text-blue-600 mb-1">الرقم التعريفي</div>
-                  <div className="font-semibold text-blue-800">
-                    {parent.id || parent.user_id}
-                  </div>
-                </div>
-              </div>
-
-              {/* Phone */}
-              <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-indigo-50 to-indigo-100 rounded-lg">
-                <AiOutlinePhone className="text-indigo-500 text-xl flex-shrink-0" />
-                <div>
-                  <div className="text-xs text-indigo-600 mb-1">رقم الهاتف</div>
-                  <div className="font-semibold text-indigo-800 text-sm">
-                    {parent.phone || 'لا يوجد رقم هاتف'}
-                  </div>
-                </div>
-              </div>
-
-              {/* Email */}
-              {parent.email && (
-                <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg">
-                  <AiOutlineMail className="text-gray-500 text-xl flex-shrink-0" />
-                  <div>
-                    <div className="text-xs text-gray-600 mb-1">البريد الإلكتروني</div>
-                    <div className="font-semibold text-gray-800 text-sm">
-                      {parent.email}
-                    </div>
-                  </div>
-                </div>
-              )}
+            <div>
+              <h3 className="font-bold text-lg text-white drop-shadow-sm">
+                {parent.first_name} {parent.last_name}
+              </h3>
+              <p className="text-white/80 text-sm">{parent.phone || 'لا يوجد رقم هاتف'}</p>
             </div>
+          </div>
+          <div className="flex flex-col items-end gap-2">
+            <span className={`px-3 py-1 rounded-full text-xs font-semibold bg-white/20 text-white backdrop-blur-sm`}>
+              {ROLE_CONFIG[parent.role]?.name || parent.role}
+            </span>
+            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+              parent.is_active
+                ? 'bg-green-100 text-green-800'
+                : 'bg-red-100 text-red-800'
+            }`}>
+              {parent.is_active ? 'نشط' : 'غير نشط'}
+            </span>
+          </div>
+        </div>
+      </div>
 
-            {/* Hover/Click Indicator */}
-            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
-              <div className="bg-black/20 backdrop-blur-sm px-3 py-1 rounded-full">
-                <span className="text-xs text-gray-600 hidden sm:block">مرر للخيارات</span>
-                <span className="text-xs text-gray-600 block sm:hidden">اضغط للخيارات</span>
-              </div>
+      {/* Body */}
+      <div className="p-4 space-y-3">
+        {/* ID */}
+        <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-blue-50 to-blue-100 rounded-lg">
+          <AiOutlineIdcard className="text-blue-500 text-xl flex-shrink-0" />
+          <div>
+            <div className="text-xs text-blue-600 mb-1">الرقم التعريفي</div>
+            <div className="font-semibold text-blue-800">
+              {parent.id || parent.user_id}
             </div>
           </div>
         </div>
 
-        {/* BACK SIDE */}
-        <div className="absolute inset-0 w-full h-full backface-hidden rotate-y-180">
-          <div className="bg-white rounded-2xl shadow-xl border border-gray-200 h-full overflow-hidden">
-            {/* Back Header */}
-            <div className={`p-4 bg-gradient-to-br ${getRoleGradient(parent.role)} relative`}>
-              <div className="absolute inset-0 bg-black/20"></div>
-              <div className="relative z-10 text-center">
-                <div className="bg-white/20 p-3 rounded-xl backdrop-blur-sm inline-block mb-2">
-                  <AiOutlinePlus className="text-white text-2xl drop-shadow-sm" />
-                </div>
-                <h3 className="font-bold text-white drop-shadow-sm">خيارات ولي الأمر</h3>
-                <p className="text-white/80 text-sm">{parent.first_name} {parent.last_name}</p>
-              </div>
+        {/* Phone */}
+        <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-indigo-50 to-indigo-100 rounded-lg">
+          <AiOutlinePhone className="text-indigo-500 text-xl flex-shrink-0" />
+          <div>
+            <div className="text-xs text-indigo-600 mb-1">رقم الهاتف</div>
+            <div className="font-semibold text-indigo-800 text-sm">
+              {parent.phone || 'لا يوجد رقم هاتف'}
             </div>
+          </div>
+        </div>
 
-
-            {/* Action Buttons */}
-            <div className="p-3 space-y-2" onClick={(e) => e.stopPropagation()}>
-              {/* Primary Actions */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <button
-                  onClick={() => onView(parent)}
-                  className="flex items-center justify-center gap-2 px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors font-medium text-sm"
-                >
-                  <AiOutlineEye />
-                  التفاصيل
-                </button>
-                <button
-                  onClick={() => onEditProfile(parent)}
-                  className="flex items-center justify-center gap-2 px-3 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors font-medium text-sm"
-                >
-                  <AiOutlineUserSwitch />
-                  الملف
-                </button>
-              </div>
-
-              {/* Secondary Actions */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <button
-                  onClick={() => onToggleActive(parent)}
-                  className={`flex items-center justify-center gap-1 px-3 py-2 rounded-lg transition-colors text-sm ${
-                    parent.is_active
-                      ? 'text-orange-600 bg-orange-50 hover:bg-orange-100'
-                      : 'text-green-600 bg-green-50 hover:bg-green-100'
-                  }`}
-                >
-                  {parent.is_active ? <AiOutlineClose /> : <AiOutlineCheck />}
-                  {parent.is_active ? 'إلغاء' : 'تفعيل'}
-                </button>
-                
-                <button
-                  onClick={() => onManageChildren(parent)}
-                  className="flex items-center justify-center gap-1 px-3 py-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors text-sm font-medium"
-                >
-                  <AiOutlineTeam />
-                  الأبناء
-                </button>
-              </div>
-
-              {/* Danger Zone */}
-              <div className="pt-1 border-t border-red-100">
-                <button
-                  onClick={() => onDeleteUser(parent)}
-                  className="w-full flex items-center justify-center gap-2 px-3 py-2 text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 hover:border-red-300 rounded-lg transition-colors text-sm font-medium"
-                >
-                  <AiOutlineDelete />
-                  حذف نهائياً
-                </button>
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="absolute bottom-3 left-1/2 transform -translate-x-1/2">
-              <div className="text-xs text-gray-400 text-center">
-                {new Date(parent.created_at).toLocaleDateString('ar-SA')}
+        {/* Email */}
+        {parent.email && (
+          <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg">
+            <AiOutlineMail className="text-gray-500 text-xl flex-shrink-0" />
+            <div>
+              <div className="text-xs text-gray-600 mb-1">البريد الإلكتروني</div>
+              <div className="font-semibold text-gray-800 text-sm">
+                {parent.email}
               </div>
             </div>
           </div>
+        )}
+      </div>
+
+      {/* Action Buttons */}
+      <div className="mt-auto p-3 pt-0 space-y-2">
+        {/* Primary Actions */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <button
+            onClick={() => onView(parent)}
+            className="flex items-center justify-center gap-2 px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors font-medium text-sm"
+          >
+            <AiOutlineEye />
+            التفاصيل
+          </button>
+          <button
+            onClick={() => onEditProfile(parent)}
+            className="flex items-center justify-center gap-2 px-3 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors font-medium text-sm"
+          >
+            <AiOutlineUserSwitch />
+            الملف
+          </button>
+        </div>
+
+        {/* Secondary Actions */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <button
+            onClick={() => onToggleActive(parent)}
+            className={`flex items-center justify-center gap-1 px-3 py-2 rounded-lg transition-colors text-sm ${
+              parent.is_active
+                ? 'text-orange-600 bg-orange-50 hover:bg-orange-100'
+                : 'text-green-600 bg-green-50 hover:bg-green-100'
+            }`}
+          >
+            {parent.is_active ? <AiOutlineClose /> : <AiOutlineCheck />}
+            {parent.is_active ? 'إلغاء' : 'تفعيل'}
+          </button>
+
+          <button
+            onClick={() => onManageChildren(parent)}
+            className="flex items-center justify-center gap-1 px-3 py-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors text-sm font-medium"
+          >
+            <AiOutlineTeam />
+            الأبناء
+          </button>
+        </div>
+
+        {/* Danger Zone */}
+        <div className="pt-1 border-t border-red-100">
+          <button
+            onClick={() => onDeleteUser(parent)}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 hover:border-red-300 rounded-lg transition-colors text-sm font-medium"
+          >
+            <AiOutlineDelete />
+            حذف نهائياً
+          </button>
         </div>
       </div>
     </div>
@@ -447,14 +489,22 @@ export default function ParentManagement() {
   const [parents, setParents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [linkRequests, setLinkRequests] = useState([]);
+  const [requestsLoading, setRequestsLoading] = useState(false);
+  const [requestActionLoadingId, setRequestActionLoadingId] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedUser, setSelectedUser] = useState(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showChildrenModal, setShowChildrenModal] = useState(false);
+  const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+  const canReviewLinkRequests = ['admin', 'administrator'].includes(currentUser.role);
 
   useEffect(() => {
     fetchParents();
+    if (canReviewLinkRequests) {
+      fetchLinkRequests();
+    }
   }, []);
 
   const fetchParents = async () => {
@@ -475,6 +525,62 @@ export default function ParentManagement() {
       console.error("Error fetching parents:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchLinkRequests = async () => {
+    try {
+      setRequestsLoading(true);
+      const token = localStorage.getItem("token");
+      const response = await axios.get(`${API_BASE}/api/children/requests/pending`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setLinkRequests(response.data.requests || []);
+    } catch (err) {
+      console.error("Error fetching child link requests:", err);
+      setError(err.response?.data?.error || "خطأ في جلب طلبات ربط الأبناء");
+    } finally {
+      setRequestsLoading(false);
+    }
+  };
+
+  const handleApproveLinkRequest = async (request) => {
+    if (!window.confirm(`اعتماد ربط الطالب ${request.student_id} بولي الأمر ${request.parent_id}؟`)) {
+      return;
+    }
+
+    try {
+      setRequestActionLoadingId(request.id);
+      const token = localStorage.getItem("token");
+      await axios.post(`${API_BASE}/api/children/requests/${request.id}/approve`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      await fetchLinkRequests();
+      await fetchParents();
+    } catch (err) {
+      console.error("Error approving child link request:", err);
+      setError(err.response?.data?.error || "خطأ في اعتماد طلب الربط");
+    } finally {
+      setRequestActionLoadingId(null);
+    }
+  };
+
+  const handleRejectLinkRequest = async (request) => {
+    const notes = window.prompt("سبب الرفض (اختياري):", "");
+    if (notes === null) return;
+
+    try {
+      setRequestActionLoadingId(request.id);
+      const token = localStorage.getItem("token");
+      await axios.post(`${API_BASE}/api/children/requests/${request.id}/reject`, { notes }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      await fetchLinkRequests();
+    } catch (err) {
+      console.error("Error rejecting child link request:", err);
+      setError(err.response?.data?.error || "خطأ في رفض طلب الربط");
+    } finally {
+      setRequestActionLoadingId(null);
     }
   };
 
@@ -605,6 +711,17 @@ export default function ParentManagement() {
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
           {error}
         </div>
+      )}
+
+      {canReviewLinkRequests && (
+        <ChildLinkRequestsPanel
+          requests={linkRequests}
+          loading={requestsLoading}
+          actionLoadingId={requestActionLoadingId}
+          onApprove={handleApproveLinkRequest}
+          onReject={handleRejectLinkRequest}
+          onRefresh={fetchLinkRequests}
+        />
       )}
 
       {/* Search and Filters */}

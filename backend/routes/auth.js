@@ -57,14 +57,16 @@ router.post('/login', loginLimiter, async (req, res) => {
         u.email, u.phone, u.password, u.is_active,
         u.failed_login_attempts, u.lockout_until,
         CASE 
-          WHEN p.id IS NOT NULL AND s.id IS NOT NULL THEN 'parent_student'
-          WHEN p.id IS NOT NULL THEN 'parent'
-          WHEN s.id IS NOT NULL THEN 'student'
+          WHEN u.role IN ('admin', 'administrator', 'supervisor', 'teacher') THEN u.role
           WHEN a.id IS NOT NULL THEN 'admin'
           WHEN ad.id IS NOT NULL THEN 'administrator'
           WHEN sv.id IS NOT NULL THEN 'supervisor'
           WHEN t.id IS NOT NULL THEN 'teacher'
-          ELSE 'user'
+          WHEN u.role = 'parent_student' THEN 'parent_student'
+          WHEN p.id IS NOT NULL AND s.id IS NOT NULL THEN 'parent_student'
+          WHEN u.role = 'parent' OR p.id IS NOT NULL THEN 'parent'
+          WHEN u.role = 'student' OR s.id IS NOT NULL THEN 'student'
+          ELSE COALESCE(u.role, 'user')
         END as role,
         p.is_also_student,
         s.school_level

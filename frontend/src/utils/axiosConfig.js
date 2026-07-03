@@ -45,6 +45,12 @@ const axiosInstance = axios.create({
   withCredentials: true,
 });
 
+const axiosNoRedirect = axios.create({
+  baseURL: API_BASE,
+  timeout: 30000,
+  withCredentials: true,
+});
+
 // Request interceptor - add auth token to all requests
 axiosInstance.interceptors.request.use(
   (config) => {
@@ -64,6 +70,11 @@ axiosInstance.interceptors.request.use(
   (error) => {
     return Promise.reject(error);
   }
+);
+
+axiosNoRedirect.interceptors.request.use(
+  (config) => applyAuthHeaders(config),
+  (error) => Promise.reject(error)
 );
 
 // Response interceptor - handle authentication errors globally
@@ -119,5 +130,5 @@ function handleAuthenticationFailure(message) {
 // Export configured axios instance
 export default axiosInstance;
 
-// Export original axios for cases where interceptors shouldn't be used
-export { axios as axiosRaw };
+// Export an authenticated instance without the global access-denied redirect.
+export { axiosNoRedirect as axiosRaw };

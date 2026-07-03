@@ -3,7 +3,25 @@ import { FaUser, FaGraduationCap, FaTrophy, FaBook, FaHistory, FaChartLine, FaCa
 import { getSurahNameFromId } from '../utils/quranData';
 import { calculateQuranBlocks, calculateStudentGoalProgress, formatMemorizationDisplay } from '../utils/studentUtils';
 import QuranBlocksGrid from '../components/QuranBlocksGrid';
-import axios from '../utils/axiosConfig';
+import axios, { axiosRaw } from '../utils/axiosConfig';
+
+const SCHOOL_LEVELS = [
+  'لم يدخل المدرسة',
+  'روضة',
+  'الأول الابتدائي',
+  'الثاني الابتدائي',
+  'الثالث الابتدائي',
+  'الرابع الابتدائي',
+  'الخامس الابتدائي',
+  'السادس الابتدائي',
+  'الأول متوسط',
+  'الثاني متوسط',
+  'الثالث متوسط',
+  'الأول ثانوي',
+  'الثاني ثانوي',
+  'الثالث ثانوي',
+  'غير محدد'
+];
 
 const Children = () => {
   const [children, setChildren] = useState([]);
@@ -11,22 +29,62 @@ const Children = () => {
   const [childData, setChildData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState('profile');
+  const [activeTab, setActiveTab] = useState('semesters');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [addModalMode, setAddModalMode] = useState('direct');
   const [selectedStudentId, setSelectedStudentId] = useState('');
   const [selectedStudentDob, setSelectedStudentDob] = useState('');
   const [relationshipType, setRelationshipType] = useState('parent');
+  const [studentRegistrationForm, setStudentRegistrationForm] = useState({
+    id: '',
+    first_name: '',
+    second_name: '',
+    third_name: '',
+    last_name: '',
+    date_of_birth: '',
+    school_level: '',
+    password: '',
+    phone: '',
+    email: ''
+  });
   const [dataLoading, setDataLoading] = useState(false);
   const [expandedCourse, setExpandedCourse] = useState(null);
   const [activeCard, setActiveCard] = useState(null);
+  const [semesterOptions, setSemesterOptions] = useState([]);
+  const [registeringSemesterId, setRegisteringSemesterId] = useState(null);
+  const [pendingSemesterRegistration, setPendingSemesterRegistration] = useState(null);
+  const [selectedSemesterId, setSelectedSemesterId] = useState(null);
+  const [selectedSemesterPanel, setSelectedSemesterPanel] = useState(null);
+  const [showPreviousSemesters, setShowPreviousSemesters] = useState(false);
+  const [attendanceBySemester, setAttendanceBySemester] = useState({});
+  const [attendanceLoadingSemesterId, setAttendanceLoadingSemesterId] = useState(null);
 
   const user = JSON.parse(localStorage.getItem('user'));
   const userRole = user?.role;
   const userId = user?.id;
+  const isStudentView = userRole === 'student';
 
-  const canViewChildren = ['parent', 'admin', 'administrator', 'teacher'].includes(userRole);
+  const canUseParentChildActions = ['parent', 'parent_student', 'admin', 'administrator', 'teacher'].includes(userRole);
+  const canViewChildren = ['parent', 'parent_student', 'admin', 'administrator', 'teacher', 'student'].includes(userRole);
 
   useEffect(() => {
+    if (isStudentView && userId) {
+      setChildren([]);
+      setSelectedChild({
+        relationship_id: `student-${userId}`,
+        student_id: userId,
+        first_name: user.first_name || '',
+        second_name: user.second_name || '',
+        third_name: user.third_name || '',
+        last_name: user.last_name || '',
+        school_level: user.school_level || '',
+        relationship_type: 'student',
+        is_active: user.is_active !== false
+      });
+      setLoading(false);
+      return;
+    }
+
     if (canViewChildren) {
       fetchChildren();
     }
@@ -35,6 +93,10 @@ const Children = () => {
   useEffect(() => {
     if (selectedChild) {
       setDataLoading(true);
+      setSelectedSemesterId(null);
+      setSelectedSemesterPanel(null);
+      setShowPreviousSemesters(false);
+      setAttendanceBySemester({});
       fetchChildData(selectedChild.student_id).finally(() => setDataLoading(false));
     }
   }, [selectedChild]);
@@ -43,10 +105,14 @@ const Children = () => {
     try {
       setLoading(true);
       const response = await axios.get(`/api/children/${userId}`);
-      setChildren(response.data.children || []);
-      if (response.data.children?.length > 0) {
-        setSelectedChild(response.data.children[0]);
-      }
+      const nextChildren = response.data.children || [];
+      setChildren(nextChildren);
+      setSelectedChild((currentChild) => {
+        if (!currentChild) return null;
+        return nextChildren.some((child) => child.relationship_id === currentChild.relationship_id)
+          ? currentChild
+          : null;
+      });
       setError(null);
     } catch (err) {
       console.error('Error fetching children:', err);
@@ -140,14 +206,15 @@ const Children = () => {
   const fetchChildData = async (studentId) => {
     try {
       setLoading(true);
-      const [gradesRes, pointsRes, attendanceRes, goalsRes, studentRes] = await Promise.allSettled([
+      const [gradesRes, pointsRes, attendanceRes, goalsRes, studentRes, semesterOptionsRes] = await Promise.allSettled([
         axios.get(`/api/grades/student/${studentId}`),
         axios.get(`/api/points/student/${studentId}`),
         axios.get(`/api/attendance/student/${studentId}/semester`, {
           validateStatus: (status) => status === 200 || status === 404
         }),
         axios.get(`/api/students/${studentId}/goals`),
-        axios.get(`/api/students/${studentId}`)
+        axios.get(`/api/students/${studentId}`),
+        axios.get(`/api/semesters/registration-options?student_id=${studentId}`)
       ]);
 
       const gradesData = gradesRes.status === 'fulfilled' ? gradesRes.value.data : { grades: [] };
@@ -157,7 +224,9 @@ const Children = () => {
         : { days: [], statistics: { attendance_rate: 0 } };
       const goalsData = goalsRes.status === 'fulfilled' ? goalsRes.value.data : { goals: [] };
       const studentData = studentRes.status === 'fulfilled' ? studentRes.value.data?.student : null;
+      const semesterOptionsData = semesterOptionsRes.status === 'fulfilled' ? semesterOptionsRes.value.data : { semesters: [] };
 
+      setSemesterOptions(semesterOptionsData.semesters || []);
       setChildData({
         grades: gradesData.grades || [],
         points: pointsData.points || [],
@@ -184,10 +253,110 @@ const Children = () => {
     }
   };
 
+  const getSemesterTypeText = (type) => {
+    switch (type) {
+      case 'first': return 'الأول';
+      case 'second': return 'الثاني';
+      case 'summer': return 'الصيفي';
+      default: return type || 'غير محدد';
+    }
+  };
+
+  const openSemesterRegistration = (semester) => {
+    if (!selectedChild?.student_id || !semester) return;
+    setPendingSemesterRegistration({
+      semester,
+      school_level: selectedChild.school_level || childData?.student?.school_level || ''
+    });
+  };
+
+  const handleRegisterSemester = async () => {
+    if (!selectedChild?.student_id || !pendingSemesterRegistration?.semester?.id) return;
+    if (!pendingSemesterRegistration.school_level) {
+      alert('يرجى اختيار المستوى الدراسي للطالب');
+      return;
+    }
+
+    const semesterId = pendingSemesterRegistration.semester.id;
+    try {
+      setRegisteringSemesterId(semesterId);
+      await axios.post(`/api/semesters/${semesterId}/register`, {
+        student_id: selectedChild.student_id,
+        school_level: pendingSemesterRegistration.school_level
+      });
+      const response = await axios.get(`/api/semesters/registration-options?student_id=${selectedChild.student_id}`);
+      setSemesterOptions(response.data.semesters || []);
+      setChildren((prev) => prev.map((child) => (
+        child.student_id === selectedChild.student_id
+          ? { ...child, school_level: pendingSemesterRegistration.school_level }
+          : child
+      )));
+      setSelectedChild((prev) => prev
+        ? { ...prev, school_level: pendingSemesterRegistration.school_level }
+        : prev
+      );
+      setPendingSemesterRegistration(null);
+    } catch (err) {
+      console.error('Error registering child in semester:', err);
+      alert(err.response?.data?.message || 'تعذر تسجيل الطالب في الفصل');
+    } finally {
+      setRegisteringSemesterId(null);
+    }
+  };
+
+  const fetchSemesterAttendance = async (studentId, semesterId) => {
+    if (!studentId || !semesterId || semesterId === 'unknown' || attendanceBySemester[semesterId]) return;
+
+    try {
+      setAttendanceLoadingSemesterId(semesterId);
+      const response = await axios.get(`/api/attendance/student/${studentId}/semester?semester_id=${semesterId}`, {
+        validateStatus: (status) => status === 200 || status === 404
+      });
+      setAttendanceBySemester((prev) => ({
+        ...prev,
+        [semesterId]: response.status === 200
+          ? response.data
+          : { days: [], statistics: { attendance_rate: 0 } }
+      }));
+    } catch (err) {
+      console.error('Error fetching semester attendance:', err);
+      setAttendanceBySemester((prev) => ({
+        ...prev,
+        [semesterId]: { days: [], statistics: { attendance_rate: 0 } }
+      }));
+    } finally {
+      setAttendanceLoadingSemesterId(null);
+    }
+  };
+
   const handleAddChild = async () => {
     try {
-      await axios.post(
-        `/api/children/${userId}/add`,
+      if (addModalMode === 'register') {
+        const response = await axiosRaw.post(`/api/children/${userId}/register-student`, studentRegistrationForm);
+        setShowAddModal(false);
+        fetchChildren();
+        setAddModalMode('direct');
+        setStudentRegistrationForm({
+          id: '',
+          first_name: '',
+          second_name: '',
+          third_name: '',
+          last_name: '',
+          date_of_birth: '',
+          school_level: '',
+          password: '',
+          phone: '',
+          email: ''
+        });
+        alert(response.data?.message || 'تم تسجيل الطالب بنجاح');
+        return;
+      }
+
+      const endpoint = addModalMode === 'request'
+        ? `/api/children/${userId}/request-link`
+        : `/api/children/${userId}/add`;
+      const response = await axiosRaw.post(
+        endpoint,
         {
           studentId: selectedStudentId.trim(),
           dateOfBirth: selectedStudentDob,
@@ -196,12 +365,16 @@ const Children = () => {
         }
       );
       setShowAddModal(false);
-      fetchChildren();
+      if (addModalMode !== 'request') {
+        fetchChildren();
+      }
       setSelectedStudentId('');
       setSelectedStudentDob('');
+      setAddModalMode('direct');
+      alert(response.data?.message || 'تمت العملية بنجاح');
     } catch (err) {
       console.error('Error adding child:', err);
-      alert('خطأ في إضافة الطالب');
+      alert(err.response?.data?.error || 'خطأ في إضافة الطالب');
     }
   };
 
@@ -435,8 +608,608 @@ const Children = () => {
     );
   };
 
-  const renderAttendance = () => {
-    if (!childData?.attendance?.length) {
+  const renderSemesters = () => {
+    const grades = childData?.grades || [];
+    const semesterGradeGroups = grades.reduce((acc, grade) => {
+      const semesterKey = grade.semester_id || grade.semester_name || 'unknown';
+      const semesterLabel = grade.semester_name || 'فصل غير محدد';
+      if (!acc[semesterKey]) {
+        acc[semesterKey] = {
+          label: semesterLabel,
+          grades: [],
+          className: grade.class_name || null
+        };
+      }
+      acc[semesterKey].grades.push(grade);
+      if (!acc[semesterKey].className && grade.class_name) {
+        acc[semesterKey].className = grade.class_name;
+      }
+      return acc;
+    }, {});
+
+    const previousSemesters = Object.values(semesterGradeGroups).map((semester) => {
+      const percentages = semester.grades.map((grade) => {
+        const rawValue = grade.grade ?? grade.grade_value ?? grade.score;
+        const numericValue = Number(rawValue);
+        if (!Number.isFinite(numericValue)) return null;
+        if (grade.max_grade && Number(grade.max_grade) > 0) {
+          return (numericValue / Number(grade.max_grade)) * 100;
+        }
+        return numericValue;
+      }).filter((value) => Number.isFinite(value));
+
+      const average = percentages.length
+        ? percentages.reduce((sum, value) => sum + value, 0) / percentages.length
+        : 0;
+
+      return {
+        ...semester,
+        average,
+        gradesCount: semester.grades.length
+      };
+    });
+
+    return (
+      <div className="space-y-6">
+        <div>
+          <h5 className="mb-3 text-lg font-semibold text-gray-800">الفصول المتاحة للتسجيل</h5>
+          {semesterOptions.length === 0 ? (
+            <div className="rounded-lg bg-gray-50 p-6 text-center text-gray-500">
+              لا توجد فصول متاحة للعرض حالياً
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {semesterOptions.map((semester) => {
+                const isOpen = Boolean(semester.registration_open);
+                const isRegistered = Boolean(semester.registration_status);
+
+                return (
+                  <div
+                    key={semester.id}
+                    className={`rounded-lg border p-4 transition-colors ${
+                      isOpen
+                        ? 'border-teal-200 bg-teal-50'
+                        : 'border-gray-200 bg-gray-50 opacity-60'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-bold text-gray-900">
+                          الفصل {getSemesterTypeText(semester.type)} {semester.year}
+                        </p>
+                        <p className="text-sm text-gray-600">{semester.school_name || 'بدون مجمع محدد'}</p>
+                        {semester.registered_class_name && (
+                          <p className="mt-1 text-sm text-teal-700">الحلقة: {semester.registered_class_name}</p>
+                        )}
+                      </div>
+                      <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${
+                        isOpen ? 'bg-teal-100 text-teal-800' : 'bg-gray-200 text-gray-600'
+                      }`}>
+                        {isOpen ? 'متاح' : 'غير متاح'}
+                      </span>
+                    </div>
+
+                    <div className="mt-4 flex items-center justify-between gap-3">
+                      <span className="text-xs text-gray-600">
+                        {isRegistered
+                          ? semester.registered_class_name
+                            ? 'تم التسجيل والتسكين'
+                            : 'تم التسجيل بانتظار الحلقة'
+                          : 'لم يتم التسجيل'}
+                      </span>
+                      {isOpen && !isRegistered && (
+                        <button
+                          type="button"
+                          onClick={() => openSemesterRegistration(semester)}
+                          disabled={registeringSemesterId === semester.id}
+                          className="rounded-lg bg-teal-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-teal-700 disabled:opacity-60"
+                        >
+                          {registeringSemesterId === semester.id ? 'جارٍ التسجيل...' : 'تسجيل'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+        </div>
+
+        <div>
+          <h5 className="mb-3 text-lg font-semibold text-gray-800">الفصول السابقة ومسيرة الطالب</h5>
+          {previousSemesters.length === 0 ? (
+            <div className="rounded-lg bg-gray-50 p-6 text-center text-gray-500">
+              لا توجد درجات أو مسيرة مسجلة في فصول سابقة
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {previousSemesters.map((semester) => (
+                <div key={semester.label} className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-bold text-gray-900">{semester.label}</p>
+                      <p className="text-sm text-gray-600">{semester.className || 'بدون حلقة محددة'}</p>
+                    </div>
+                    <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
+                      {semester.gradesCount} درجة
+                    </span>
+                  </div>
+                  <div className="mt-4">
+                    <div className="mb-1 flex justify-between text-xs text-gray-600">
+                      <span>متوسط الدرجات</span>
+                      <span>{Number.isFinite(semester.average) ? semester.average.toFixed(1) : '0'}%</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-gray-100">
+                      <div
+                        className="h-2 rounded-full bg-blue-500"
+                        style={{ width: `${Math.min(Math.max(semester.average || 0, 0), 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderSemestersMain = () => {
+    const grades = childData?.grades || [];
+    const semesterGradeGroups = grades.reduce((acc, grade) => {
+      const semesterKey = String(grade.semester_id || grade.semester_name || 'unknown');
+      if (!acc[semesterKey]) {
+        acc[semesterKey] = {
+          id: semesterKey,
+          label: grade.semester_name || 'فصل غير محدد',
+          grades: [],
+          className: grade.class_name || null,
+          classNames: grade.class_name ? [grade.class_name] : []
+        };
+      }
+      acc[semesterKey].grades.push(grade);
+      if (!acc[semesterKey].className && grade.class_name) {
+        acc[semesterKey].className = grade.class_name;
+      }
+      if (grade.class_name && !acc[semesterKey].classNames.includes(grade.class_name)) {
+        acc[semesterKey].classNames.push(grade.class_name);
+      }
+      return acc;
+    }, {});
+
+    const averageFor = (semesterGrades = []) => {
+      const values = semesterGrades.map((grade) => {
+        const rawValue = grade.grade ?? grade.grade_value ?? grade.score;
+        const numericValue = Number(rawValue);
+        if (!Number.isFinite(numericValue)) return null;
+        if (grade.max_grade && Number(grade.max_grade) > 0) {
+          return (numericValue / Number(grade.max_grade)) * 100;
+        }
+        return numericValue;
+      }).filter((value) => Number.isFinite(value));
+
+      return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+    };
+
+    const semesterMap = new Map();
+    semesterOptions.forEach((semester) => {
+      const id = String(semester.id);
+      const gradeGroup = semesterGradeGroups[id];
+      const classNames = [
+        semester.registered_class_name,
+        ...(gradeGroup?.classNames || [])
+      ].filter(Boolean);
+      semesterMap.set(id, {
+        id,
+        label: `الفصل ${getSemesterTypeText(semester.type)} ${semester.year}`,
+        schoolName: semester.school_name,
+        registrationOpen: Boolean(semester.registration_open),
+        registrationStatus: semester.registration_status,
+        registeredClassName: semester.registered_class_name,
+        startDate: semester.start_date,
+        className: semester.registered_class_name || gradeGroup?.className || null,
+        classNames: [...new Set(classNames)],
+        grades: gradeGroup?.grades || []
+      });
+    });
+
+    Object.values(semesterGradeGroups).forEach((semester) => {
+      if (!semesterMap.has(semester.id)) {
+        semesterMap.set(semester.id, {
+          ...semester,
+          registrationOpen: false,
+          registrationStatus: null,
+          registeredClassName: null,
+          classNames: semester.classNames || [],
+          startDate: semester.grades?.[0]?.date_graded || semester.grades?.[0]?.date || semester.grades?.[0]?.created_at || null
+        });
+      }
+    });
+
+    const semesters = Array.from(semesterMap.values()).map((semester) => {
+      const gradesCount = semester.grades.length;
+      const hasGrades = gradesCount > 0;
+      return {
+        ...semester,
+        average: averageFor(semester.grades),
+        gradesCount,
+        hasGrades,
+        classesLabel: semester.classNames?.length ? semester.classNames.join('، ') : '',
+        isRegistered: Boolean(semester.registrationStatus) || hasGrades
+      };
+    }).sort((a, b) => {
+      const aTime = a.startDate ? new Date(a.startDate).getTime() : 0;
+      const bTime = b.startDate ? new Date(b.startDate).getTime() : 0;
+      return bTime - aTime;
+    });
+
+    const selectedSemester = semesters.find((semester) => semester.id === selectedSemesterId) || null;
+    const autoSelectedSemester = selectedSemester
+      || semesters.find((semester) => semester.isRegistered && semester.registrationOpen)
+      || semesters.find((semester) => semester.isRegistered)
+      || null;
+    const activeSemester = autoSelectedSemester || {
+      id: '',
+      label: 'اختر فصلاً',
+      className: null,
+      schoolName: '',
+      classesLabel: '',
+      registrationOpen: false,
+      registrationStatus: null,
+      registeredClassName: null,
+      grades: [],
+      average: 0,
+      gradesCount: 0,
+      hasGrades: false,
+      isRegistered: false
+    };
+    const activeIsPlaceholder = !autoSelectedSemester;
+    const activeGrades = activeSemester?.grades || [];
+    const previousSemesters = semesters.filter((semester) => semester.id !== activeSemester.id);
+
+    if (!semesters.length) {
+      return (
+        <div className="rounded-lg bg-gray-50 p-8 text-center text-gray-500">
+          لا توجد فصول للعرض حالياً
+        </div>
+      );
+    }
+
+    const activeIsRegistered = activeSemester.isRegistered;
+    const activeIsRegistrationOnly = activeSemester.registrationOpen && !activeIsRegistered;
+
+    return (
+      <div className="space-y-5">
+        {(activeIsPlaceholder || showPreviousSemesters) && (
+        <div className="space-y-3 [&>h5:first-of-type]:hidden">
+          <div className="flex items-center justify-between gap-3">
+            <h5 className="text-lg font-semibold text-gray-800">
+              {activeIsPlaceholder ? 'الفصول' : 'الفصول السابقة'}
+            </h5>
+            {!activeIsPlaceholder && (
+              <button
+                type="button"
+                onClick={() => setShowPreviousSemesters(false)}
+                className="rounded-md border border-gray-200 px-3 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+              >
+                إخفاء
+              </button>
+            )}
+          </div>
+          <h5 className="text-lg font-semibold text-gray-800">الفصول</h5>
+          {(activeIsPlaceholder ? semesters : previousSemesters).map((semester) => {
+            const isSelected = activeSemester.id === semester.id;
+            const isRegistered = semester.isRegistered;
+            const isRegistrationOnly = semester.registrationOpen && !isRegistered;
+
+            if (isRegistrationOnly) {
+              return (
+                <button
+                  key={semester.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedSemesterId(semester.id);
+                    setSelectedSemesterPanel(null);
+                  }}
+                  className={`w-full rounded-lg border p-4 text-center shadow-sm transition hover:shadow-md ${
+                    isSelected
+                      ? 'border-2 border-teal-600 bg-teal-50'
+                      : 'border-slate-300 bg-white hover:border-teal-500 hover:bg-teal-50'
+                  }`}
+                >
+                  <FaCalendarAlt className="mx-auto mb-2 text-3xl text-teal-600" />
+                  <p className="text-base font-bold text-gray-900">{semester.label}</p>
+                  <span className="mt-2 inline-flex rounded-full bg-teal-100 px-2.5 py-1 text-xs font-semibold text-teal-800">
+                    التسجيل متاح
+                  </span>
+                </button>
+              );
+            }
+
+            return (
+              <button
+                key={semester.id}
+                type="button"
+                onClick={() => {
+                  setSelectedSemesterId(semester.id);
+                  setSelectedSemesterPanel(null);
+                }}
+                className={`w-full rounded-lg border p-3 text-right shadow-sm transition hover:shadow-md ${
+                  isSelected
+                    ? 'border-2 border-blue-600 bg-blue-50'
+                    : semester.registrationOpen
+                      ? 'border-teal-300 bg-teal-50 hover:border-teal-500'
+                      : 'border-slate-300 bg-gray-50 opacity-85 hover:border-slate-500'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-bold text-gray-900">{semester.label}</p>
+                    <p className="text-sm text-gray-600">{semester.schoolName || semester.className || 'بدون حلقة محددة'}</p>
+                    {semester.classesLabel && (
+                      <p className="mt-1 text-xs text-gray-500">الحلقات: {semester.classesLabel}</p>
+                    )}
+                  </div>
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                    semester.registrationOpen ? 'bg-teal-100 text-teal-800' : 'bg-gray-200 text-gray-600'
+                  }`}>
+                    {semester.registrationOpen ? 'متاح' : 'غير متاح'}
+                  </span>
+                </div>
+                <div className="mt-3 flex items-center justify-between text-xs text-gray-600">
+                  <span>
+                    {isRegistered
+                      ? semester.registeredClassName
+                        ? `مسجل في ${semester.registeredClassName}`
+                        : semester.hasGrades
+                          ? 'سجل مسبقاً'
+                          : 'مسجل بانتظار الحلقة'
+                      : 'لم يتم التسجيل'}
+                  </span>
+                  {isRegistered && <span>{semester.average.toFixed(1)}%</span>}
+                </div>
+              </button>
+            );
+          })}
+          {!activeIsPlaceholder && previousSemesters.length === 0 && (
+            <div className="rounded-lg bg-gray-50 p-6 text-center text-gray-500">
+              لا توجد فصول سابقة
+            </div>
+          )}
+        </div>
+        )}
+
+        {!activeIsPlaceholder && (
+        <div className="rounded-lg border border-slate-300 bg-white p-4 shadow-sm">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h5 className="text-xl font-bold text-gray-900">{activeSemester.label}</h5>
+              <p className="text-sm text-gray-600">{activeSemester.className || activeSemester.schoolName || 'بدون حلقة محددة'}</p>
+              {activeSemester.classesLabel && (
+                <p className="mt-1 text-sm text-gray-600">الحلقات التي كان فيها: {activeSemester.classesLabel}</p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedSemesterId(null);
+                setSelectedSemesterPanel(null);
+                setShowPreviousSemesters((prev) => !prev);
+              }}
+              className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-200 px-3 py-1.5 text-[0px] font-semibold text-gray-700 hover:bg-gray-50"
+            >
+              <FaHistory className="text-sm" />
+              <span className="text-sm">
+                {showPreviousSemesters ? 'إخفاء الفصول السابقة' : 'عرض الفصول السابقة'}
+              </span>
+              رجوع للفصول
+            </button>
+          </div>
+
+          {activeIsPlaceholder ? (
+            <div className="rounded-lg bg-gray-50 p-10 text-center text-lg font-semibold text-gray-600">
+              اختر فصلاً من القائمة لعرض بياناته
+            </div>
+          ) : activeIsRegistrationOnly ? (
+            <div className="rounded-lg border border-teal-400 bg-teal-50 p-6 text-center shadow-sm">
+              <FaCalendarAlt className="mx-auto mb-3 text-4xl text-teal-600" />
+              <h6 className="mb-2 text-xl font-bold text-gray-900">التسجيل متاح</h6>
+              <p className="mb-4 text-sm text-gray-600">لا توجد تفاصيل قبل التسجيل في هذا الفصل.</p>
+              <button
+                type="button"
+                onClick={() => openSemesterRegistration(activeSemester)}
+                disabled={registeringSemesterId === activeSemester.id}
+                className="rounded-lg bg-teal-600 px-6 py-3 text-base font-semibold text-white hover:bg-teal-700 disabled:opacity-60"
+              >
+                {registeringSemesterId === activeSemester.id ? 'جارٍ التسجيل...' : 'تسجيل في الفصل'}
+              </button>
+            </div>
+          ) : (
+            <>
+          <div className={`grid grid-cols-1 ${activeIsRegistered ? 'sm:grid-cols-2 lg:grid-cols-4' : 'sm:grid-cols-1'} gap-3 mb-6`}>
+            {activeIsRegistered && (
+              <>
+                <div className="rounded-lg bg-blue-50 p-4">
+                  <p className="text-sm text-blue-700">متوسط الدرجات</p>
+                  <p className="text-2xl font-bold text-blue-800">{activeSemester.average.toFixed(1)}%</p>
+                </div>
+                <div className="rounded-lg bg-emerald-50 p-4">
+                  <p className="text-sm text-emerald-700">عدد الدرجات</p>
+                  <p className="text-2xl font-bold text-emerald-800">{activeSemester.gradesCount}</p>
+                </div>
+              </>
+            )}
+            {activeSemester.classesLabel && (
+              <div className="rounded-lg bg-indigo-50 p-4">
+                <p className="text-sm text-indigo-700">الحلقات</p>
+                <p className="text-base font-bold text-indigo-800">{activeSemester.classesLabel}</p>
+              </div>
+            )}
+            <div className="rounded-lg bg-slate-50 p-4">
+              <p className="text-sm text-slate-700">حالة التسجيل</p>
+              <p className="text-lg font-bold text-slate-800">
+                {activeSemester.registeredClassName
+                  ? 'تم التسكين'
+                  : activeSemester.registrationStatus
+                    ? 'بانتظار الحلقة'
+                    : activeSemester.hasGrades
+                      ? 'سجل مسبقاً'
+                      : 'غير مسجل'}
+              </p>
+            </div>
+          </div>
+
+          {activeIsRegistered ? (
+            <>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
+            {[
+              { id: 'goals', label: 'الأهداف', icon: <FaChartLine /> },
+              { id: 'grades', label: 'الدرجات', icon: <FaGraduationCap /> },
+              { id: 'journey', label: 'المسيرة', icon: <FaBook /> },
+              { id: 'points', label: 'النقاط', icon: <FaTrophy /> },
+              { id: 'attendance', label: 'الحضور', icon: <FaCalendarAlt /> }
+            ].map((panel) => (
+              <button
+                key={panel.id}
+                type="button"
+                onClick={() => {
+                  setSelectedSemesterPanel(panel.id);
+                  if (panel.id === 'attendance') {
+                    fetchSemesterAttendance(selectedChild?.student_id, activeSemester.id);
+                  }
+                }}
+                className={`rounded-lg border p-4 text-center transition-colors ${
+                  selectedSemesterPanel === panel.id
+                    ? 'border-blue-500 bg-blue-50 text-blue-700'
+                    : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <div className="mb-2 flex justify-center text-2xl">{panel.icon}</div>
+                <div className="text-sm font-semibold">{panel.label}</div>
+              </button>
+            ))}
+          </div>
+
+          {!selectedSemesterPanel && (
+            <div className="rounded-lg bg-gray-50 p-8 text-center text-gray-500">
+              اختر أيقونة لعرض تفاصيل هذا الفصل
+            </div>
+          )}
+
+          {selectedSemesterPanel === 'journey' && (activeGrades.length > 0 ? (
+            <div className="space-y-6">
+              <div>
+                <h6 className="mb-3 font-bold text-gray-800">مسيرة الحفظ في هذا الفصل</h6>
+                <QuranBlocksGrid blocksData={calculateQuranBlocks(selectedChild, activeGrades)} />
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">التاريخ</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">المقرر</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">المقطع</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">الدرجة</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {activeGrades.map((grade, index) => {
+                      const dateValue = grade.date || grade.date_graded || grade.created_at;
+                      const dateLabel = dateValue && !Number.isNaN(new Date(dateValue).getTime())
+                        ? new Date(dateValue).toLocaleDateString('ar-SA')
+                        : '-';
+                      const gradeValue = grade.grade ?? grade.grade_value ?? grade.score ?? '-';
+                      return (
+                        <tr key={`${activeSemester.id}-${index}`}>
+                          <td className="px-4 py-3 text-sm text-gray-700">{dateLabel}</td>
+                          <td className="px-4 py-3 text-sm text-gray-700">{grade.course_name || '-'}</td>
+                          <td className="px-4 py-3 text-sm text-gray-700">{formatSurahLabel(grade)}</td>
+                          <td className="px-4 py-3 text-sm font-semibold text-gray-900">{gradeValue}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-lg bg-gray-50 p-8 text-center text-gray-500">
+              لا توجد درجات أو مسيرة مسجلة في هذا الفصل حتى الآن
+            </div>
+          ))}
+
+          {selectedSemesterPanel === 'grades' && (
+            activeGrades.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">التاريخ</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">المقرر</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">المقطع</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">الدرجة</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {activeGrades.map((grade, index) => {
+                      const dateValue = grade.date || grade.date_graded || grade.created_at;
+                      const dateLabel = dateValue && !Number.isNaN(new Date(dateValue).getTime())
+                        ? new Date(dateValue).toLocaleDateString('ar-SA')
+                        : '-';
+                      const gradeValue = grade.grade ?? grade.grade_value ?? grade.score ?? '-';
+                      return (
+                        <tr key={`grades-${activeSemester.id}-${index}`}>
+                          <td className="px-4 py-3 text-sm text-gray-700">{dateLabel}</td>
+                          <td className="px-4 py-3 text-sm text-gray-700">{grade.course_name || '-'}</td>
+                          <td className="px-4 py-3 text-sm text-gray-700">{formatSurahLabel(grade)}</td>
+                          <td className="px-4 py-3 text-sm font-semibold text-gray-900">{gradeValue}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="rounded-lg bg-gray-50 p-8 text-center text-gray-500">
+                لا توجد درجات مسجلة في هذا الفصل حتى الآن
+              </div>
+            )
+          )}
+
+          {selectedSemesterPanel === 'points' && renderPointsHistory()}
+          {selectedSemesterPanel === 'goals' && renderGoals()}
+          {selectedSemesterPanel === 'attendance' && (
+            attendanceLoadingSemesterId === activeSemester.id ? (
+              <div className="flex justify-center items-center py-12">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500"></div>
+                <p className="mr-3 text-gray-600">جاري تحميل سجل الحضور...</p>
+              </div>
+            ) : (
+              renderAttendance(
+                attendanceBySemester[activeSemester.id]?.days || [],
+                attendanceBySemester[activeSemester.id]?.statistics || {}
+              )
+            )
+          )}
+            </>
+          ) : (
+            <div className="rounded-lg bg-gray-50 p-10 text-center text-lg font-semibold text-gray-600">
+              لم يسجل في هذا الفصل
+            </div>
+          )}
+            </>
+          )}
+        </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderAttendance = (attendanceDays = childData?.attendance || [], attendanceStats = childData?.statistics || {}) => {
+    if (!attendanceDays.length) {
       return (
         <div className="text-center py-8">
           <FaCalendarAlt className="mx-auto text-gray-400 mb-3" size={48} />
@@ -445,11 +1218,11 @@ const Children = () => {
       );
     }
 
-    const stats = childData.statistics || {};
-    const presentCount = childData.attendance.filter(day => day.is_present === true).length;
-    const absentCount = childData.attendance.filter(day => day.is_present === false).length;
+    const stats = attendanceStats || {};
+    const presentCount = attendanceDays.filter(day => day.is_present === true).length;
+    const absentCount = attendanceDays.filter(day => day.is_present === false).length;
 
-    const months = childData.attendance.reduce((acc, day) => {
+    const months = attendanceDays.reduce((acc, day) => {
       const monthKey = day.date?.slice(0, 7) || 'unknown';
       const monthLabel = day.date
         ? new Date(day.date).toLocaleDateString('ar-SA', { month: 'long', year: 'numeric' })
@@ -467,7 +1240,7 @@ const Children = () => {
           <div className="flex justify-between items-center">
             <div>
               <p className="text-sm text-gray-600">نسبة الحضور الإجمالية</p>
-              <p className="text-2xl font-bold text-blue-600">{stats.attendancePercentage}%</p>
+              <p className="text-2xl font-bold text-blue-600">{stats.attendancePercentage ?? stats.attendance_rate ?? 0}%</p>
             </div>
             <div className="text-right">
               <p className="text-sm text-gray-600">عدد الأيام</p>
@@ -707,6 +1480,7 @@ const Children = () => {
   };
 
   const tabs = [
+    { id: 'semesters', label: 'الفصول', icon: <FaCalendarAlt className="inline mr-2" /> },
     { id: 'profile', label: 'الملف الشخصي', icon: <FaUser className="inline mr-2" /> },
     { id: 'grades', label: 'الدرجات', icon: <FaGraduationCap className="inline mr-2" /> },
     { id: 'points', label: 'النقاط', icon: <FaTrophy className="inline mr-2" /> },
@@ -747,6 +1521,8 @@ const Children = () => {
             </div>
           </div>
         );
+      case 'semesters':
+        return renderSemestersMain();
       case 'grades':
         return renderGradesHistory();
       case 'points':
@@ -828,50 +1604,69 @@ const Children = () => {
     );
   }
 
+  const isAddChildSubmitDisabled = addModalMode === 'register'
+    ? !studentRegistrationForm.id.trim()
+      || !studentRegistrationForm.first_name.trim()
+      || !studentRegistrationForm.second_name.trim()
+      || !studentRegistrationForm.third_name.trim()
+      || !studentRegistrationForm.last_name.trim()
+      || !studentRegistrationForm.date_of_birth
+      || !studentRegistrationForm.school_level
+      || !studentRegistrationForm.password.trim()
+    : !selectedStudentId.trim() || !selectedStudentDob;
+
   return (
     <div className="container mx-auto px-4 py-6" dir="rtl">
-      <div className="flex flex-col lg:flex-row gap-6">
+      <div className="space-y-6">
         {/* Children List */}
-        <div className="lg:w-1/4">
+        {!selectedChild && (
+        <div className="w-full">
           <div className="bg-white rounded-lg shadow">
-            <div className="px-4 py-3 border-b border-gray-200 flex justify-between items-center">
+            <div className="px-4 py-3 border-b border-gray-200">
               <span className="text-lg font-semibold">الأبناء</span>
-              {userRole === 'parent' && (
-                <button
-                  onClick={() => {
-                    setShowAddModal(true);
-                  }}
-                  className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-md text-sm flex items-center"
-                >
-                  <FaPlus className="ml-1" /> إضافة
-                </button>
-              )}
             </div>
-            <div className="divide-y divide-gray-200">
+            <div className="grid grid-cols-1 gap-3 p-3 sm:grid-cols-2 xl:grid-cols-4">
               {children.map((child) => (
-                <div
+                <button
                   key={child.relationship_id}
-                  className={`px-4 py-3 hover:bg-gray-50 cursor-pointer flex justify-between items-center ${
-                    selectedChild?.relationship_id === child.relationship_id ? 'bg-blue-50 border-r-4 border-blue-500' : ''
+                  type="button"
+                  className={`rounded-lg border p-3 hover:bg-blue-50 cursor-pointer flex justify-between items-start gap-3 shadow-sm transition hover:shadow-md ${
+                    selectedChild?.relationship_id === child.relationship_id ? 'bg-blue-50 border-2 border-blue-600 shadow-md' : 'border-slate-300'
                   }`}
                   onClick={() => setSelectedChild(child)}
                 >
-                  <div className="flex items-center">
-                    <FaUser className="text-gray-400 ml-2" />
-                    <span>{child.first_name} {child.last_name}</span>
+                  <div className="flex items-start gap-3 text-right">
+                    <span className="rounded-md bg-slate-100 p-2 text-slate-500">
+                      <FaUser />
+                    </span>
+                    <span>
+                      <span className="block text-sm font-bold text-gray-900">{child.first_name} {child.last_name}</span>
+                      <span className="mt-1 block text-xs text-gray-500">المستوى: {child.school_level || 'غير محدد'}</span>
+                      <span className="mt-1 block text-xs text-blue-600">عرض الفصول</span>
+                    </span>
                   </div>
-                  {userRole === 'parent' && (
-                    <button
+                  {['parent', 'admin', 'administrator'].includes(userRole) && (
+                    <span
+                      role="button"
+                      tabIndex={0}
                       onClick={(e) => {
                         e.stopPropagation();
                         handleRemoveChild(child.relationship_id);
                       }}
-                      className="text-red-500 hover:text-red-700"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleRemoveChild(child.relationship_id);
+                        }
+                      }}
+                      className="rounded-md p-2 text-red-500 hover:bg-red-50 hover:text-red-700"
+                      title="إزالة الربط"
                     >
                       <FaTrash />
-                    </button>
+                    </span>
                   )}
-                </div>
+                </button>
               ))}
               {children.length === 0 && (
                 <div className="px-4 py-8 text-center text-gray-500">
@@ -879,20 +1674,69 @@ const Children = () => {
                 </div>
               )}
             </div>
+            {canUseParentChildActions && (
+              <div className="grid grid-cols-1 gap-3 border-t border-gray-200 p-3 sm:grid-cols-2">
+                <div className="rounded-lg border border-emerald-400 bg-emerald-50 p-3 shadow-sm transition hover:shadow-md">
+                  <button
+                    onClick={() => {
+                      setAddModalMode('request');
+                      setShowAddModal(true);
+                    }}
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-md text-sm font-semibold flex items-center justify-center"
+                  >
+                    <FaPlus className="ml-2" /> اضافة ابن مسجل مسبقاً
+                  </button>
+                  <p className="mt-2 text-xs leading-5 text-emerald-800">
+                    استخدم هذا الخيار إذا كان ابنك مسجلاً سابقاً في المنصة، وسيتم إرسال طلب ربطه بحسابك للإدارة.
+                  </p>
+                </div>
+
+                <div className="rounded-lg border border-indigo-400 bg-indigo-50 p-3 shadow-sm transition hover:shadow-md">
+                  <button
+                    onClick={() => {
+                      setAddModalMode('register');
+                      setShowAddModal(true);
+                    }}
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-md text-sm font-semibold flex items-center justify-center"
+                  >
+                    <FaPlus className="ml-2" /> تسجيل ابن جديد كطالب
+                  </button>
+                  <p className="mt-2 text-xs leading-5 text-indigo-800">
+                    استخدم هذا الخيار إذا لم يكن لابنك سجل في المنصة، وسيتم إنشاء حساب طالب جديد بانتظار تفعيل الإدارة.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
+        )}
 
         {/* Child Details */}
-        <div className="lg:w-3/4">
-          {selectedChild ? (
+        <div className="w-full">
+          {selectedChild && (
             <div className="bg-white rounded-lg shadow">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h4 className="text-xl font-semibold">
-                  {selectedChild.first_name} {selectedChild.second_name} {selectedChild.third_name} {selectedChild.last_name}
-                </h4>
-                <p className="text-sm text-gray-600">
-                  المستوى: {selectedChild.school_level || 'غير محدد'}
-                </p>
+              <div className="flex flex-col gap-3 border-b border-gray-200 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h4 className="text-xl font-semibold">
+                    {selectedChild.first_name} {selectedChild.second_name} {selectedChild.third_name} {selectedChild.last_name}
+                  </h4>
+                  <p className="text-sm text-gray-600">
+                    المستوى: {selectedChild.school_level || 'غير محدد'}
+                  </p>
+                </div>
+                {!isStudentView && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedChild(null);
+                    setSelectedSemesterId(null);
+                    setSelectedSemesterPanel(null);
+                  }}
+                  className="rounded-md border border-gray-200 px-3 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                >
+                  رجوع للأبناء
+                </button>
+                )}
               </div>
 
               <div className="p-6">
@@ -902,69 +1746,8 @@ const Children = () => {
                     <p className="mr-3">جاري تحميل البيانات...</p>
                   </div>
                 ) : (
-                  <>
-                    {renderStatistics()}
-                    {/* Cards */}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
-                      {tabs.map((tab) => (
-                        <button
-                          key={tab.id}
-                          onClick={() => {
-                            setActiveTab(tab.id);
-                            setActiveCard(tab.id);
-                          }}
-                          className={`rounded-lg border p-3 text-center transition-colors ${
-                            activeTab === tab.id
-                              ? 'border-blue-500 bg-blue-50 text-blue-700'
-                              : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
-                          }`}
-                        >
-                          <div className="flex items-center justify-center gap-2">
-                            {tab.icon}
-                            <span className="text-sm font-medium">{tab.label}</span>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-
-                {/* Modal Card */}
-                {activeCard && (
-                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-                    <div className="w-full max-w-4xl rounded-2xl bg-white shadow-xl">
-                      <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-                        <div className="text-lg font-semibold text-gray-800">
-                          {tabs.find(tab => tab.id === activeCard)?.label || ''}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setActiveCard(null)}
-                          className="rounded-full bg-gray-100 p-2 text-gray-600 hover:bg-gray-200"
-                          aria-label="إغلاق"
-                        >
-                          <FaTimes />
-                        </button>
-                      </div>
-                      <div className="max-h-[70vh] overflow-y-auto px-6 py-5">
-                        {renderCardContent(activeCard)}
-                      </div>
-                    </div>
-                  </div>
+                  renderSemestersMain()
                 )}
-                  </>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="bg-blue-50 border-l-4 border-blue-400 p-4">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                  </svg>
-                </div>
-                <div className="mr-3">
-                  <p className="text-sm text-blue-700">الرجاء اختيار طالب من القائمة</p>
-                </div>
               </div>
             </div>
           )}
@@ -974,74 +1757,238 @@ const Children = () => {
       {/* Add Child Modal */}
       {showAddModal && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+          <div className="relative top-20 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
-              <h3 className="text-lg font-semibold">إضافة طالب</h3>
+              <h3 className="text-lg font-semibold">
+                {addModalMode === 'register'
+                  ? 'تسجيل ابن جديد كطالب'
+                  : addModalMode === 'request'
+                    ? 'طلب إضافة ابن'
+                    : 'إضافة طالب'}
+              </h3>
               <button
-                onClick={() => setShowAddModal(false)}
+                onClick={() => {
+                  setShowAddModal(false);
+                  setAddModalMode('direct');
+                }}
                 className="text-gray-400 hover:text-gray-600"
               >
                 <FaTimes />
               </button>
             </div>
 
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                رقم هوية الطالب
-              </label>
-              <input
-                type="text"
-                value={selectedStudentId}
-                onChange={(e) => setSelectedStudentId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                placeholder="مثال: 1234567890"
-              />
-            </div>
+            {addModalMode === 'register' ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                <input
+                  type="text"
+                  value={studentRegistrationForm.id}
+                  onChange={(e) => setStudentRegistrationForm((prev) => ({ ...prev, id: e.target.value }))}
+                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="رقم هوية الطالب"
+                />
+                <input
+                  type="date"
+                  value={studentRegistrationForm.date_of_birth}
+                  onChange={(e) => setStudentRegistrationForm((prev) => ({ ...prev, date_of_birth: e.target.value }))}
+                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                />
+                <input
+                  type="text"
+                  value={studentRegistrationForm.first_name}
+                  onChange={(e) => setStudentRegistrationForm((prev) => ({ ...prev, first_name: e.target.value }))}
+                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="الاسم الأول"
+                />
+                <input
+                  type="text"
+                  value={studentRegistrationForm.second_name}
+                  onChange={(e) => setStudentRegistrationForm((prev) => ({ ...prev, second_name: e.target.value }))}
+                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="الاسم الثاني"
+                />
+                <input
+                  type="text"
+                  value={studentRegistrationForm.third_name}
+                  onChange={(e) => setStudentRegistrationForm((prev) => ({ ...prev, third_name: e.target.value }))}
+                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="اسم الجد"
+                />
+                <input
+                  type="text"
+                  value={studentRegistrationForm.last_name}
+                  onChange={(e) => setStudentRegistrationForm((prev) => ({ ...prev, last_name: e.target.value }))}
+                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="العائلة"
+                />
+                <select
+                  value={studentRegistrationForm.school_level}
+                  onChange={(e) => setStudentRegistrationForm((prev) => ({ ...prev, school_level: e.target.value }))}
+                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 bg-white"
+                >
+                  <option value="">اختر المرحلة الدراسية</option>
+                  <option value="لم يدخل المدرسة">لم يدخل المدرسة</option>
+                  <option value="روضة">روضة</option>
+                  <option value="الأول الابتدائي">الأول الابتدائي</option>
+                  <option value="الثاني الابتدائي">الثاني الابتدائي</option>
+                  <option value="الثالث الابتدائي">الثالث الابتدائي</option>
+                  <option value="الرابع الابتدائي">الرابع الابتدائي</option>
+                  <option value="الخامس الابتدائي">الخامس الابتدائي</option>
+                  <option value="السادس الابتدائي">السادس الابتدائي</option>
+                  <option value="الأول متوسط">الأول متوسط</option>
+                  <option value="الثاني متوسط">الثاني متوسط</option>
+                  <option value="الثالث متوسط">الثالث متوسط</option>
+                  <option value="الأول ثانوي">الأول ثانوي</option>
+                  <option value="الثاني ثانوي">الثاني ثانوي</option>
+                  <option value="الثالث ثانوي">الثالث ثانوي</option>
+                  <option value="غير محدد">غير محدد</option>
+                </select>
+                <input
+                  type="password"
+                  value={studentRegistrationForm.password}
+                  onChange={(e) => setStudentRegistrationForm((prev) => ({ ...prev, password: e.target.value }))}
+                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="كلمة مرور الطالب"
+                />
+                <input
+                  type="text"
+                  value={studentRegistrationForm.phone}
+                  onChange={(e) => setStudentRegistrationForm((prev) => ({ ...prev, phone: e.target.value }))}
+                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="جوال الطالب (اختياري)"
+                />
+                <input
+                  type="email"
+                  value={studentRegistrationForm.email}
+                  onChange={(e) => setStudentRegistrationForm((prev) => ({ ...prev, email: e.target.value }))}
+                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="البريد الإلكتروني (اختياري)"
+                />
+              </div>
+            ) : (
+              <>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    رقم هوية الطالب
+                  </label>
+                  <input
+                    type="text"
+                    value={selectedStudentId}
+                    onChange={(e) => setSelectedStudentId(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="مثال: 1234567890"
+                  />
+                </div>
 
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                تاريخ الميلاد
-              </label>
-              <input
-                type="date"
-                value={selectedStudentDob}
-                onChange={(e) => setSelectedStudentDob(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    تاريخ الميلاد
+                  </label>
+                  <input
+                    type="date"
+                    value={selectedStudentDob}
+                    onChange={(e) => setSelectedStudentDob(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
 
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                نوع العلاقة
-              </label>
-              <select
-                value={relationshipType}
-                onChange={(e) => setRelationshipType(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="parent">والد/والدة</option>
-                <option value="guardian">ولي أمر</option>
-                <option value="relative">قريب</option>
-              </select>
-            </div>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    نوع العلاقة
+                  </label>
+                  <select
+                    value={relationshipType}
+                    onChange={(e) => setRelationshipType(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="parent">والد/والدة</option>
+                    <option value="guardian">ولي أمر</option>
+                    <option value="relative">قريب</option>
+                  </select>
+                </div>
+              </>
+            )}
 
             <div className="flex justify-end space-x-2 space-x-reverse">
               <button
-                onClick={() => setShowAddModal(false)}
+                onClick={() => {
+                  setShowAddModal(false);
+                  setAddModalMode('direct');
+                }}
                 className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
               >
                 إلغاء
               </button>
               <button
                 onClick={handleAddChild}
-                disabled={!selectedStudentId.trim() || !selectedStudentDob}
+                disabled={isAddChildSubmitDisabled}
                 className={`px-4 py-2 rounded-md ${
-                  selectedStudentId.trim() && selectedStudentDob
+                  !isAddChildSubmitDisabled
                     ? 'bg-blue-500 text-white hover:bg-blue-600'
                     : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 }`}
               >
-                إضافة
+                {addModalMode === 'register'
+                  ? 'تسجيل الطالب'
+                  : addModalMode === 'request'
+                    ? 'إرسال الطلب'
+                    : 'إضافة'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pendingSemesterRegistration && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" dir="rtl">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            <div className="mb-5">
+              <h3 className="text-xl font-bold text-gray-900">تسجيل الطالب في الفصل</h3>
+              <p className="mt-1 text-sm text-gray-600">
+                {pendingSemesterRegistration.semester.label
+                  || pendingSemesterRegistration.semester.display_name
+                  || `الفصل ${getSemesterTypeText(pendingSemesterRegistration.semester.type)} ${pendingSemesterRegistration.semester.year}`}
+              </p>
+            </div>
+
+            <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <p className="text-sm text-gray-600">المستوى السابق</p>
+              <p className="mt-1 font-semibold text-gray-900">
+                {selectedChild?.school_level || childData?.student?.school_level || 'غير محدد'}
+              </p>
+            </div>
+
+            <label className="mb-2 block text-sm font-semibold text-gray-800">
+              المستوى الدراسي لهذا الفصل
+            </label>
+            <select
+              value={pendingSemesterRegistration.school_level}
+              onChange={(e) => setPendingSemesterRegistration((prev) => ({
+                ...prev,
+                school_level: e.target.value
+              }))}
+              className="mb-5 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-100"
+            >
+              <option value="">اختر المستوى الدراسي</option>
+              {SCHOOL_LEVELS.map((level) => (
+                <option key={level} value={level}>{level}</option>
+              ))}
+            </select>
+
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setPendingSemesterRegistration(null)}
+                className="rounded-lg bg-gray-200 px-4 py-2 font-semibold text-gray-700 hover:bg-gray-300"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                onClick={handleRegisterSemester}
+                disabled={registeringSemesterId === pendingSemesterRegistration.semester.id}
+                className="rounded-lg bg-teal-600 px-4 py-2 font-semibold text-white hover:bg-teal-700 disabled:opacity-60"
+              >
+                {registeringSemesterId === pendingSemesterRegistration.semester.id ? 'جارٍ التسجيل...' : 'تأكيد التسجيل'}
               </button>
             </div>
           </div>
@@ -1052,25 +1999,6 @@ const Children = () => {
 };
 
 export default Children;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

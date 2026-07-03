@@ -42,6 +42,9 @@ const SemesterManagement = () => {
   const [selectedSchool, setSelectedSchool] = useState("");
   const [selectedSemester, setSelectedSemester] = useState(null);
   const [courses, setCourses] = useState([]);
+  const [registrations, setRegistrations] = useState([]);
+  const [semesterClasses, setSemesterClasses] = useState([]);
+  const [assigningStudentId, setAssigningStudentId] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showCourseModal, setShowCourseModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
@@ -59,7 +62,8 @@ const SemesterManagement = () => {
     end_date: "",
     school_id: "",
     weekend_days: [5, 6], // Friday=5, Saturday=6 (ISO weekdays)
-    vacation_days: []
+    vacation_days: [],
+    registration_open: false
   });
 
   const [courseForm, setCourseForm] = useState({
@@ -99,6 +103,8 @@ const SemesterManagement = () => {
   useEffect(() => {
     if (selectedSemester && selectedSchool) {
       loadCourses();
+      loadRegistrations();
+      loadSemesterClasses();
     }
   }, [selectedSemester, selectedSchool]);
 
@@ -147,6 +153,56 @@ const SemesterManagement = () => {
     } catch (error) {
       console.error("Error loading courses:", error);
       setCourses([]);
+    }
+  };
+
+  const loadRegistrations = async () => {
+    if (!selectedSemester?.id) return;
+
+    try {
+      const token = localStorage.getItem("token");
+      const response = await axios.get(`${API_BASE}/api/semesters/${selectedSemester.id}/registrations`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setRegistrations(response.data.registrations || []);
+    } catch (error) {
+      console.error("Error loading semester registrations:", error);
+      setRegistrations([]);
+    }
+  };
+
+  const loadSemesterClasses = async () => {
+    if (!selectedSemester?.id || !selectedSchool) return;
+
+    try {
+      const token = localStorage.getItem("token");
+      const response = await axios.get(`${API_BASE}/api/classes?school_id=${selectedSchool}&semester_id=${selectedSemester.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setSemesterClasses(Array.isArray(response.data) ? response.data : []);
+    } catch (error) {
+      console.error("Error loading semester classes:", error);
+      setSemesterClasses([]);
+    }
+  };
+
+  const handleAssignRegistrationClass = async (studentId, classId) => {
+    if (!classId || !selectedSemester?.id) return;
+
+    try {
+      setAssigningStudentId(studentId);
+      const token = localStorage.getItem("token");
+      await axios.patch(`${API_BASE}/api/semesters/${selectedSemester.id}/registrations/${studentId}/class`, {
+        class_id: classId
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      await Promise.all([loadRegistrations(), loadSemesterClasses()]);
+    } catch (error) {
+      console.error("Error assigning student to class:", error);
+      alert(error.response?.data?.message || "تعذر تسكين الطالب في الحلقة");
+    } finally {
+      setAssigningStudentId(null);
     }
   };
 
@@ -199,7 +255,8 @@ const SemesterManagement = () => {
         end_date: "",
         school_id: "",
         weekend_days: [5, 6],
-        vacation_days: []
+        vacation_days: [],
+        registration_open: false
       });
       setShowAddModal(false);
       setEditingSemester(null);
@@ -432,7 +489,8 @@ const SemesterManagement = () => {
       display_name: semester.display_name || "",
       school_id: semester.school_id || selectedSchool,
       weekend_days: semester.weekend_days || [5, 6],
-      vacation_days: semester.vacation_days || []
+      vacation_days: semester.vacation_days || [],
+      registration_open: Boolean(semester.registration_open)
     });
     setEditingSemester(semester);
     setShowAddModal(true);
@@ -498,7 +556,8 @@ const SemesterManagement = () => {
                   display_name: "",
                   school_id: selectedSchool,
                   weekend_days: [5, 6],
-                  vacation_days: []
+                  vacation_days: [],
+                  registration_open: false
                 });
                 setShowAddModal(true);
               }}
@@ -556,6 +615,14 @@ const SemesterManagement = () => {
                   </h3>
                   <p className="text-gray-600 mb-2">العام: {semester.year}</p>
                   
+                  <span className={`mb-3 inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
+                    semester.registration_open
+                      ? 'bg-teal-100 text-teal-800'
+                      : 'bg-gray-100 text-gray-600'
+                  }`}>
+                    {semester.registration_open ? 'متاح للتسجيل' : 'غير متاح للتسجيل'}
+                  </span>
+
                   {semester.start_date && semester.end_date && (
                     <>
                       <p className="text-sm text-gray-500 mb-3">
@@ -684,6 +751,15 @@ const SemesterManagement = () => {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
+                      setSelectedSemester(semester);
+                    }}
+                    className="flex-1 bg-teal-600 text-white py-2 px-3 rounded text-sm hover:bg-teal-700 transition-colors"
+                  >
+                    المسجلون
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
                       handleEditSemester(semester);
                     }}
                     className="flex-1 bg-yellow-500 text-white py-2 px-3 rounded text-sm hover:bg-yellow-600 transition-colors"
@@ -777,6 +853,74 @@ const SemesterManagement = () => {
                   </div>
                 )) : null}
               </div>
+
+              <div className="mt-8 rounded-xl border border-gray-200 bg-white p-4">
+                <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-800">الطلاب المسجلون في الفصل</h3>
+                    <p className="text-sm text-gray-600">الطلاب هنا مسجلون في الفصل، ويمكن تسكينهم في حلقة لاحقاً.</p>
+                  </div>
+                  <span className="rounded-full bg-teal-50 px-3 py-1 text-sm font-semibold text-teal-800">
+                    {registrations.length} طالب
+                  </span>
+                </div>
+
+                {registrations.length === 0 ? (
+                  <div className="rounded-lg bg-gray-50 p-6 text-center text-gray-600">
+                    لا يوجد طلاب مسجلون في هذا الفصل حالياً
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-sm">
+                      <thead className="bg-gray-50 text-gray-600">
+                        <tr>
+                          <th className="px-4 py-3 text-right">الطالب</th>
+                          <th className="px-4 py-3 text-right">الحالة</th>
+                          <th className="px-4 py-3 text-right">الحلقة</th>
+                          <th className="px-4 py-3 text-right">تسكين</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {registrations.map((registration) => (
+                          <tr key={registration.id}>
+                            <td className="px-4 py-3 font-semibold text-gray-800">
+                              {registration.first_name} {registration.second_name} {registration.last_name}
+                              <div className="text-xs font-normal text-gray-500">{registration.student_id}</div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                                registration.class_id
+                                  ? 'bg-teal-100 text-teal-800'
+                                  : 'bg-amber-100 text-amber-800'
+                              }`}>
+                                {registration.class_id ? 'تم التسكين' : 'بانتظار الحلقة'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-gray-700">
+                              {registration.class_name || 'بدون حلقة'}
+                            </td>
+                            <td className="px-4 py-3">
+                              <select
+                                value={registration.class_id || ""}
+                                onChange={(e) => handleAssignRegistrationClass(registration.student_id, e.target.value)}
+                                disabled={assigningStudentId === registration.student_id || semesterClasses.length === 0}
+                                className="min-w-48 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-teal-500 focus:ring-2 focus:ring-teal-100 disabled:opacity-60"
+                              >
+                                <option value="">اختر الحلقة</option>
+                                {semesterClasses.map((classItem) => (
+                                  <option key={classItem.id} value={classItem.id}>
+                                    {classItem.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -835,6 +979,19 @@ const SemesterManagement = () => {
                   className="w-full p-2 sm:p-3 border border-gray-300 rounded-lg text-sm sm:text-base"
                 />
               </div>
+
+              <label className="flex items-start gap-3 rounded-lg border border-teal-200 bg-teal-50 p-3 text-sm sm:text-base">
+                <input
+                  type="checkbox"
+                  checked={Boolean(newSemester.registration_open)}
+                  onChange={(e) => setNewSemester({ ...newSemester, registration_open: e.target.checked })}
+                  className="mt-1 h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                />
+                <span>
+                  <span className="block font-semibold text-teal-900">متاح للتسجيل</span>
+                  <span className="block text-xs text-teal-700">عند تفعيله يستطيع الطالب أو ولي الأمر طلب التسجيل في هذا الفصل.</span>
+                </span>
+              </label>
 
               {/* Working Days Calculation */}
               <WorkingDaysDisplay 
@@ -935,7 +1092,8 @@ const SemesterManagement = () => {
                     display_name: "",
                     school_id: "",
                     weekend_days: [5, 6],
-                    vacation_days: []
+                    vacation_days: [],
+                    registration_open: false
                   });
                 }}
                 className="flex-1 bg-gray-500 text-white py-2 sm:py-3 rounded-lg hover:bg-gray-600 transition-colors text-sm sm:text-base"

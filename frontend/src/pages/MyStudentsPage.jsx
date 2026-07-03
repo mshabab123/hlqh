@@ -24,6 +24,9 @@ export default function MyStudentsPage() {
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [error, setError] = useState('');
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [semesterOptions, setSemesterOptions] = useState([]);
+  const [semesterOptionsLoading, setSemesterOptionsLoading] = useState(false);
+  const [registeringSemesterId, setRegisteringSemesterId] = useState(null);
 
   useEffect(() => {
     fetchMyStudents();
@@ -61,10 +64,58 @@ export default function MyStudentsPage() {
     }
   };
 
+  const fetchSemesterOptions = async (studentId) => {
+    try {
+      setSemesterOptionsLoading(true);
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_BASE}/api/semesters/registration-options?student_id=${studentId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setSemesterOptions(response.data.semesters || []);
+    } catch (err) {
+      console.error('Error fetching semester registration options:', err);
+      setSemesterOptions([]);
+    } finally {
+      setSemesterOptionsLoading(false);
+    }
+  };
+
   const handleViewDetails = async (student) => {
     setSelectedStudent(student);
     setShowDetailsModal(true);
-    await fetchStudentDetails(student.id);
+    await Promise.all([
+      fetchStudentDetails(student.id),
+      fetchSemesterOptions(student.id)
+    ]);
+  };
+
+  const handleRegisterSemester = async (semesterId) => {
+    if (!selectedStudent) return;
+
+    try {
+      setRegisteringSemesterId(semesterId);
+      const token = localStorage.getItem('token');
+      await axios.post(`${API_BASE}/api/semesters/${semesterId}/register`, {
+        student_id: selectedStudent.id
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      await fetchSemesterOptions(selectedStudent.id);
+    } catch (err) {
+      console.error('Error registering child in semester:', err);
+      alert(err.response?.data?.message || 'تعذر تسجيل الطالب في الفصل');
+    } finally {
+      setRegisteringSemesterId(null);
+    }
+  };
+
+  const getSemesterTypeText = (type) => {
+    switch (type) {
+      case 'first': return 'الأول';
+      case 'second': return 'الثاني';
+      case 'summer': return 'الصيفي';
+      default: return type || 'غير محدد';
+    }
   };
 
   const formatDate = (dateString) => {
@@ -221,6 +272,7 @@ export default function MyStudentsPage() {
                   setShowDetailsModal(false);
                   setSelectedStudent(null);
                   setStudentDetails(null);
+                  setSemesterOptions([]);
                 }}
                 className="text-white hover:bg-white/20 p-1 rounded transition-colors"
               >
@@ -312,6 +364,80 @@ export default function MyStudentsPage() {
                         </div>
                       )}
                     </div>
+                  </div>
+
+                  {/* Semester Registration */}
+                  <div className="bg-white rounded-lg border border-gray-200 p-4">
+                    <h4 className="font-bold text-gray-800 mb-3 flex items-center gap-2">
+                      <AiOutlineCalendar className="text-teal-600" />
+                      الفصول الدراسية والتسجيل
+                    </h4>
+                    {semesterOptionsLoading ? (
+                      <div className="flex items-center gap-2 text-gray-600">
+                        <AiOutlineLoading className="animate-spin" />
+                        <span>جارٍ تحميل الفصول...</span>
+                      </div>
+                    ) : semesterOptions.length === 0 ? (
+                      <p className="text-gray-600">لا توجد فصول متاحة للعرض حالياً</p>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {semesterOptions.map((semester) => {
+                          const isRegistered = Boolean(semester.registration_status);
+                          const isOpen = Boolean(semester.registration_open);
+                          return (
+                            <div
+                              key={semester.id}
+                              className={`rounded-lg border p-4 transition-colors ${
+                                isOpen
+                                  ? 'border-teal-200 bg-teal-50'
+                                  : 'border-gray-200 bg-gray-50 opacity-60'
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="font-bold text-gray-900">
+                                    الفصل {getSemesterTypeText(semester.type)} {semester.year}
+                                  </p>
+                                  <p className="text-sm text-gray-600">
+                                    {semester.school_name || 'بدون مجمع محدد'}
+                                  </p>
+                                  {semester.registered_class_name && (
+                                    <p className="mt-1 text-sm text-teal-700">
+                                      الحلقة: {semester.registered_class_name}
+                                    </p>
+                                  )}
+                                </div>
+                                <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${
+                                  isOpen ? 'bg-teal-100 text-teal-800' : 'bg-gray-200 text-gray-600'
+                                }`}>
+                                  {isOpen ? 'متاح' : 'غير متاح'}
+                                </span>
+                              </div>
+
+                              <div className="mt-4 flex items-center justify-between gap-3">
+                                <span className="text-xs text-gray-600">
+                                  {isRegistered
+                                    ? semester.registered_class_name
+                                      ? 'تم التسجيل والتسكين'
+                                      : 'تم التسجيل بانتظار الحلقة'
+                                    : 'لم يتم التسجيل'}
+                                </span>
+                                {isOpen && !isRegistered && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRegisterSemester(semester.id)}
+                                    disabled={registeringSemesterId === semester.id}
+                                    className="rounded-lg bg-teal-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-teal-700 disabled:opacity-60"
+                                  >
+                                    {registeringSemesterId === semester.id ? 'جارٍ التسجيل...' : 'تسجيل'}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
 
                   {/* Recent Grades */}

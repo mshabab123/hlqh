@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import axios from '../utils/axiosConfig';
 import { 
   AiOutlineUser, 
   AiOutlinePlus, 
@@ -29,10 +29,7 @@ const SimpleChildrenManagement = ({ user, isOpen, onClose }) => {
     try {
       setLoading(true);
       setError('');
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_BASE}/api/children/${user.id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await axios.get(`${API_BASE}/api/children/${user.id}`);
       setChildren(response.data.children || []);
     } catch (err) {
       console.error('Error fetching children:', err);
@@ -66,14 +63,10 @@ const SimpleChildrenManagement = ({ user, isOpen, onClose }) => {
       setSubmitting(true);
       setError('');
       setSuccess('');
-      const token = localStorage.getItem('token');
-      
       const response = await axios.post(`${API_BASE}/api/children/${user.id}/add`, {
         studentId: trimmedStudentId,
         relationshipType: 'parent',
         isPrimary: false
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
       });
       
       setStudentId('');
@@ -96,10 +89,7 @@ const SimpleChildrenManagement = ({ user, isOpen, onClose }) => {
     try {
       setError('');
       setSuccess('');
-      const token = localStorage.getItem('token');
-      await axios.delete(`${API_BASE}/api/children/${user.id}/${relationshipId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await axios.delete(`${API_BASE}/api/children/${user.id}/${relationshipId}`);
       
       setSuccess('تم إلغاء ربط الطالب بنجاح');
       fetchChildren();

@@ -167,6 +167,15 @@ const TeacherForm = ({ teacher, onSubmit, onCancel, isEditing = false, onTeacher
         
         {isEditing && (
           <div>
+            <label className="mb-3 flex items-center gap-2 rounded-lg bg-gray-50 p-3 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={teacher.can_assign_registered_students !== false}
+                onChange={(e) => onTeacherChange({ ...teacher, can_assign_registered_students: e.target.checked })}
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              السماح للمعلم بإضافة الطلاب من قائمة المسجلين في الفصل
+            </label>
             <label className="block text-sm font-medium mb-1">الحلقات المسندة</label>
             <div className="space-y-2 max-h-40 overflow-y-auto border rounded-lg p-3">
               {classes.length === 0 ? (
@@ -253,7 +262,8 @@ export default function TeacherManagement() {
     school_id: "",
     specialization: "",
     actual_qualifications: "",
-    user_type: "teacher"
+    user_type: "teacher",
+    can_assign_registered_students: true
   });
 
   useEffect(() => {
@@ -339,7 +349,8 @@ export default function TeacherManagement() {
         school_id: "",
         specialization: "",
         actual_qualifications: "",
-        user_type: "teacher"
+        user_type: "teacher",
+        can_assign_registered_students: true
       });
       fetchTeachers();
     } catch (err) {
@@ -360,7 +371,8 @@ export default function TeacherManagement() {
         address: editingTeacher.address,
         school_id: editingTeacher.school_id,
         specialization: editingTeacher.specialization,
-        qualifications: editingTeacher.actual_qualifications
+        qualifications: editingTeacher.actual_qualifications,
+        can_assign_registered_students: editingTeacher.can_assign_registered_students !== false
       };
       
       await axios.put(`${API_BASE}/api/teachers/${editingTeacher.id}`, updateData, {
@@ -520,6 +532,13 @@ export default function TeacherManagement() {
               {teacher.specialization && <p><strong>التخصص:</strong> {teacher.specialization}</p>}
               {teacher.actual_qualifications && <p><strong>المؤهلات:</strong> {teacher.actual_qualifications}</p>}
               
+              <p>
+                <strong>إضافة طلاب من قائمة التسجيل:</strong>{" "}
+                <span className={teacher.can_assign_registered_students === false ? "text-red-600" : "text-green-600"}>
+                  {teacher.can_assign_registered_students === false ? "غير مسموح" : "مسموح"}
+                </span>
+              </p>
+
               {/* Display assigned classes */}
               {(() => {
                 // Check if teacher has class_ids array (multiple assignments)

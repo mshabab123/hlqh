@@ -107,6 +107,7 @@ router.get('/student/:studentId', auth, async (req, res) => {
 router.get('/student/:studentId/semester', auth, async (req, res) => {
   try {
     const { studentId } = req.params;
+    const { semester_id } = req.query;
     const userId = req.user?.id;
     const userRole = req.user?.role;
 
@@ -145,15 +146,56 @@ router.get('/student/:studentId/semester', auth, async (req, res) => {
       }
     }
 
-    const enrollmentResult = await pool.query(`
-      SELECT c.id as class_id, c.semester_id, s.start_date, s.end_date, s.weekend_days, s.vacation_days, s.display_name
-      FROM student_enrollments se
-      JOIN classes c ON se.class_id = c.id
-      JOIN semesters s ON c.semester_id = s.id
-      WHERE se.student_id = $1 AND se.status = 'enrolled'
-      ORDER BY se.enrollment_date DESC
-      LIMIT 1
-    `, [studentId]);
+    const enrollmentResult = semester_id
+      ? await pool.query(`
+        WITH candidate_classes AS (
+          SELECT sr.class_id, 1 as priority, sr.updated_at as activity_date
+          FROM semester_registrations sr
+          WHERE sr.student_id = $1
+            AND sr.semester_id = $2
+            AND sr.class_id IS NOT NULL
+
+          UNION ALL
+
+          SELECT sa.class_id, 2 as priority, MAX(sa.updated_at) as activity_date
+          FROM semester_attendance sa
+          WHERE sa.student_id = $1
+            AND sa.semester_id = $2
+          GROUP BY sa.class_id
+
+          UNION ALL
+
+          SELECT g.class_id, 3 as priority, MAX(COALESCE(g.date_graded, g.created_at::date))::timestamp as activity_date
+          FROM grades g
+          WHERE g.student_id = $1
+            AND g.semester_id = $2
+            AND g.class_id IS NOT NULL
+          GROUP BY g.class_id
+
+          UNION ALL
+
+          SELECT se.class_id, 4 as priority, COALESCE(se.completion_date, se.enrollment_date) as activity_date
+          FROM student_enrollments se
+          JOIN classes c ON se.class_id = c.id
+          WHERE se.student_id = $1
+            AND c.semester_id = $2
+        )
+        SELECT c.id as class_id, c.semester_id, s.start_date, s.end_date, s.weekend_days, s.vacation_days, s.display_name
+        FROM candidate_classes cc
+        JOIN classes c ON cc.class_id = c.id
+        JOIN semesters s ON c.semester_id = s.id
+        ORDER BY cc.priority, cc.activity_date DESC NULLS LAST
+        LIMIT 1
+      `, [studentId, semester_id])
+      : await pool.query(`
+        SELECT c.id as class_id, c.semester_id, s.start_date, s.end_date, s.weekend_days, s.vacation_days, s.display_name
+        FROM student_enrollments se
+        JOIN classes c ON se.class_id = c.id
+        JOIN semesters s ON c.semester_id = s.id
+        WHERE se.student_id = $1 AND se.status = 'enrolled'
+        ORDER BY se.enrollment_date DESC
+        LIMIT 1
+      `, [studentId]);
 
     if (enrollmentResult.rows.length === 0) {
       return res.status(404).json({ error: 'لا يوجد فصل دراسي نشط لهذا الطالب' });

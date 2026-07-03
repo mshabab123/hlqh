@@ -37,6 +37,7 @@ import PointsReports from "./pages/PointsReports";
 import StudentPoints from "./pages/StudentPoints";
 import Children from "./pages/Children";
 import PrivilegeManagement from "./pages/PrivilegeManagement";
+import CertificateManagement from "./pages/CertificateManagement";
 import Navbar from "./components/Navbar";
 import AuthNavbar from "./components/AuthNavbar";
 import Layout from "./components/Layout";
@@ -201,6 +202,16 @@ export default function App() {
             }
           />
           <Route
+            path="/certificates"
+            element={
+              <ProtectedRoute requiredRole={["admin", "administrator"]}>
+                <ConditionalLayout>
+                  <CertificateManagement />
+                </ConditionalLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/grading"
             element={
               <ProtectedRoute requiredRole={["admin", "administrator", "teacher"]}>
@@ -353,7 +364,7 @@ export default function App() {
           <Route
             path="/children"
             element={
-              <ProtectedRoute requiredRole={["parent", "admin", "administrator", "teacher"]}>
+              <ProtectedRoute requiredRole={["parent", "student", "admin", "administrator", "teacher"]}>
                 <ConditionalLayout>
                   <Children />
                 </ConditionalLayout>

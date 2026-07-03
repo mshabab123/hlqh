@@ -6,6 +6,7 @@ const { body, validationResult } = require('express-validator');
 const { authenticateToken: auth } = require('../middleware/auth');
 const { requireRole, ROLES } = require('../middleware/rbac');
 const { BCRYPT_ROUNDS, generateTempPassword } = require('../config/security');
+const { isStudentAutoActivationEnabled } = require('../utils/appSettings');
 
 const rateLimit = require('express-rate-limit');
 const registerLimiter = rateLimit({
@@ -21,7 +22,7 @@ async function canViewStudent(user, studentId) {
   const role = user.role?.toLowerCase();
   if (['admin', 'administrator', 'supervisor'].includes(role)) return true;
   if (String(user.id) === String(studentId)) return true;
-  if (role === 'parent') {
+  if (role === 'parent' || role === 'parent_student') {
     const r = await db.query(
       'SELECT 1 FROM parent_student_relationships WHERE parent_id = $1 AND student_id = $2',
       [user.id, studentId]
@@ -87,8 +88,8 @@ const studentValidationRules = [
     .withMessage('رقم هوية ولي الأمر يجب أن يكون 10 أرقام')
 ];
 
-// POST /api/students - Create a student account (staff only)
-router.post('/', auth, requireRole(ROLES.TEACHER), studentValidationRules, async (req, res) => {
+// POST /api/students - Public student registration request
+router.post('/', registerLimiter, studentValidationRules, async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ error: errors.array()[0].msg });
@@ -114,6 +115,9 @@ router.post('/', auth, requireRole(ROLES.TEACHER), studentValidationRules, async
 
     // Hash password
     const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
+    const autoActivateStudent = await isStudentAutoActivationEnabled(client);
+    const userIsActive = autoActivateStudent;
+    const studentStatus = autoActivateStudent ? 'active' : 'inactive';
 
     // Insert into users table (inactive by default) with proper role
     await client.query(`
@@ -121,7 +125,7 @@ router.post('/', auth, requireRole(ROLES.TEACHER), studentValidationRules, async
         id, first_name, second_name, third_name, last_name, email,
         phone, password, date_of_birth, is_active, role
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-    `, [id, first_name, second_name, third_name, last_name, email || null, phone || null, hashedPassword, date_of_birth, false, 'student']);
+    `, [id, first_name, second_name, third_name, last_name, email || null, phone || null, hashedPassword, date_of_birth, userIsActive, 'student']);
 
     // Handle parent linking - create relationships even if parent doesn't exist yet (constraints removed)
     let validParentId = null;
@@ -152,7 +156,7 @@ router.post('/', auth, requireRole(ROLES.TEACHER), studentValidationRules, async
       INSERT INTO students (
         id, school_level, parent_id, status
       ) VALUES ($1, $2, $3, $4)
-    `, [id, school_level, validParentId, 'inactive']);
+    `, [id, school_level, validParentId, studentStatus]);
 
     await client.query('COMMIT');
     
@@ -161,7 +165,7 @@ router.post('/', auth, requireRole(ROLES.TEACHER), studentValidationRules, async
       studentId: id,
       linkedToParent: !!validParentId,
       schoolLevel: school_level,
-      status: 'pending_activation',
+      status: autoActivateStudent ? 'active' : 'pending_activation',
       note: 'الحساب غير مفعل حتى موافقة الإدارة'
     });
 
@@ -417,6 +421,9 @@ router.post('/manage', auth, requireRole(ROLES.TEACHER), [
       // deliver it to the student; it is never stored or logged.
       const tempPassword = generateTempPassword();
       const hashedPassword = await bcrypt.hash(tempPassword, BCRYPT_ROUNDS);
+      const autoActivateStudent = await isStudentAutoActivationEnabled(client);
+      const effectiveStatus = autoActivateStudent ? 'active' : status;
+      const userIsActive = effectiveStatus === 'active';
       const userQuery = `
         INSERT INTO users (id, first_name, second_name, third_name, last_name, email, phone, address, date_of_birth, password, is_active, role)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
@@ -425,7 +432,7 @@ router.post('/manage', auth, requireRole(ROLES.TEACHER), [
 
       await client.query(userQuery, [
         id, first_name, second_name, third_name, last_name,
-        email || null, phone || null, address || null, date_of_birth || null, hashedPassword, true, 'student'
+        email || null, phone || null, address || null, date_of_birth || null, hashedPassword, userIsActive, 'student'
       ]);
 
       // Create student record
@@ -436,13 +443,13 @@ router.post('/manage', auth, requireRole(ROLES.TEACHER), [
       `;
       
       await client.query(studentQuery, [
-        id, school_level, status, notes || null,
+        id, school_level, effectiveStatus, notes || null,
         memorized_surah_id || null, memorized_ayah_number || null,
         target_surah_id || null, target_ayah_number || null
       ]);
 
       // Add student to class or school if provided (only for active students)
-      if (status === 'active') {
+      if (effectiveStatus === 'active') {
         if (class_id) {
           const enrollmentQuery = `
             INSERT INTO student_enrollments (student_id, class_id, status)
