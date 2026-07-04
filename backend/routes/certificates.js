@@ -2,6 +2,10 @@ const express = require('express');
 const db = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 const { canAccessSchool, canAccessStudent } = require('../utils/accessScope');
+const {
+  getCertificatePassThreshold,
+  setCertificatePassThreshold,
+} = require('../utils/appSettings');
 
 const router = express.Router();
 const MANAGER_ROLES = ['admin', 'administrator'];
@@ -153,13 +157,43 @@ function buildCertificatePayload(row, semester, notes) {
   };
 }
 
+// Passing threshold is controlled by admins/managers and stored globally.
+router.get('/settings/pass-threshold', authenticateToken, requireCertificateManager, async (req, res) => {
+  try {
+    const passThreshold = await getCertificatePassThreshold();
+    res.json({ pass_threshold: passThreshold });
+  } catch (error) {
+    console.error('Error reading certificate pass threshold:', error);
+    res.status(500).json({ error: 'فشل تحميل درجة النجاح' });
+  }
+});
+
+router.put('/settings/pass-threshold', authenticateToken, requireCertificateManager, async (req, res) => {
+  try {
+    const setting = await setCertificatePassThreshold(req.body.pass_threshold, req.user.id);
+    res.json({
+      message: 'تم تحديث درجة النجاح',
+      pass_threshold: Number(setting.value),
+    });
+  } catch (error) {
+    console.error('Error updating certificate pass threshold:', error);
+    res.status(500).json({ error: 'فشل تحديث درجة النجاح' });
+  }
+});
+
 router.get('/semesters/:semesterId/students', authenticateToken, requireCertificateManager, async (req, res) => {
   try {
     const semester = await getSemester(req, res, req.params.semesterId);
     if (!semester) return;
 
-    const students = await listSemesterStudents(req.params.semesterId);
-    res.json({ semester, students });
+    const passThreshold = await getCertificatePassThreshold();
+    const rawStudents = await listSemesterStudents(req.params.semesterId);
+    const students = rawStudents.map((student) => ({
+      ...student,
+      passed: Number(student.grade_count || 0) > 0 && Number(student.average_grade || 0) >= passThreshold,
+    }));
+
+    res.json({ semester, students, pass_threshold: passThreshold });
   } catch (error) {
     console.error('Error fetching certificate students:', error);
     res.status(500).json({ error: 'فشل تحميل طلاب الشهادات' });
@@ -175,9 +209,24 @@ router.post('/semesters/:semesterId/grant', authenticateToken, requireCertificat
 
     const excludedIds = new Set((req.body.excluded_student_ids || []).map(String));
     const notes = req.body.notes || null;
+
+    // The passing threshold is set by the admin/manager. If a value is sent with
+    // the grant request we persist it as the new default, otherwise use the stored one.
+    let passThreshold;
+    if (req.body.pass_threshold !== undefined && req.body.pass_threshold !== null && req.body.pass_threshold !== '') {
+      const saved = await setCertificatePassThreshold(req.body.pass_threshold, req.user.id);
+      passThreshold = Number(saved.value);
+    } else {
+      passThreshold = await getCertificatePassThreshold();
+    }
+
     const students = await listSemesterStudents(req.params.semesterId);
     const eligibleStudents = students.filter((student) => {
-      return !excludedIds.has(String(student.student_id)) && Number(student.grade_count || 0) > 0;
+      return (
+        !excludedIds.has(String(student.student_id)) &&
+        Number(student.grade_count || 0) > 0 &&
+        Number(student.average_grade || 0) >= passThreshold
+      );
     });
 
     client = await db.connect();
@@ -236,6 +285,7 @@ router.post('/semesters/:semesterId/grant', authenticateToken, requireCertificat
       message: 'تم منح الشهادات بنجاح',
       issued_count: issued.length,
       skipped_count: students.length - eligibleStudents.length,
+      pass_threshold: passThreshold,
       certificates: issued,
     });
   } catch (error) {
@@ -246,6 +296,98 @@ router.post('/semesters/:semesterId/grant', authenticateToken, requireCertificat
     res.status(500).json({ error: 'فشل منح الشهادات' });
   } finally {
     if (client) client.release();
+  }
+});
+
+// Returns issued certificates (fully joined for display) for a set of student ids.
+async function fetchIssuedCertificates(studentIds) {
+  if (!studentIds || studentIds.length === 0) return [];
+
+  const result = await db.query(
+    `SELECT cert.id, cert.certificate_number, cert.status, cert.issued_at,
+            cert.student_id, cert.average_grade, cert.grade_count, cert.payload,
+            sem.display_name as semester_name, sem.year as semester_year,
+            sch.name as school_name, c.name as class_name,
+            st.school_level,
+            CONCAT_WS(' ', u.first_name, u.second_name, u.third_name, u.last_name) as student_name
+     FROM student_certificates cert
+     JOIN semesters sem ON sem.id = cert.semester_id
+     LEFT JOIN schools sch ON sch.id = cert.school_id
+     LEFT JOIN classes c ON c.id = cert.class_id
+     JOIN users u ON u.id = cert.student_id
+     JOIN students st ON st.id = cert.student_id
+     WHERE cert.status = 'issued'
+       AND cert.student_id = ANY($1::varchar[])
+     ORDER BY cert.issued_at DESC NULLS LAST`,
+    [studentIds]
+  );
+
+  return result.rows.map((row) => {
+    const payload = row.payload || {};
+    return {
+      id: row.id,
+      certificate_number: row.certificate_number,
+      status: row.status,
+      issued_at: row.issued_at,
+      student_id: row.student_id,
+      student_name: row.student_name || payload.student_name,
+      school_level: row.school_level || payload.school_level,
+      school_name: row.school_name || payload.school_name,
+      class_name: row.class_name || payload.class_name,
+      teacher_name: payload.teacher_name,
+      semester_name: row.semester_name || payload.semester_name,
+      semester_year: row.semester_year || payload.semester_year,
+      average_grade: Number(row.average_grade || payload.average_grade || 0),
+      grade_count: Number(row.grade_count || payload.grade_count || 0),
+    };
+  });
+}
+
+// Certificates visible to the logged-in student and/or parent.
+// - student / parent_student: their own issued certificates
+// - parent / parent_student: their linked children's issued certificates
+router.get('/my', authenticateToken, async (req, res) => {
+  try {
+    const role = req.user.role;
+    const userId = String(req.user.id);
+    const studentIds = new Set();
+
+    if (role === 'student' || role === 'parent_student') {
+      studentIds.add(userId);
+    }
+
+    if (role === 'parent' || role === 'parent_student') {
+      const children = await db.query(
+        'SELECT student_id FROM parent_student_relationships WHERE parent_id = $1',
+        [userId]
+      );
+      children.rows.forEach((row) => studentIds.add(String(row.student_id)));
+    }
+
+    const certificates = await fetchIssuedCertificates(Array.from(studentIds));
+    res.json({ certificates });
+  } catch (error) {
+    console.error('Error fetching my certificates:', error);
+    res.status(500).json({ error: 'فشل تحميل الشهادات' });
+  }
+});
+
+// Certificates for a specific student, visible to staff who can access them
+// (teacher of the student's class, school administrator/supervisor, or admin)
+// as well as the student themselves and their parent.
+router.get('/student/:studentId', authenticateToken, async (req, res) => {
+  try {
+    const { studentId } = req.params;
+
+    if (!(await canAccessStudent(db, req.user, studentId))) {
+      return res.status(403).json({ error: 'ليس لديك صلاحية لعرض شهادات هذا الطالب' });
+    }
+
+    const certificates = await fetchIssuedCertificates([String(studentId)]);
+    res.json({ certificates });
+  } catch (error) {
+    console.error('Error fetching student certificates:', error);
+    res.status(500).json({ error: 'فشل تحميل شهادات الطالب' });
   }
 });
 

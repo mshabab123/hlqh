@@ -53,7 +53,7 @@ const AdminRoots = () => {
       setLoading(true);
       const token = localStorage.getItem("token");
       // Try to use existing users endpoint with admin role filter
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/users?role=admin`, {
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE}/api/users?role=admin`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -89,8 +89,8 @@ const AdminRoots = () => {
       
       // Use existing users endpoint
       const url = editingAdmin 
-        ? `${import.meta.env.VITE_API_URL}/api/users/${editingAdmin.id}`
-        : `${import.meta.env.VITE_API_URL}/api/users`;
+        ? `${import.meta.env.VITE_API_BASE}/api/users/${editingAdmin.id}`
+        : `${import.meta.env.VITE_API_BASE}/api/users`;
       
       const method = editingAdmin ? 'put' : 'post';
       
@@ -114,7 +114,7 @@ const AdminRoots = () => {
     
     try {
       const token = localStorage.getItem("token");
-      await axios.delete(`${import.meta.env.VITE_API_URL}/api/users/${id}`, {
+      await axios.delete(`${import.meta.env.VITE_API_BASE}/api/users/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       fetchAdminRoots();
@@ -127,7 +127,7 @@ const AdminRoots = () => {
   const handleToggleStatus = async (id, currentStatus) => {
     try {
       const token = localStorage.getItem("token");
-      await axios.patch(`${import.meta.env.VITE_API_URL}/api/users/${id}`,
+      await axios.patch(`${import.meta.env.VITE_API_BASE}/api/users/${id}`,
         { is_active: !currentStatus },
         { headers: { Authorization: `Bearer ${token}` } }
       );

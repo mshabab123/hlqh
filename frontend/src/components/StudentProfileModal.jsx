@@ -22,6 +22,7 @@ import QuranBlocksModal from "./QuranBlocksModal";
 import QuranTestingModal from "./QuranTestingModal";
 import QuranHomeworkModal from "./QuranHomeworkModal";
 import CircularProgressChart from "./CircularProgressChart";
+import StudentCertificatesButton from "./StudentCertificatesButton";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
@@ -1282,6 +1283,7 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
               <AiOutlineBook />
               مهمة جديدة
             </button>
+            <StudentCertificatesButton studentId={student.id} />
           </div>
         </div>
 

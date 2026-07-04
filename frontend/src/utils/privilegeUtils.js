@@ -24,7 +24,7 @@ export const getUserPrivileges = async (userId) => {
   try {
     const token = localStorage.getItem('token');
     const response = await axios.get(
-      `${import.meta.env.VITE_API_URL}/api/privileges/${userId}`,
+      `${import.meta.env.VITE_API_BASE}/api/privileges/${userId}`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
     

@@ -55,7 +55,7 @@ const parentValidationRules = [
 ];
 
 // POST /api/parents - Create a parent account (staff only)
-router.post('/', authenticateToken, requireRole(ROLES.ADMINISTRATOR), parentValidationRules, async (req, res) => {
+router.post('/', registerLimiter, parentValidationRules, async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ error: errors.array()[0].msg });

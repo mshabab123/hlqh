@@ -4,17 +4,12 @@ import {
   FaAward,
   FaBan,
   FaCheckCircle,
-  FaDownload,
   FaPrint,
   FaSearch,
   FaSyncAlt,
   FaUserGraduate,
 } from "react-icons/fa";
-
-const formatDate = (value) => {
-  if (!value) return "-";
-  return new Date(value).toLocaleDateString("ar-SA");
-};
+import CertificatePreviewModal from "../components/CertificatePreviewModal";
 
 const getSemesterName = (semester) => {
   if (!semester) return "";
@@ -36,64 +31,6 @@ const getStudentCertificatePayload = (student, semester) => ({
   issued_at: student.issued_at,
 });
 
-function CertificateTemplate({ certificate }) {
-  return (
-    <div
-      dir="rtl"
-      className="certificate-print-area mx-auto bg-white text-slate-900 border-[10px] border-double border-teal-700 p-10 rounded-lg shadow-xl max-w-5xl min-h-[680px]"
-    >
-      <div className="flex items-center justify-between border-b border-teal-200 pb-6">
-        <div className="text-right">
-          <p className="text-sm text-slate-500">منصة الحلقات</p>
-          <h1 className="text-3xl font-black text-teal-800">شهادة إتمام فصل دراسي</h1>
-        </div>
-        <img src="/logo.svg" alt="شعار المنصة" className="h-24 w-24 object-contain" />
-      </div>
-
-      <div className="mt-12 text-center space-y-5">
-        <p className="text-xl text-slate-600">تشهد إدارة</p>
-        <h2 className="text-3xl font-black text-teal-900">{certificate.school_name || "مجمع الحلقات"}</h2>
-        <p className="text-xl text-slate-600">بأن الطالب</p>
-        <div className="mx-auto max-w-3xl rounded-lg border border-teal-200 bg-teal-50 px-6 py-5">
-          <h3 className="text-4xl font-black text-slate-950">{certificate.student_name}</h3>
-          <p className="mt-2 text-slate-600">رقم الهوية: {certificate.student_id}</p>
-        </div>
-        <p className="text-xl leading-9 text-slate-700">
-          قد أتم متطلبات <strong>{certificate.semester_name}</strong>
-          {certificate.class_name ? <> في حلقة <strong>{certificate.class_name}</strong></> : null}
-          {certificate.teacher_name ? <> بإشراف المعلم <strong>{certificate.teacher_name}</strong></> : null}
-        </p>
-      </div>
-
-      <div className="mt-12 grid grid-cols-3 gap-4 text-center">
-        <div className="rounded-lg border border-slate-200 bg-slate-50 p-5">
-          <p className="text-sm text-slate-500">المستوى</p>
-          <p className="mt-2 text-xl font-bold">{certificate.school_level || "-"}</p>
-        </div>
-        <div className="rounded-lg border border-slate-200 bg-slate-50 p-5">
-          <p className="text-sm text-slate-500">متوسط الدرجات</p>
-          <p className="mt-2 text-2xl font-black text-teal-700">{certificate.average_grade.toFixed(1)}%</p>
-        </div>
-        <div className="rounded-lg border border-slate-200 bg-slate-50 p-5">
-          <p className="text-sm text-slate-500">عدد الدرجات</p>
-          <p className="mt-2 text-xl font-bold">{certificate.grade_count}</p>
-        </div>
-      </div>
-
-      <div className="mt-14 flex items-end justify-between text-sm text-slate-600">
-        <div>
-          <p>رقم الشهادة: {certificate.certificate_number || "-"}</p>
-          <p>تاريخ الإصدار: {formatDate(certificate.issued_at || new Date())}</p>
-        </div>
-        <div className="text-center">
-          <div className="h-16 w-52 border-b border-slate-400" />
-          <p className="mt-2">توقيع الإدارة</p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function CertificateManagement() {
   const [schools, setSchools] = useState([]);
   const [semesters, setSemesters] = useState([]);
@@ -107,6 +44,8 @@ export default function CertificateManagement() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [previewCertificate, setPreviewCertificate] = useState(null);
+  const [passThreshold, setPassThreshold] = useState(50);
+  const [savingThreshold, setSavingThreshold] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -158,6 +97,9 @@ export default function CertificateManagement() {
     try {
       const response = await axios.get(`/api/certificates/semesters/${selectedSemester}/students`);
       setStudents(response.data.students || []);
+      if (response.data.pass_threshold !== undefined && response.data.pass_threshold !== null) {
+        setPassThreshold(Number(response.data.pass_threshold));
+      }
       setExcludedIds(new Set());
     } catch (err) {
       setError(err.response?.data?.error || "فشل تحميل طلاب الفصل");
@@ -188,7 +130,29 @@ export default function CertificateManagement() {
     });
   }, [students, search]);
 
-  const eligibleCount = students.filter((student) => Number(student.grade_count || 0) > 0 && !excludedIds.has(String(student.student_id))).length;
+  const isPassing = (student) =>
+    Number(student.grade_count || 0) > 0 && Number(student.average_grade || 0) >= Number(passThreshold || 0);
+
+  const eligibleCount = students.filter(
+    (student) => isPassing(student) && !excludedIds.has(String(student.student_id))
+  ).length;
+
+  const savePassThreshold = async () => {
+    setSavingThreshold(true);
+    setError("");
+    setMessage("");
+    try {
+      const response = await axios.put(`/api/certificates/settings/pass-threshold`, {
+        pass_threshold: Number(passThreshold),
+      });
+      setPassThreshold(Number(response.data.pass_threshold));
+      setMessage("تم حفظ درجة النجاح");
+    } catch (err) {
+      setError(err.response?.data?.error || "فشل حفظ درجة النجاح");
+    } finally {
+      setSavingThreshold(false);
+    }
+  };
 
   const toggleExclude = (studentId) => {
     setExcludedIds((current) => {
@@ -210,6 +174,7 @@ export default function CertificateManagement() {
     try {
       const response = await axios.post(`/api/certificates/semesters/${selectedSemester}/grant`, {
         excluded_student_ids: Array.from(excludedIds),
+        pass_threshold: Number(passThreshold),
       });
       setMessage(`تم منح ${response.data.issued_count || 0} شهادة`);
       await fetchStudents();
@@ -237,11 +202,6 @@ export default function CertificateManagement() {
     } finally {
       setActionLoading(false);
     }
-  };
-
-  const openPrintWindow = (certificate) => {
-    if (!certificate) return;
-    window.print();
   };
 
   return (
@@ -318,6 +278,34 @@ export default function CertificateManagement() {
         {message && <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-700">{message}</div>}
 
         <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div>
+              <span className="text-sm font-bold text-slate-700">درجة النجاح المطلوبة (%)</span>
+              <p className="mt-1 text-xs text-slate-500">يحددها المدير أو الأدمن. لا تُمنح الشهادة إلا لمن بلغ متوسطه هذه النسبة فأعلى.</p>
+              <div className="mt-2 flex items-center gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={passThreshold}
+                  onChange={(event) => setPassThreshold(event.target.value)}
+                  className="w-28 rounded-lg border border-slate-300 bg-white px-3 py-2.5 outline-none focus:border-teal-500"
+                />
+                <span className="text-lg font-black text-slate-700">%</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={savePassThreshold}
+              disabled={savingThreshold}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-800 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-900 disabled:opacity-50"
+            >
+              {savingThreshold ? "جاري الحفظ..." : "حفظ درجة النجاح"}
+            </button>
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
               <div className="rounded-lg bg-slate-50 p-3">
@@ -360,6 +348,8 @@ export default function CertificateManagement() {
               const revoked = student.certificate_status === "revoked";
               const noGrades = Number(student.grade_count || 0) === 0;
               const excluded = excludedIds.has(String(student.student_id));
+              const passing = isPassing(student);
+              const failed = !noGrades && !passing;
 
               return (
                 <div key={student.student_id} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
@@ -370,6 +360,8 @@ export default function CertificateManagement() {
                         {issued && <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700">شهادة ممنوحة</span>}
                         {revoked && <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-700">ملغاة</span>}
                         {!student.certificate_status && <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">بدون شهادة</span>}
+                        {!issued && passing && <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">مجتاز</span>}
+                        {failed && <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-600">لم يجتز</span>}
                       </div>
                       <p className="mt-1 text-sm text-slate-500">رقم الهوية: {student.student_id}</p>
                       <p className="mt-1 text-sm text-slate-600">
@@ -397,6 +389,11 @@ export default function CertificateManagement() {
                   </div>
 
                   {noGrades && <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm font-bold text-amber-700">لا يمكن منح شهادة قبل تسجيل درجات للطالب.</p>}
+                  {failed && !issued && (
+                    <p className="mt-3 rounded-lg bg-red-50 p-3 text-sm font-bold text-red-700">
+                      متوسط الطالب ({Number(student.average_grade || 0).toFixed(1)}%) أقل من درجة النجاح ({Number(passThreshold || 0)}%)، لن تُمنح له شهادة.
+                    </p>
+                  )}
                   {student.revoke_reason && <p className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">سبب الإلغاء: {student.revoke_reason}</p>}
 
                   <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -405,7 +402,7 @@ export default function CertificateManagement() {
                         type="checkbox"
                         checked={excluded}
                         onChange={() => toggleExclude(student.student_id)}
-                        disabled={issued || noGrades}
+                        disabled={issued || noGrades || failed}
                       />
                       استثناء من المنح
                     </label>
@@ -443,51 +440,10 @@ export default function CertificateManagement() {
         </div>
       </div>
 
-      {previewCertificate && (
-        <div className="fixed inset-0 z-50 overflow-auto bg-slate-950/70 p-4">
-          <style>{`
-            @media print {
-              body * { visibility: hidden !important; }
-              #certificate-preview-content, #certificate-preview-content * { visibility: visible !important; }
-              #certificate-preview-content {
-                position: absolute !important;
-                inset: 0 !important;
-                width: 100% !important;
-                background: white !important;
-                padding: 0 !important;
-              }
-              .certificate-print-area {
-                box-shadow: none !important;
-                max-width: none !important;
-                min-height: 100vh !important;
-                border-radius: 0 !important;
-              }
-              .certificate-preview-toolbar { display: none !important; }
-            }
-          `}</style>
-          <div className="mx-auto max-w-6xl">
-            <div className="certificate-preview-toolbar mb-3 flex flex-wrap justify-between gap-2 rounded-lg bg-white p-3 shadow-lg">
-              <button
-                type="button"
-                onClick={() => setPreviewCertificate(null)}
-                className="rounded-lg bg-slate-200 px-4 py-2 font-bold text-slate-800 hover:bg-slate-300"
-              >
-                إغلاق
-              </button>
-              <button
-                type="button"
-                onClick={() => openPrintWindow(previewCertificate)}
-                className="inline-flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 font-bold text-white hover:bg-teal-700"
-              >
-                <FaDownload /> طباعة / حفظ PDF
-              </button>
-            </div>
-            <div id="certificate-preview-content">
-              <CertificateTemplate certificate={previewCertificate} />
-            </div>
-          </div>
-        </div>
-      )}
+      <CertificatePreviewModal
+        certificate={previewCertificate}
+        onClose={() => setPreviewCertificate(null)}
+      />
     </div>
   );
 }

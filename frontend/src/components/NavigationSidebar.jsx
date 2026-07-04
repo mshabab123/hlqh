@@ -352,6 +352,13 @@ const NavigationSidebar = ({ isOpen, setIsOpen, isCollapsed, setIsCollapsed, cla
           icon: AiOutlineHeart,
           roles: ["parent"],
           description: "عرض معلومات وبيانات أبنائي الطلاب"
+        },
+        {
+          title: "شهاداتي",
+          path: "/my-certificates",
+          icon: FaCertificate,
+          roles: ["student", "parent", "parent_student"],
+          description: "عرض وتحميل شهادات الفصول الدراسية"
         }
       ]
     },

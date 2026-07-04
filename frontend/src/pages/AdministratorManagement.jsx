@@ -4,7 +4,7 @@ import { AiOutlinePlus } from "react-icons/ai";
 import AdministratorForm from "../components/AdministratorForm";
 import AdministratorCard from "../components/AdministratorCard";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 
 export default function AdministratorManagement() {
   const [administrators, setAdministrators] = useState([]);
