@@ -65,7 +65,6 @@ const Layout = ({ children, fitViewport = false }) => {
         transition-all duration-300
         ${fitViewport ? 'h-full overflow-hidden' : 'min-h-screen'}
         ${sidebarCollapsed ? 'lg:mr-20' : 'lg:mr-72'}
-        pt-16 lg:pt-0
       `}>
         {/* Main content */}
         <div className={fitViewport ? "h-full p-3 lg:p-4 overflow-hidden" : "p-4 lg:p-6"}>

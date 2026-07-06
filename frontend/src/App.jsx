@@ -41,7 +41,6 @@ import CertificateManagement from "./pages/CertificateManagement";
 import MyCertificates from "./pages/MyCertificates";
 import Navbar from "./components/Navbar";
 import AuthNavbar from "./components/AuthNavbar";
-import Layout from "./components/Layout";
 import ConditionalLayout from "./components/ConditionalLayout";
 import useVersionCheck from "./hooks/useVersionCheck";
 
@@ -52,10 +51,11 @@ export default function App() {
   // Routes that shouldn't show navbar
   const noNavbarRoutes = ["/login", "/Login", "/forgot-password", "/reset-password"];
   const showNavbar = !noNavbarRoutes.includes(location.pathname);
+  const appSurfaceClass = isLoggedIn && showNavbar ? "app-protected-surface" : "";
 
   return (
     <>
-      <div className={`${showNavbar ? "min-h-screen" : "h-screen overflow-hidden"} text-primary font-arabic`}>
+      <div className={`${showNavbar ? "min-h-screen" : "h-screen overflow-hidden"} ${appSurfaceClass} text-primary font-arabic`}>
         {/* Update notification banner */}
         {updateAvailable && (
           <div className="bg-amber-500 text-white text-center py-2 px-4 text-sm flex items-center justify-center gap-3 z-[9999] relative">
@@ -100,7 +100,9 @@ export default function App() {
             path="/home"
             element={
               <ProtectedRoute>
-                <Home />
+                <ConditionalLayout>
+                  <Home />
+                </ConditionalLayout>
               </ProtectedRoute>
             }
           />
@@ -108,7 +110,9 @@ export default function App() {
             path="/Home"
             element={
               <ProtectedRoute>
-                <Home />
+                <ConditionalLayout>
+                  <Home />
+                </ConditionalLayout>
               </ProtectedRoute>
             }
           />

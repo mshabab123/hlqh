@@ -384,7 +384,7 @@ const NavigationSidebar = ({ isOpen, setIsOpen, isCollapsed, setIsCollapsed, cla
       {/* Overlay for mobile */}
       {isOpen && (
         <div 
-          className="fixed top-20 inset-x-0 bottom-0 bg-transparent lg:hidden z-[60]"
+          className="fixed top-20 inset-x-0 bottom-0 bg-slate-950/35 backdrop-blur-[1px] lg:hidden z-[60]"
           onClick={() => setIsOpen(false)}
         />
       )}
@@ -392,26 +392,26 @@ const NavigationSidebar = ({ isOpen, setIsOpen, isCollapsed, setIsCollapsed, cla
       {/* Sidebar */}
       <div className={`
         fixed top-20 right-0 h-[calc(100vh-5rem)] shadow-2xl transition-all duration-300 ease-in-out
-        text-white border-l border-primary-400/20
+        text-white border-l border-primary-300/25
         ${!isOpen ? 'translate-x-full lg:translate-x-0' : 'translate-x-0'}
         ${isCollapsed ? 'lg:w-20' : 'w-80 lg:w-72'}
         overflow-hidden flex flex-col z-[70]
         ${className}
       `} 
       style={{
-        background: 'linear-gradient(180deg, var(--color-primary-600), var(--color-primary-800), var(--color-primary-900))',
+        background: 'linear-gradient(180deg, var(--color-primary-100) 0%, var(--color-primary-400) 42%, var(--color-primary-700) 100%)',
       }}
       dir="rtl">
         {/* Header */}
-        <div className="flex items-center justify-between gap-3 p-4 border-b border-white/20 bg-primary-700/30">
-          <div className={`flex min-w-0 flex-1 items-center gap-3 ${isCollapsed ? 'hidden lg:flex' : ''}`}>
-            <div className="h-10 w-10 shrink-0 bg-gradient-to-br from-primary-400 to-primary-500 rounded-full flex items-center justify-center shadow-lg">
-              <AiOutlineBook className="text-white text-lg" />
+        <div className="flex items-center gap-3 p-4 border-b border-white/20 bg-white/18">
+          <div className={`flex min-w-0 items-center gap-3 ${isCollapsed ? 'hidden lg:flex' : ''}`}>
+            <div className="h-10 w-10 shrink-0 rounded-xl bg-white/30 ring-1 ring-white/35 flex items-center justify-center shadow-sm">
+              <AiOutlineBook className="text-primary-800 text-lg" />
             </div>
             {!isCollapsed && (
               <div className="min-w-0">
-                <h1 className="font-bold text-lg text-white truncate">منصة الحلقات</h1>
-                <p className="text-xs text-primary-100 truncate">نظام إدارة الحلقات القرآنية</p>
+                <h1 className="font-bold text-lg text-primary-950 truncate">منصة الحلقات</h1>
+                <p className="text-xs text-primary-900/75 truncate">نظام إدارة الحلقات القرآنية</p>
               </div>
             )}
           </div>
@@ -424,28 +424,28 @@ const NavigationSidebar = ({ isOpen, setIsOpen, isCollapsed, setIsCollapsed, cla
                 setIsCollapsed(!isCollapsed);
               }
             }}
-            className="shrink-0 p-2.5 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 text-white shadow-sm transition-colors"
+            className="shrink-0 p-2.5 rounded-lg bg-white/30 hover:bg-white/45 border border-white/35 text-primary-900 shadow-sm transition-colors"
             title={isCollapsed ? "توسيع الشريط الجانبي" : "طي الشريط الجانبي"}
           >
             {isCollapsed ? 
-              <AiOutlineMenu className="text-white text-lg" /> : 
-              <AiOutlineClose className="text-white text-lg" />
+              <AiOutlineMenu className="text-primary-900 text-lg" /> : 
+              <AiOutlineClose className="text-primary-900 text-lg" />
             }
           </button>
         </div>
 
         {/* User Info */}
         {!isCollapsed && (
-          <div className="p-4 border-b border-white/20 bg-primary-800/30">
-            <div className="flex items-center gap-3">
-              <div className="bg-gradient-to-br from-primary-400 to-primary-500 p-3 rounded-full shadow-lg">
-                <AiOutlineUser className="text-white text-xl" />
+          <div className="p-4 border-b border-white/20 bg-white/10">
+            <div className="flex items-center gap-3 rounded-xl bg-white/24 p-3 ring-1 ring-white/25 shadow-sm">
+              <div className="bg-white/28 p-3 rounded-xl shadow-sm ring-1 ring-white/30">
+                <AiOutlineUser className="text-primary-900 text-xl" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="font-semibold text-white truncate">
+                <p className="font-semibold text-primary-950 truncate">
                   {user.first_name} {user.last_name}
                 </p>
-                <p className="text-sm text-primary-100 truncate">
+                <p className="text-sm text-primary-900/75 truncate">
                   {getRoleName(user.role)}
                 </p>
                 {user.is_active === false && (
@@ -460,7 +460,7 @@ const NavigationSidebar = ({ isOpen, setIsOpen, isCollapsed, setIsCollapsed, cla
         )}
 
         {/* Navigation Menu */}
-        <nav className="flex-1 overflow-y-auto p-4 scrollbar-thin scrollbar-thumb-primary-400/40 scrollbar-track-primary-900/20">
+        <nav className="flex-1 overflow-y-auto px-3 py-4 scrollbar-thin scrollbar-thumb-white/30 scrollbar-track-transparent">
           {menuSections.map((section, sectionIndex) => {
             return (
               <NavigationSection
@@ -477,13 +477,13 @@ const NavigationSidebar = ({ isOpen, setIsOpen, isCollapsed, setIsCollapsed, cla
         </nav>
 
         {/* Logout Button */}
-        <div className="p-4 border-t border-white/20 bg-primary-800/30">
+        <div className="p-3 border-t border-white/15 bg-white/7">
           <button
             onClick={handleLogout}
             className={`
               w-full flex items-center gap-3 px-3 py-3 rounded-lg 
-              bg-white/10 hover:bg-white/20 border border-white/15
-              transition-all duration-200 text-white font-medium shadow-lg
+              bg-white/12 hover:bg-white/20 border border-white/20
+              transition-all duration-200 text-white font-medium shadow-sm
               ${isCollapsed ? 'justify-center px-2' : ''}
               group
             `}
@@ -555,17 +555,25 @@ const NavigationSection = ({ section, user, location, isCollapsed, setIsOpen, pr
     return null;
   }
 
+  const sectionHasActiveItem = accessibleItems.some((item) => location.pathname === item.path);
+
   return (
-    <div className={`${isCollapsed ? 'mb-4' : 'mb-6'}`}>
+    <div className={`${isCollapsed ? 'mb-4' : 'mb-5'}`}>
       {!isCollapsed ? (
-        <div className="flex items-center gap-2 mb-3 px-3 text-primary-200/80">
-          <section.icon className="text-base" />
+        <div className={`
+          flex items-center gap-2 mb-2 px-3 py-2 rounded-lg text-xs font-bold
+          ${sectionHasActiveItem ? 'bg-white/12 text-white ring-1 ring-white/15' : 'text-primary-100/75'}
+        `}>
+          <section.icon className="text-base shrink-0" />
           <h3 className="text-xs font-bold uppercase tracking-wider">
             {section.title}
           </h3>
+          <span className="mr-auto rounded-full bg-white/15 px-2 py-0.5 text-[11px] text-primary-50">
+            {accessibleItems.length}
+          </span>
         </div>
       ) : (
-        <div className="flex justify-center mb-2 text-primary-300/60" title={section.title}>
+        <div className={`flex justify-center mb-2 ${sectionHasActiveItem ? 'text-white' : 'text-primary-100/70'}`} title={section.title}>
           <section.icon className="text-base" />
         </div>
       )}
@@ -585,18 +593,21 @@ const NavigationSection = ({ section, user, location, isCollapsed, setIsOpen, pr
                   }
                 }}
                 className={`
-                  flex items-center gap-3 px-3 py-3 rounded-lg transition-all duration-200 group
+                  relative flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group
                   ${isActive 
-                    ? 'bg-gradient-to-r from-primary-400/20 to-primary-300/15 text-white border-r-2 border-primary-400 shadow-lg' 
-                    : 'text-primary-100/90 hover:bg-white/10 hover:text-white'
+                    ? 'bg-white/18 text-white shadow-sm ring-1 ring-white/20' 
+                    : 'text-primary-50/85 hover:bg-white/12 hover:text-white'
                   }
                   ${isCollapsed ? 'justify-center px-2' : ''}
                 `}
                 title={isCollapsed ? item.title : item.description}
               >
+                {isActive && (
+                  <span className="absolute right-0 top-2 bottom-2 w-1 rounded-l-full bg-primary-400" />
+                )}
                 <IconComponent className={`
                   ${isCollapsed ? 'text-xl' : 'text-lg'} 
-                  ${isActive ? 'text-primary-300' : 'text-primary-200/70 group-hover:text-primary-100'}
+                  ${isActive ? 'text-white' : 'text-primary-100/70 group-hover:text-white'}
                   transition-colors duration-200
                 `} />
                 {!isCollapsed && (
@@ -605,7 +616,7 @@ const NavigationSection = ({ section, user, location, isCollapsed, setIsOpen, pr
                   </span>
                 )}
                 {isActive && !isCollapsed && (
-                  <div className="w-2 h-2 bg-primary-400 rounded-full shadow-sm"></div>
+                  <div className="h-2 w-2 rounded-full bg-primary-200 shadow-sm"></div>
                 )}
               </Link>
             </li>
@@ -617,3 +628,6 @@ const NavigationSection = ({ section, user, location, isCollapsed, setIsOpen, pr
 };
 
 export default NavigationSidebar;
+
+
+

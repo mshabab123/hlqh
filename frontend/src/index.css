@@ -146,6 +146,21 @@
 .shadow-primary { box-shadow: 0 4px 6px -1px var(--color-shadow-light); }
 .shadow-accent { box-shadow: 0 4px 12px var(--color-shadow-medium); }
 
+.app-protected-surface .min-h-screen.bg-gray-50,
+.app-protected-surface .min-h-screen.bg-gray-100,
+.app-protected-surface .min-h-screen.bg-slate-50 {
+  background-color: transparent !important;
+}
+
+.app-protected-surface .min-h-screen.bg-gradient-to-br {
+  background-color: transparent !important;
+  background-image: none !important;
+}
+
+.app-protected-surface .fixed.inset-0:not([class*="z-[9999]"]) {
+  z-index: 200 !important;
+}
+
 @media (max-width: 1023px) {
   body.mobile-sidebar-open .auth-navbar-brand {
     transform: translateX(-2rem);

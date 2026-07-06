@@ -209,7 +209,7 @@ export default function AuthNavbar() {
         </div>
       )}
 
-    <nav className="w-full bg-gradient-to-l from-[var(--color-primary-100)] via-[var(--color-primary-400)] to-[var(--color-primary-700)] text-white shadow-xl fixed top-0 left-0 right-0 z-[80]" dir="rtl">
+    <nav className="fixed top-0 left-0 right-0 w-full bg-gradient-to-l from-[var(--color-primary-100)] via-[var(--color-primary-400)] to-[var(--color-primary-700)] text-white shadow-xl z-[80]" dir="rtl">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between py-4">
           {/* Logo + App name */}
