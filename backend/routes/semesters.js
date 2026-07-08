@@ -3,6 +3,7 @@ const router = express.Router();
 const pool = require('../config/database');
 const { authenticateToken: auth } = require('../middleware/auth');
 const { canAccessSchool, canAccessClass } = require('../utils/accessScope');
+const { requireFeature, canUseFeature } = require('../utils/featurePrivileges');
 
 const STAFF_REGISTRATION_ROLES = ['admin', 'administrator', 'supervisor', 'teacher'];
 
@@ -24,7 +25,8 @@ async function canRegisterStudent(req, studentId) {
     return result.rows.length > 0;
   }
 
-  return ['admin', 'administrator', 'supervisor'].includes(req.user.role);
+  // Staff registering another student is governed by the feature-privileges table.
+  return canUseFeature(req.user, 'register_student_semester');
 }
 
 async function getSemesterWithAccess(req, semesterId, allowTeacher = false) {
@@ -465,7 +467,7 @@ router.post('/:id/register', auth, async (req, res) => {
 });
 
 // Assign a semester-registered student to a class.
-router.patch('/:id/registrations/:studentId/class', auth, async (req, res) => {
+router.patch('/:id/registrations/:studentId/class', auth, requireFeature('assign_student_class'), async (req, res) => {
   const client = await pool.connect();
   try {
     if (!STAFF_REGISTRATION_ROLES.includes(req.user.role)) {
@@ -565,6 +567,55 @@ router.patch('/:id/registrations/:studentId/class', auth, async (req, res) => {
     await client.query('ROLLBACK');
     console.error('Error assigning registered student to class:', error);
     res.status(500).json({ message: 'خطأ في تسكين الطالب في الحلقة' });
+  } finally {
+    client.release();
+  }
+});
+
+// Cancel a student's registration in a semester (and drop them from any class
+// of that semester). Controlled by the feature-privileges table.
+router.delete('/:id/registrations/:studentId', auth, requireFeature('unregister_student_semester'), async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { id, studentId } = req.params;
+
+    const access = await getSemesterWithAccess(req, id, true);
+    if (access.error) {
+      return res.status(access.status).json({ message: access.error });
+    }
+
+    await client.query('BEGIN');
+
+    const registrationResult = await client.query(
+      `UPDATE semester_registrations
+       SET status = 'cancelled', class_id = NULL, updated_at = NOW()
+       WHERE semester_id = $1 AND student_id = $2 AND status <> 'cancelled'
+       RETURNING *`,
+      [id, studentId]
+    );
+
+    if (registrationResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ message: 'الطالب غير مسجل في هذا الفصل الدراسي' });
+    }
+
+    await client.query(
+      `UPDATE student_enrollments se
+       SET status = 'dropped', completion_date = NOW()
+       FROM classes c
+       WHERE se.class_id = c.id
+         AND c.semester_id = $1
+         AND se.student_id = $2
+         AND se.status = 'enrolled'`,
+      [id, studentId]
+    );
+
+    await client.query('COMMIT');
+    res.json({ message: 'تم إلغاء تسجيل الطالب في الفصل الدراسي' });
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('Error cancelling semester registration:', error);
+    res.status(500).json({ message: 'خطأ في إلغاء تسجيل الطالب' });
   } finally {
     client.release();
   }

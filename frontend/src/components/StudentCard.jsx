@@ -1,12 +1,31 @@
 import { useState } from "react";
-import { AiOutlineUser, AiOutlineEye, AiOutlineEdit, AiOutlineBook, AiOutlineCheck, AiOutlineClose, AiOutlineWarning, AiOutlineDelete } from "react-icons/ai";
+import { AiOutlineUser, AiOutlineEye, AiOutlineEdit, AiOutlineBook, AiOutlineCheck, AiOutlineClose, AiOutlineWarning, AiOutlineDelete, AiOutlineUserDelete, AiOutlineUserAdd, AiOutlineSchedule, AiOutlineStop } from "react-icons/ai";
 import { BsFillGridFill } from "react-icons/bs";
 import { calculateQuranProgress, getProgressColor, getProgressBgColor, calculateQuranBlocks } from "../utils/studentUtils";
 import QuranBlocksModal from "./QuranBlocksModal";
 
-const StudentCard = ({ student, onView, onEdit, onToggleStatus, onQuranProgress, onDelete }) => {
+const StudentCard = ({
+  student,
+  onView,
+  onEdit,
+  onToggleStatus,
+  onQuranProgress,
+  onDelete,
+  onRemoveFromClass,
+  onAssignClass,
+  onRegisterSemester,
+  onUnregisterSemester,
+  features = {},
+}) => {
   const hasSchoolAssignment = student.school_id;
   const [showBlocksModal, setShowBlocksModal] = useState(false);
+
+  // Placement state for the current semester (fields come from the students list API).
+  const hasCurrentSemester = Boolean(student.current_semester_id);
+  const isRegisteredInCurrentSemester = Boolean(student.registration_status);
+  const isEnrolledInCurrentSemester =
+    Boolean(student.class_id) && String(student.semester_id) === String(student.current_semester_id);
+  const isWaitingForClass = isRegisteredInCurrentSemester && !isEnrolledInCurrentSemester;
 
   const handleShowBlocks = async () => {
     console.log('Fetching grades for Quran blocks:', student.id);
@@ -126,6 +145,18 @@ const StudentCard = ({ student, onView, onEdit, onToggleStatus, onQuranProgress,
       {student.enrollment_date && (
         <p>تاريخ التسجيل: {new Date(student.enrollment_date).toLocaleDateString('ar-SA')}</p>
       )}
+      {hasCurrentSemester && (
+        <p>
+          {student.current_semester_name && <span>الفصل الحالي: {student.current_semester_name} — </span>}
+          {!isRegisteredInCurrentSemester ? (
+            <span className="text-red-600 font-semibold">غير مسجل في الفصل</span>
+          ) : isWaitingForClass ? (
+            <span className="text-amber-600 font-semibold">بانتظار الحلقة</span>
+          ) : (
+            <span className="text-green-600 font-semibold">تم التسكين</span>
+          )}
+        </p>
+      )}
     </div>
     
     <div className="grid grid-cols-4 gap-2">
@@ -176,12 +207,50 @@ const StudentCard = ({ student, onView, onEdit, onToggleStatus, onQuranProgress,
           <><AiOutlineWarning /> تفعيل</>
         )}
       </button>
-      <button
-        onClick={() => onDelete(student)}
-        className="bg-red-600 text-white py-2 px-2 rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-1 text-sm col-span-2"
-      >
-        <AiOutlineDelete /> حذف الطالب
-      </button>
+      {student.class_id && onRemoveFromClass && features.remove_student_class !== false && (
+        <button
+          onClick={() => onRemoveFromClass(student)}
+          className="bg-orange-500 text-white py-2 px-2 rounded-lg hover:bg-orange-600 transition-colors flex items-center justify-center gap-1 text-sm"
+          title="إزالة الطالب من الحلقة وإعادته إلى قائمة بانتظار الحلقة"
+        >
+          <AiOutlineUserDelete /> إزالة من الحلقة
+        </button>
+      )}
+      {hasCurrentSemester && isWaitingForClass && onAssignClass && features.assign_student_class !== false && (
+        <button
+          onClick={() => onAssignClass(student)}
+          className="bg-teal-600 text-white py-2 px-2 rounded-lg hover:bg-teal-700 transition-colors flex items-center justify-center gap-1 text-sm"
+          title="تسكين الطالب في حلقة من حلقات الفصل الحالي"
+        >
+          <AiOutlineUserAdd /> تسكين في حلقة
+        </button>
+      )}
+      {hasCurrentSemester && !isRegisteredInCurrentSemester && onRegisterSemester && features.register_student_semester !== false && (
+        <button
+          onClick={() => onRegisterSemester(student)}
+          className="bg-emerald-600 text-white py-2 px-2 rounded-lg hover:bg-emerald-700 transition-colors flex items-center justify-center gap-1 text-sm"
+          title="تسجيل الطالب في الفصل الدراسي الحالي"
+        >
+          <AiOutlineSchedule /> تسجيل في الفصل
+        </button>
+      )}
+      {hasCurrentSemester && isRegisteredInCurrentSemester && onUnregisterSemester && features.unregister_student_semester !== false && (
+        <button
+          onClick={() => onUnregisterSemester(student)}
+          className="bg-rose-500 text-white py-2 px-2 rounded-lg hover:bg-rose-600 transition-colors flex items-center justify-center gap-1 text-sm"
+          title="إلغاء تسجيل الطالب في الفصل الدراسي الحالي"
+        >
+          <AiOutlineStop /> إزالة من الفصل
+        </button>
+      )}
+      {features.delete_student !== false && (
+        <button
+          onClick={() => onDelete(student)}
+          className="bg-red-600 text-white py-2 px-2 rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-1 text-sm col-span-2"
+        >
+          <AiOutlineDelete /> حذف الطالب
+        </button>
+      )}
     </div>
 
     {/* Quran Blocks Modal */}

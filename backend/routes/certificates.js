@@ -7,18 +7,25 @@ const {
   setCertificatePassThreshold,
 } = require('../utils/appSettings');
 
-const router = express.Router();
-const MANAGER_ROLES = ['admin', 'administrator'];
+const { canUseFeature } = require('../utils/featurePrivileges');
 
+const router = express.Router();
+
+// Governed by the feature-privileges table (grant_certificates).
 function isCertificateManager(user) {
-  return MANAGER_ROLES.includes(user?.role);
+  return canUseFeature(user, 'grant_certificates');
 }
 
-function requireCertificateManager(req, res, next) {
-  if (!isCertificateManager(req.user)) {
-    return res.status(403).json({ error: 'هذه الصلاحية متاحة للمدير أو الأدمن فقط' });
+async function requireCertificateManager(req, res, next) {
+  try {
+    if (!(await isCertificateManager(req.user))) {
+      return res.status(403).json({ error: 'ليس لديك صلاحية إدارة الشهادات' });
+    }
+    next();
+  } catch (error) {
+    console.error('Certificate manager check failed:', error);
+    res.status(500).json({ error: 'فشل التحقق من الصلاحية' });
   }
-  next();
 }
 
 async function getSemester(req, res, semesterId) {
@@ -412,7 +419,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'الشهادة غير موجودة' });
     }
 
-    const canManage = isCertificateManager(req.user) && await canAccessSchool(db, req.user, certificate.school_id);
+    const canManage = (await isCertificateManager(req.user)) && await canAccessSchool(db, req.user, certificate.school_id);
     const canViewStudent = await canAccessStudent(db, req.user, certificate.student_id);
     if (!canManage && !canViewStudent) {
       return res.status(403).json({ error: 'ليس لديك صلاحية لعرض هذه الشهادة' });

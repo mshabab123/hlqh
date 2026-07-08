@@ -216,6 +216,13 @@ const NavigationSidebar = ({ isOpen, setIsOpen, isCollapsed, setIsCollapsed, cla
           icon: AiOutlineSafety,
           roles: ["admin"],
           description: "التحكم في صلاحيات المستخدمين"
+        },
+        {
+          title: "صلاحيات الوظائف",
+          path: "/feature-privileges",
+          icon: AiOutlineSafety,
+          roles: ["admin", "administrator"],
+          description: "تحديد الأدوار المسموح لها بكل وظيفة (تسكين، تسجيل، شهادات...)"
         }
       ]
     },

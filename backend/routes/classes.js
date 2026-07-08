@@ -7,6 +7,7 @@ const { TOTAL_QURAN_PAGES, QURAN_SURAHS, getSurahIdFromName, getSurahNameFromId,
 // Import authentication middleware
 const { authenticateToken: requireAuth } = require('../middleware/auth');
 const { requireRole, ROLES } = require('../middleware/rbac');
+const { requireFeature, canUseFeature } = require('../utils/featurePrivileges');
 
 // Helper functions are now imported from QuranData.js
 
@@ -372,8 +373,8 @@ router.post('/copy-semester', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Source and target semesters must be different.' });
   }
 
-  if (!['admin', 'administrator'].includes(req.user.role)) {
-    return res.status(403).json({ error: 'You do not have permission to copy classes.' });
+  if (!(await canUseFeature(req.user, 'copy_semester'))) {
+    return res.status(403).json({ error: 'ليس لديك صلاحية نقل الحلقات إلى فصل جديد' });
   }
 
   const client = await db.connect();
@@ -423,17 +424,37 @@ router.post('/copy-semester', requireAuth, async (req, res) => {
       classIdMap.set(cls.id, newClassId);
 
       if (copy_students) {
+        // Only carry over students who were actually enrolled at copy time;
+        // dropped/withdrawn students must not silently reappear in the new semester.
         const enrollmentsResult = await client.query(
           `
-          INSERT INTO student_enrollments (student_id, class_id, status)
-          SELECT student_id, $1, status
+          INSERT INTO student_enrollments (student_id, class_id, enrollment_date, status)
+          SELECT student_id, $1, NOW(), 'enrolled'
           FROM student_enrollments
           WHERE class_id = $2
+            AND status = 'enrolled'
           ON CONFLICT (student_id, class_id) DO NOTHING
           `,
           [newClassId, cls.id]
         );
         enrollmentsCopied += enrollmentsResult.rowCount || 0;
+
+        // Register the copied students in the target semester as well, so the
+        // semester screen (الطلاب المسجلون / تسكين) and the certificate flow see them.
+        await client.query(
+          `
+          INSERT INTO semester_registrations (semester_id, student_id, registered_by, class_id, status, created_at, updated_at)
+          SELECT $1, student_id, $2, $3, 'assigned', NOW(), NOW()
+          FROM student_enrollments
+          WHERE class_id = $3
+            AND status = 'enrolled'
+          ON CONFLICT (semester_id, student_id)
+          DO UPDATE SET class_id = EXCLUDED.class_id,
+                        status = 'assigned',
+                        updated_at = NOW()
+          `,
+          [target_semester_id, req.user.id, newClassId]
+        );
       }
 
       if (copy_teachers) {
@@ -616,7 +637,7 @@ router.get('/:id/students', requireAuth, requireRole(ROLES.TEACHER), async (req,
 });
 
 // Add student to class
-router.post('/:id/students', requireAuth, requireRole(ROLES.TEACHER), async (req, res) => {
+router.post('/:id/students', requireAuth, requireFeature('assign_student_class'), async (req, res) => {
   const client = await db.connect();
   try {
     const { id: classId } = req.params;
@@ -739,26 +760,47 @@ router.post('/:id/students', requireAuth, requireRole(ROLES.TEACHER), async (req
 });
 
 // Remove student from class
-router.delete('/:id/students/:studentId', requireAuth, requireRole(ROLES.TEACHER), async (req, res) => {
+router.delete('/:id/students/:studentId', requireAuth, requireFeature('remove_student_class'), async (req, res) => {
+  const client = await db.connect();
   try {
     const { id: classId, studentId } = req.params;
-    
-    const result = await db.query(`
-      UPDATE student_enrollments 
+
+    await client.query('BEGIN');
+
+    const result = await client.query(`
+      UPDATE student_enrollments
       SET status = 'dropped', completion_date = NOW()
       WHERE class_id = $1 AND student_id = $2 AND status = 'enrolled'
       RETURNING *
     `, [classId, studentId]);
-    
+
     if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'لم يتم العثور على الطالب في هذه الحلقة' });
     }
-    
+
+    // Keep the semester registration consistent: the student goes back to the
+    // "بانتظار الحلقة" list instead of still showing as placed in this class.
+    await client.query(
+      `UPDATE semester_registrations sr
+       SET class_id = NULL, status = 'registered', updated_at = NOW()
+       FROM classes c
+       WHERE c.id = $1
+         AND sr.semester_id = c.semester_id
+         AND sr.student_id = $2
+         AND sr.class_id = $1`,
+      [classId, studentId]
+    );
+
+    await client.query('COMMIT');
     res.json({ message: 'تم إزالة الطالب من الحلقة بنجاح' });
-    
+
   } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
     console.error('Error removing student from class:', error);
     res.status(500).json({ error: 'حدث خطأ في إزالة الطالب من الحلقة' });
+  } finally {
+    client.release();
   }
 });
 

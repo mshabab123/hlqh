@@ -49,7 +49,11 @@ export default function StudentManagement() {
     requires_manual_activation: true
   });
   const [savingActivationSetting, setSavingActivationSetting] = useState(false);
-  
+  const [features, setFeatures] = useState({});
+  const [assigningStudent, setAssigningStudent] = useState(null);
+  const [assignClassId, setAssignClassId] = useState("");
+  const [assignSaving, setAssignSaving] = useState(false);
+
   const [currentStudent, setCurrentStudent] = useState({
     id: "",
     first_name: "",
@@ -73,7 +77,20 @@ export default function StudentManagement() {
     fetchSemesters();
     fetchClasses();
     fetchActivationSetting();
+    fetchFeatures();
   }, []);
+
+  const fetchFeatures = async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/api/feature-privileges/my`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      setFeatures(response.data.features || {});
+    } catch (err) {
+      // If the endpoint is unavailable, keep buttons visible; the backend still enforces access.
+      console.error("Error fetching feature privileges:", err);
+    }
+  };
 
   const authHeaders = () => ({
     Authorization: `Bearer ${localStorage.getItem('token')}`
@@ -461,6 +478,94 @@ export default function StudentManagement() {
     }
   };
 
+  const handleRemoveFromClass = async (student) => {
+    if (!student.class_id) return;
+
+    const confirmed = window.confirm(
+      `هل أنت متأكد من إزالة الطالب "${student.first_name} ${student.last_name}" من حلقة "${student.class_name || ''}"؟\n\n` +
+      `سيبقى الطالب مسجلاً في الفصل الدراسي بحالة "بانتظار الحلقة"، ويمكن تسكينه في حلقة أخرى من شاشة إدارة الفصول الدراسية.`
+    );
+    if (!confirmed) return;
+
+    try {
+      await axios.delete(`${API_BASE}/api/classes/${student.class_id}/students/${student.id}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      fetchStudents();
+    } catch (err) {
+      setError(err.response?.data?.error || "حدث خطأ في إزالة الطالب من الحلقة");
+      console.error("Error removing student from class:", err);
+    }
+  };
+
+  // تسكين: open the class picker for the student's current semester.
+  const handleAssignClass = (student) => {
+    setAssignClassId("");
+    setAssigningStudent(student);
+  };
+
+  const handleAssignClassSubmit = async () => {
+    if (!assigningStudent || !assignClassId) return;
+    try {
+      setAssignSaving(true);
+      await axios.patch(
+        `${API_BASE}/api/semesters/${assigningStudent.current_semester_id}/registrations/${assigningStudent.id}/class`,
+        { class_id: assignClassId },
+        { headers: authHeaders() }
+      );
+      setAssigningStudent(null);
+      fetchStudents();
+    } catch (err) {
+      alert(err.response?.data?.message || err.response?.data?.error || "تعذر تسكين الطالب في الحلقة");
+    } finally {
+      setAssignSaving(false);
+    }
+  };
+
+  const handleRegisterSemester = async (student) => {
+    if (!student.current_semester_id) return;
+
+    const schoolLevel = student.school_level ||
+      window.prompt("أدخل المستوى الدراسي للطالب (مطلوب للتسجيل):");
+    if (!schoolLevel || !schoolLevel.trim()) return;
+
+    const confirmed = window.confirm(
+      `تسجيل الطالب "${student.first_name} ${student.last_name}" في ${student.current_semester_name || 'الفصل الدراسي الحالي'}؟`
+    );
+    if (!confirmed) return;
+
+    try {
+      await axios.post(
+        `${API_BASE}/api/semesters/${student.current_semester_id}/register`,
+        { student_id: student.id, school_level: schoolLevel },
+        { headers: authHeaders() }
+      );
+      fetchStudents();
+    } catch (err) {
+      alert(err.response?.data?.message || err.response?.data?.error || "تعذر تسجيل الطالب في الفصل الدراسي");
+    }
+  };
+
+  const handleUnregisterSemester = async (student) => {
+    if (!student.current_semester_id) return;
+
+    const confirmed = window.confirm(
+      `هل أنت متأكد من إلغاء تسجيل الطالب "${student.first_name} ${student.last_name}" من ${student.current_semester_name || 'الفصل الدراسي الحالي'}؟\n\n` +
+      `سيتم إخراجه من حلقته في هذا الفصل أيضاً. درجاته وسجلاته تبقى محفوظة.`
+    );
+    if (!confirmed) return;
+
+    try {
+      await axios.delete(
+        `${API_BASE}/api/semesters/${student.current_semester_id}/registrations/${student.id}`,
+        { headers: authHeaders() }
+      );
+      fetchStudents();
+    } catch (err) {
+      alert(err.response?.data?.message || err.response?.data?.error || "تعذر إلغاء تسجيل الطالب");
+    }
+  };
+
   const handleDeleteStudent = async (student) => {
     const confirmed = window.confirm(
       `هل أنت متأكد من حذف الطالب "${student.first_name} ${student.second_name} ${student.third_name} ${student.last_name}"؟\n\n` +
@@ -680,6 +785,11 @@ export default function StudentManagement() {
               onQuranProgress={handleQuranProgress}
               onToggleStatus={handleToggleStatus}
               onDelete={handleDeleteStudent}
+              onRemoveFromClass={handleRemoveFromClass}
+              onAssignClass={handleAssignClass}
+              onRegisterSemester={handleRegisterSemester}
+              onUnregisterSemester={handleUnregisterSemester}
+              features={features}
             />
           ))}
         </div>
@@ -719,6 +829,52 @@ export default function StudentManagement() {
             schools={schools}
             classes={classes}
           />
+        )}
+
+        {assigningStudent && (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded-xl shadow-xl max-w-md w-full m-4">
+              <h3 className="text-xl font-bold mb-2 text-[var(--color-primary-700)]">تسكين الطالب في حلقة</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                {assigningStudent.first_name} {assigningStudent.last_name}
+                {assigningStudent.current_semester_name && (
+                  <span> — {assigningStudent.current_semester_name}</span>
+                )}
+              </p>
+              <select
+                value={assignClassId}
+                onChange={(e) => setAssignClassId(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 mb-4"
+              >
+                <option value="">اختر الحلقة</option>
+                {classes
+                  .filter((c) => String(c.semester_id) === String(assigningStudent.current_semester_id))
+                  .filter((c) => !assigningStudent.school_id || String(c.school_id) === String(assigningStudent.school_id))
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}{c.school_name ? ` — ${c.school_name}` : ''}
+                    </option>
+                  ))}
+              </select>
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setAssigningStudent(null)}
+                  className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAssignClassSubmit}
+                  disabled={!assignClassId || assignSaving}
+                  className="px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700 disabled:opacity-50"
+                >
+                  {assignSaving ? 'جاري الحفظ...' : 'تسكين'}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         {showQuranModal && quranStudent && (

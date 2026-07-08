@@ -134,6 +134,7 @@ async function ensureSchema() {
   await ensureParentChildRequestSchema();
   await ensureAppSettingsSchema();
   await ensureCertificatesSchema();
+  await require('../utils/featurePrivileges').ensureFeaturePrivilegesSchema();
 }
 
 module.exports = {

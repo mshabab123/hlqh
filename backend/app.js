@@ -74,6 +74,7 @@ app.use('/api/forgot-password', require('./routes/forgotPassword')); // Password
 app.use('/api/daily-reports', require('./routes/dailyReports')); // Daily reports system
 app.use('/api/points', require('./routes/points')); // Points system
 app.use('/api/privileges', require('./routes/privileges')); // Privileges management
+app.use('/api/feature-privileges', require('./routes/featurePrivileges')); // Function-level privileges table
 app.use('/api/grading', require('./routes/grading')); // Comprehensive grading system
 app.use('/api/settings', require('./routes/settings')); // Platform settings
 app.use('/api/certificates', require('./routes/certificates')); // Student certificates

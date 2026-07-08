@@ -5,6 +5,7 @@ const db = require('../config/database');
 const { body, validationResult } = require('express-validator');
 const { authenticateToken: auth } = require('../middleware/auth');
 const { requireRole, ROLES } = require('../middleware/rbac');
+const { requireFeature } = require('../utils/featurePrivileges');
 const { BCRYPT_ROUNDS, generateTempPassword } = require('../config/security');
 const { isStudentAutoActivationEnabled } = require('../utils/appSettings');
 
@@ -231,7 +232,11 @@ router.get('/', auth, requireRole(ROLES.TEACHER), async (req, res) => {
         s.memorized_surah_id, s.memorized_ayah_number, s.target_surah_id, s.target_ayah_number,
         sc.name as school_name, COALESCE(c.school_id, school_info.school_id) as school_id,
         c.name as class_name, c.id as class_id, c.semester_id,
-        sem.display_name as semester_name
+        sem.display_name as semester_name,
+        cur_sem.id as current_semester_id,
+        cur_sem.display_name as current_semester_name,
+        reg.status as registration_status,
+        reg.class_id as registered_class_id
       FROM users u
       JOIN students s ON u.id = s.id
       LEFT JOIN student_enrollments se ON s.id = se.student_id AND se.status = 'enrolled'
@@ -246,6 +251,19 @@ router.get('/', auth, requireRole(ROLES.TEACHER), async (req, res) => {
       ) school_info ON true
       LEFT JOIN schools sc ON COALESCE(c.school_id, school_info.school_id) = sc.id
       LEFT JOIN semesters sem ON c.semester_id = sem.id
+      LEFT JOIN LATERAL (
+        SELECT sem2.id, sem2.display_name
+        FROM semesters sem2
+        WHERE sem2.start_date <= CURRENT_DATE
+          AND sem2.end_date >= CURRENT_DATE
+          AND (sem2.school_id IS NULL OR sem2.school_id = COALESCE(c.school_id, school_info.school_id))
+        ORDER BY CASE WHEN sem2.school_id IS NULL THEN 1 ELSE 0 END, sem2.start_date DESC
+        LIMIT 1
+      ) cur_sem ON true
+      LEFT JOIN semester_registrations reg
+        ON reg.semester_id = cur_sem.id
+       AND reg.student_id = s.id
+       AND reg.status <> 'cancelled'
       WHERE 1=1
     `;
     
@@ -485,9 +503,10 @@ router.post('/manage', auth, requireRole(ROLES.TEACHER), [
           if (generalClassResult.rows.length > 0) {
             const generalClassId = generalClassResult.rows[0].id;
             const enrollmentQuery = `
-              INSERT INTO student_enrollments (student_id, class_id, status)
-              VALUES ($1, $2, 'enrolled')
-              ON CONFLICT (student_id, class_id) DO NOTHING
+              INSERT INTO student_enrollments (student_id, class_id, enrollment_date, status)
+              VALUES ($1, $2, NOW(), 'enrolled')
+              ON CONFLICT (student_id, class_id)
+              DO UPDATE SET status = 'enrolled', enrollment_date = NOW(), completion_date = NULL
             `;
             await client.query(enrollmentQuery, [id, generalClassId]);
           }
@@ -686,21 +705,44 @@ router.put('/:id', auth, requireRole(ROLES.TEACHER), async (req, res) => {
       if (status !== undefined && status !== 'active') {
         // Deactivated/suspended students should not be enrolled in any class
         await client.query(
-          "UPDATE student_enrollments SET status = 'dropped' WHERE student_id = $1 AND status = $2",
+          "UPDATE student_enrollments SET status = 'dropped', completion_date = NOW() WHERE student_id = $1 AND status = $2",
           [id, 'enrolled']
         );
+        // Keep semester registrations consistent: back to the waiting list so the
+        // student can be re-placed from the semester screen when reactivated.
+        await client.query(
+          `UPDATE semester_registrations
+           SET class_id = NULL, status = 'registered', updated_at = NOW()
+           WHERE student_id = $1 AND class_id IS NOT NULL`,
+          [id]
+        );
       } else if (class_id !== undefined || school_id !== undefined) {
-        // Remove student from current enrollments
-        await client.query('DELETE FROM student_enrollments WHERE student_id = $1 AND status = $2', [id, 'enrolled']);
+        // Mark current enrollments dropped (keep history — never delete grades context)
+        await client.query(
+          "UPDATE student_enrollments SET status = 'dropped', completion_date = NOW() WHERE student_id = $1 AND status = $2",
+          [id, 'enrolled']
+        );
 
         // Add to new class if provided
         if (class_id) {
           const enrollmentQuery = `
-            INSERT INTO student_enrollments (student_id, class_id, status)
-            VALUES ($1, $2, 'enrolled')
-            ON CONFLICT (student_id, class_id) DO NOTHING
+            INSERT INTO student_enrollments (student_id, class_id, enrollment_date, status)
+            VALUES ($1, $2, NOW(), 'enrolled')
+            ON CONFLICT (student_id, class_id)
+            DO UPDATE SET status = 'enrolled', enrollment_date = NOW(), completion_date = NULL
           `;
           await client.query(enrollmentQuery, [id, class_id]);
+
+          // Sync the semester registration with the new placement.
+          await client.query(
+            `INSERT INTO semester_registrations (semester_id, student_id, registered_by, class_id, status, created_at, updated_at)
+             SELECT c.semester_id, $1, $2, c.id, 'assigned', NOW(), NOW()
+             FROM classes c
+             WHERE c.id = $3 AND c.semester_id IS NOT NULL
+             ON CONFLICT (semester_id, student_id)
+             DO UPDATE SET class_id = EXCLUDED.class_id, status = 'assigned', updated_at = NOW()`,
+            [id, req.user.id, class_id]
+          );
         } else if (school_id) {
           // If no specific class but school is assigned, create a general enrollment
           // First, find or create a general class for this school
@@ -729,9 +771,10 @@ router.put('/:id', auth, requireRole(ROLES.TEACHER), async (req, res) => {
           if (generalClassResult.rows.length > 0) {
             const generalClassId = generalClassResult.rows[0].id;
             const enrollmentQuery = `
-              INSERT INTO student_enrollments (student_id, class_id, status)
-              VALUES ($1, $2, 'enrolled')
-              ON CONFLICT (student_id, class_id) DO NOTHING
+              INSERT INTO student_enrollments (student_id, class_id, enrollment_date, status)
+              VALUES ($1, $2, NOW(), 'enrolled')
+              ON CONFLICT (student_id, class_id)
+              DO UPDATE SET status = 'enrolled', enrollment_date = NOW(), completion_date = NULL
             `;
             await client.query(enrollmentQuery, [id, generalClassId]);
           }
@@ -755,7 +798,7 @@ router.put('/:id', auth, requireRole(ROLES.TEACHER), async (req, res) => {
 });
 
 // DELETE /api/students/:id - Delete student (hard delete)
-router.delete('/:id', auth, requireRole(ROLES.ADMINISTRATOR), async (req, res) => {
+router.delete('/:id', auth, requireFeature('delete_student'), async (req, res) => {
   try {
     const { id } = req.params;
 
