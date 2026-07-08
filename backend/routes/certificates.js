@@ -305,7 +305,7 @@ async function fetchIssuedCertificates(studentIds) {
 
   const result = await db.query(
     `SELECT cert.id, cert.certificate_number, cert.status, cert.issued_at,
-            cert.student_id, cert.average_grade, cert.grade_count, cert.payload,
+            cert.student_id, cert.semester_id, cert.average_grade, cert.grade_count, cert.payload,
             sem.display_name as semester_name, sem.year as semester_year,
             sch.name as school_name, c.name as class_name,
             st.school_level,
@@ -330,6 +330,7 @@ async function fetchIssuedCertificates(studentIds) {
       status: row.status,
       issued_at: row.issued_at,
       student_id: row.student_id,
+      semester_id: row.semester_id,
       student_name: row.student_name || payload.student_name,
       school_level: row.school_level || payload.school_level,
       school_name: row.school_name || payload.school_name,

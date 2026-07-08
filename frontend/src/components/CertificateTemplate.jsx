@@ -26,6 +26,22 @@ const gregorianYear = (value) => {
   return Number.isNaN(date.getTime()) ? new Date().getFullYear() : date.getFullYear();
 };
 
+// Real Hijri year from the issue date, using the Umm al-Qura calendar
+// (the official Saudi calendar). Returns Arabic-Indic digits already.
+const hijriYearOf = (value) => {
+  const date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) return "";
+  try {
+    const parts = new Intl.DateTimeFormat("ar-SA-u-ca-islamic-umalqura", {
+      year: "numeric",
+    }).formatToParts(date);
+    const year = parts.find((p) => p.type === "year");
+    return year ? year.value : "";
+  } catch {
+    return "";
+  }
+};
+
 // Decorative flowing ribbons in the corners (teal + gold), drawn as SVG so they
 // rasterize cleanly when the certificate is captured to a PDF.
 function CornerDecor() {
@@ -77,7 +93,7 @@ export default function CertificateTemplate({ certificate }) {
   // Always the primary ("main") teacher of the class, resolved by the backend
   // certificates query (teacher_role = 'primary'). Never fabricate a name.
   const teacherName = certificate.teacher_name || "—";
-  const hijriYear = toArabicDigits(certificate.semester_year || "");
+  const hijriYear = hijriYearOf(certificate.issued_at);
   const miladiYear = toArabicDigits(gregorianYear(certificate.issued_at));
   const teacherLabel = certificate.class_name ? `معلم حلقة ${certificate.class_name}` : "معلم الحلقة";
 
@@ -105,6 +121,15 @@ export default function CertificateTemplate({ certificate }) {
         onError={(e) => { e.currentTarget.style.display = "none"; }}
       />
 
+      {/* Official seal — centered on the certificate, over the signature band */}
+      <img
+        src="/stamp.png"
+        alt="ختم مجمع حلقات جامع الخلفاء الراشدين"
+        className="pointer-events-none absolute bottom-20 left-1/2 z-20 h-28 w-28 object-contain opacity-90"
+        style={{ transform: "translateX(-50%) rotate(-8deg)" }}
+        onError={(e) => { e.currentTarget.style.display = "none"; }}
+      />
+
       <div className="relative z-10 flex flex-1 flex-col items-center px-14 pb-6 pt-10 text-center">
         <p className="text-lg font-bold tracking-wide" style={{ color: COLORS.goldDark }}>
           بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ
@@ -129,21 +154,15 @@ export default function CertificateTemplate({ certificate }) {
         </div>
 
         <p className="mt-6 text-lg leading-9" style={{ color: "#374151" }}>
-          الفصل <strong style={{ color: COLORS.tealDark }}>{certificate.semester_name || "—"}</strong> من عام{" "}
+          حيث أتم  <strong style={{ color: COLORS.tealDark }}>{certificate.semester_name || "—"}</strong> من عام{" "}
           <strong style={{ color: COLORS.tealDark }}>{hijriYear || "—"}</strong> هـ /{" "}
-          <strong style={{ color: COLORS.tealDark }}>{miladiYear}</strong> م. ونسأل الله له التوفيق في حفظ القرآن
+          <strong style={{ color: COLORS.tealDark }}>{miladiYear}</strong> م.
+          بنجاح، واضهر التزاماً واجتهاداً في حفظ كتاب الله عز وجل. 
+           ونسأل الله له التوفيق في حفظ القرآن
           والعمل به.
         </p>
 
-        <div className="relative mt-auto grid w-full max-w-3xl grid-cols-2 gap-10 pt-8">
-          {/* Official seal — centered between the two signatures */}
-          <img
-            src="/stamp.png"
-            alt="ختم مجمع حلقات جامع الخلفاء الراشدين"
-            className="pointer-events-none absolute left-1/2 top-0 z-20 h-28 w-28 -translate-x-1/2 object-contain opacity-90"
-            style={{ transform: "translateX(-50%) rotate(-8deg)" }}
-            onError={(e) => { e.currentTarget.style.display = "none"; }}
-          />
+        <div className="mt-10 grid w-full max-w-3xl grid-cols-2 gap-10 pt-8">
           <SignatureBlock label={teacherLabel} name={teacherName} />
           <SignatureBlock label="المشرف الإداري المتطوع" name={SUPERVISOR_NAME} />
         </div>

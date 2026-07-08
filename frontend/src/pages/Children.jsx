@@ -3,6 +3,7 @@ import { FaUser, FaGraduationCap, FaTrophy, FaBook, FaHistory, FaChartLine, FaCa
 import { getSurahNameFromId } from '../utils/quranData';
 import { calculateQuranBlocks, calculateStudentGoalProgress, formatMemorizationDisplay } from '../utils/studentUtils';
 import QuranBlocksGrid from '../components/QuranBlocksGrid';
+import StudentCertificatesButton from '../components/StudentCertificatesButton';
 import axios, { axiosRaw } from '../utils/axiosConfig';
 
 const SCHOOL_LEVELS = [
@@ -991,21 +992,30 @@ const Children = () => {
                 <p className="mt-1 text-sm text-gray-600">الحلقات التي كان فيها: {activeSemester.classesLabel}</p>
               )}
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedSemesterId(null);
-                setSelectedSemesterPanel(null);
-                setShowPreviousSemesters((prev) => !prev);
-              }}
-              className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-200 px-3 py-1.5 text-[0px] font-semibold text-gray-700 hover:bg-gray-50"
-            >
-              <FaHistory className="text-sm" />
-              <span className="text-sm">
-                {showPreviousSemesters ? 'إخفاء الفصول السابقة' : 'عرض الفصول السابقة'}
-              </span>
-              رجوع للفصول
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              {activeIsRegistered && (
+                <StudentCertificatesButton
+                  studentId={selectedChild?.student_id}
+                  semesterId={activeSemester.id}
+                  emptyMessage="لم تُمنح شهادة لهذا الفصل بعد."
+                />
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedSemesterId(null);
+                  setSelectedSemesterPanel(null);
+                  setShowPreviousSemesters((prev) => !prev);
+                }}
+                className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-200 px-3 py-1.5 text-[0px] font-semibold text-gray-700 hover:bg-gray-50"
+              >
+                <FaHistory className="text-sm" />
+                <span className="text-sm">
+                  {showPreviousSemesters ? 'إخفاء الفصول السابقة' : 'عرض الفصول السابقة'}
+                </span>
+                رجوع للفصول
+              </button>
+            </div>
           </div>
 
           {activeIsPlaceholder ? (

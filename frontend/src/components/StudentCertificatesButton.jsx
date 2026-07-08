@@ -12,7 +12,12 @@ const formatDate = (value) => {
 // Self-contained "student certificates" quick action for staff (teacher /
 // supervisor / administrator / admin) shown inside the student profile.
 // Backend access is enforced by canAccessStudent on /api/certificates/student/:id.
-export default function StudentCertificatesButton({ studentId, className = "" }) {
+export default function StudentCertificatesButton({
+  studentId,
+  semesterId = null,
+  emptyMessage = "لا توجد شهادات ممنوحة لهذا الطالب.",
+  className = "",
+}) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -25,7 +30,12 @@ export default function StudentCertificatesButton({ studentId, className = "" })
     setError("");
     try {
       const response = await axios.get(`/api/certificates/student/${studentId}`);
-      setCertificates(response.data.certificates || []);
+      const all = response.data.certificates || [];
+      // When rendered inside a specific semester, show only that semester's certificate.
+      const filtered = semesterId
+        ? all.filter((certificate) => String(certificate.semester_id) === String(semesterId))
+        : all;
+      setCertificates(filtered);
     } catch (err) {
       setError(err.response?.data?.error || "فشل تحميل شهادات الطالب");
     } finally {
@@ -65,7 +75,7 @@ export default function StudentCertificatesButton({ studentId, className = "" })
             {loading ? (
               <div className="p-8 text-center text-slate-500">جاري التحميل...</div>
             ) : certificates.length === 0 ? (
-              <div className="p-8 text-center text-slate-500">لا توجد شهادات ممنوحة لهذا الطالب.</div>
+              <div className="p-8 text-center text-slate-500">{emptyMessage}</div>
             ) : (
               <div className="space-y-3">
                 {certificates.map((certificate) => (
