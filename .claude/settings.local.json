@@ -37,7 +37,11 @@
       "Bash(python -)",
       "Bash(node --check config/schema.js)",
       "Bash(npx eslint *)",
-      "Bash(node -e \"const{getSurahNameFromId}=require\\('D:/Workplace/hlqh/frontend/src/utils/quranData.js'\\)\")"
+      "Bash(node -e \"const{getSurahNameFromId}=require\\('D:/Workplace/hlqh/frontend/src/utils/quranData.js'\\)\")",
+      "Bash(cd d:/Workplace/hlqh/frontend && grep -n \"عرض المعلومات\\\\|تعديل\\\\|handleView\\\\|handleEdit\\\\|showDetails\\\\|TeacherForm\\\\|onView\\\\|onEdit\" src/pages/TeacherManagement.jsx | head -25; echo \"===backend teacher routes===\"; cd ../backend && grep -n \"router\\\\.\\\\\\(get\\\\|put\\\\|post\\\\|patch\\\\|delete\\\\\\)\" routes/teachers.js | head -15)",
+      "Read(//d/Workplace/**)",
+      "Bash(node --check routes/teachers.js)",
+      "Bash(git stash *)"
     ],
     "deny": [],
     "ask": [],

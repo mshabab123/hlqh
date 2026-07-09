@@ -591,9 +591,9 @@ router.put('/:id', authenticateToken, requireRole(ROLES.ADMINISTRATOR), async (r
         last_name = COALESCE($4, last_name),
         email = COALESCE($5, email),
         phone = COALESCE($6, phone),
-        address = $7
+        address = COALESCE($7, address)
       WHERE id = $8
-    `, [first_name, second_name, third_name, last_name, email, phone, address || null, id]);
+    `, [first_name, second_name, third_name, last_name, email, phone, address !== undefined ? (address || '') : null, id]);
 
     // Update teachers table with school_id and qualifications in separate columns
     await client.query(`
@@ -760,6 +760,42 @@ router.post('/:id/classes', authenticateToken, requireRole(ROLES.ADMINISTRATOR),
 });
 
 // GET /api/teachers/:id/classes - Get classes assigned to teacher (admin use)
+// GET /api/teachers/:id/class-history - Every class the teacher has taught,
+// across all semesters (active and previous), newest semester first.
+router.get('/:id/class-history', authenticateToken, requireRole(ROLES.SUPERVISOR), async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await db.query(`
+      SELECT
+        c.id as class_id,
+        c.name as class_name,
+        c.school_level,
+        s.name as school_name,
+        sem.id as semester_id,
+        sem.display_name as semester_name,
+        sem.year as semester_year,
+        tca.teacher_role,
+        tca.is_active,
+        COUNT(se.student_id) FILTER (WHERE se.status = 'enrolled')::int as students_count
+      FROM teacher_class_assignments tca
+      JOIN classes c ON tca.class_id = c.id
+      LEFT JOIN schools s ON c.school_id = s.id
+      LEFT JOIN semesters sem ON c.semester_id = sem.id
+      LEFT JOIN student_enrollments se ON se.class_id = c.id
+      WHERE tca.teacher_id = $1
+      GROUP BY c.id, c.name, c.school_level, s.name,
+               sem.id, sem.display_name, sem.year, tca.teacher_role, tca.is_active
+      ORDER BY sem.id DESC NULLS LAST, c.name
+    `, [id]);
+
+    res.json({ history: result.rows });
+  } catch (err) {
+    console.error('Get teacher class history error:', err);
+    res.status(500).json({ error: 'حدث خطأ أثناء جلب سجل حلقات المعلم' });
+  }
+});
+
 router.get('/:id/classes', authenticateToken, requireRole(ROLES.ADMINISTRATOR), async (req, res) => {
   try {
     const { id } = req.params;

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { AiOutlinePlus, AiOutlineEdit, AiOutlineDelete, AiOutlineEye, AiOutlineCheck, AiOutlineClose } from "react-icons/ai";
+import TeacherInfoEditModal from "../components/TeacherInfoEditModal";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
@@ -44,7 +45,8 @@ const TeacherForm = ({ teacher, onSubmit, onCancel, isEditing = false, onTeacher
           </div>
         </div>
         
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* الأسماء الأربعة في صف واحد لسهولة القراءة */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
             <label className="block text-sm font-medium mb-1">الاسم الأول *</label>
             <input
@@ -55,7 +57,7 @@ const TeacherForm = ({ teacher, onSubmit, onCancel, isEditing = false, onTeacher
               required
             />
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium mb-1">الاسم الثاني *</label>
             <input
@@ -66,9 +68,7 @@ const TeacherForm = ({ teacher, onSubmit, onCancel, isEditing = false, onTeacher
               required
             />
           </div>
-        </div>
-        
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
           <div>
             <label className="block text-sm font-medium mb-1">اسم الجد *</label>
             <input
@@ -243,7 +243,7 @@ export default function TeacherManagement() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
-  const [editingTeacher, setEditingTeacher] = useState(null);
+  const [viewTeacher, setViewTeacher] = useState(null);
   const [userRole, setUserRole] = useState("admin"); // TODO: Get from auth context
   const [userSchoolId, setUserSchoolId] = useState(null); // TODO: Get from auth context
   const [selectedSchool, setSelectedSchool] = useState("");
@@ -288,9 +288,12 @@ export default function TeacherManagement() {
           Authorization: `Bearer ${localStorage.getItem('token')}`
         }
       });
-      setTeachers(response.data.teachers || []);
+      const list = response.data.teachers || [];
+      setTeachers(list);
+      return list;
     } catch (err) {
       setError(err.response?.data?.error || "فشل في تحميل المعلمين");
+      return [];
     } finally {
       setLoading(false);
     }
@@ -358,50 +361,23 @@ export default function TeacherManagement() {
     }
   };
 
-  const handleEditTeacher = async (e) => {
-    e.preventDefault();
-    try {
-      const updateData = {
-        first_name: editingTeacher.first_name,
-        second_name: editingTeacher.second_name,
-        third_name: editingTeacher.third_name,
-        last_name: editingTeacher.last_name,
-        email: editingTeacher.email,
-        phone: editingTeacher.phone,
-        address: editingTeacher.address,
-        school_id: editingTeacher.school_id,
-        specialization: editingTeacher.specialization,
-        qualifications: editingTeacher.actual_qualifications,
-        can_assign_registered_students: editingTeacher.can_assign_registered_students !== false
-      };
-      
-      await axios.put(`${API_BASE}/api/teachers/${editingTeacher.id}`, updateData, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      
-      // Handle multiple class assignments using new API
-      if (editingTeacher.class_ids !== undefined) {
-        const selectedIds = editingTeacher.class_ids || [];
-        
-        
-        // Use new teacher-class assignment API
-        await axios.post(`${API_BASE}/api/teachers/${editingTeacher.id}/classes`, {
-          class_ids: selectedIds
-        }, {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}`
-          }
-        });
-      }
-      
-      setEditingTeacher(null);
-      fetchTeachers();
-      fetchClasses(); // Refresh classes to reflect changes
-    } catch (err) {
-      setError(err.response?.data?.error || "فشل في تحديث المعلم");
+  // Collect the teacher's current class assignments from every source the
+  // list APIs expose, then open the unified view/edit modal.
+  const openTeacherInfo = (teacher) => {
+    const assignedClassIds = [];
+    if (teacher.class_ids && Array.isArray(teacher.class_ids)) {
+      assignedClassIds.push(...teacher.class_ids.map(String));
     }
+    classes.forEach((cls) => {
+      const assignedTeacherIds = cls.assigned_teacher_ids || [];
+      if (assignedTeacherIds.includes(teacher.id) && !assignedClassIds.includes(String(cls.id))) {
+        assignedClassIds.push(String(cls.id));
+      }
+      if (cls.teacher_id === teacher.id && !assignedClassIds.includes(String(cls.id))) {
+        assignedClassIds.push(String(cls.id));
+      }
+    });
+    setViewTeacher({ ...teacher, class_ids: assignedClassIds });
   };
 
   const handleDeleteTeacher = async (teacherId) => {
@@ -588,40 +564,10 @@ export default function TeacherManagement() {
               {canManageTeacher(teacher) && (
                 <>
                   <button
-                    onClick={() => {
-                      // Find all classes assigned to this teacher using multiple methods
-                      const assignedClassIds = [];
-                      
-                      // Method 1: Check teacher's class_ids array (from API)
-                      if (teacher.class_ids && Array.isArray(teacher.class_ids)) {
-                        assignedClassIds.push(...teacher.class_ids);
-                      }
-                      
-                      // Method 2: Check classes where teacher is in assigned_teacher_ids
-                      classes.forEach(cls => {
-                        const assignedTeacherIds = cls.assigned_teacher_ids || [];
-                        if (assignedTeacherIds.includes(teacher.id) && !assignedClassIds.includes(cls.id)) {
-                          assignedClassIds.push(cls.id);
-                        }
-                      });
-                      
-                      // Method 3: Legacy check - classes where teacher_id matches
-                      classes.forEach(cls => {
-                        if (cls.teacher_id === teacher.id && !assignedClassIds.includes(cls.id)) {
-                          assignedClassIds.push(cls.id);
-                        }
-                      });
-                      
-                      console.log(`Loading edit for teacher ${teacher.id} with classes:`, assignedClassIds);
-                      
-                      setEditingTeacher({
-                        ...teacher,
-                        class_ids: assignedClassIds
-                      });
-                    }}
+                    onClick={() => openTeacherInfo(teacher)}
                     className="flex items-center gap-1 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
                   >
-                    <AiOutlineEdit /> تعديل
+                    <AiOutlineEye /> عرض المعلومات وتعديلها
                   </button>
                   
                   <button
@@ -668,16 +614,22 @@ export default function TeacherManagement() {
         />
       )}
 
-      {editingTeacher && (
-        <TeacherForm
-          teacher={editingTeacher}
-          onSubmit={handleEditTeacher}
-          onCancel={() => setEditingTeacher(null)}
-          isEditing={true}
-          onTeacherChange={setEditingTeacher}
+      {viewTeacher && (
+        <TeacherInfoEditModal
+          teacher={viewTeacher}
           schools={schools}
-          getFilteredSchools={getFilteredSchools}
           classes={classes}
+          onClose={() => setViewTeacher(null)}
+          onUpdated={async () => {
+            // Refresh lists, then feed the server-truth row back into the open
+            // modal so all values update immediately.
+            await fetchClasses();
+            const list = await fetchTeachers();
+            const updated = list.find((t) => String(t.id) === String(viewTeacher.id));
+            if (updated) {
+              setViewTeacher((prev) => ({ ...prev, ...updated }));
+            }
+          }}
         />
       )}
     </div>

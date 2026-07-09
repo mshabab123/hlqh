@@ -139,7 +139,8 @@ const ProfileEditModal = ({ user, onClose, onSubmit }) => {
         </div>
         
         <form onSubmit={(e) => onSubmit(e, setFormErrors)} className="p-6 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* الأسماء الأربعة في صف واحد لسهولة القراءة */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 الاسم الأول *
@@ -152,7 +153,7 @@ const ProfileEditModal = ({ user, onClose, onSubmit }) => {
                 required
               />
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 الاسم الثاني *
@@ -165,9 +166,7 @@ const ProfileEditModal = ({ user, onClose, onSubmit }) => {
                 required
               />
             </div>
-          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 اسم الجد *

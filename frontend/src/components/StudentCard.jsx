@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AiOutlineUser, AiOutlineEye, AiOutlineEdit, AiOutlineBook, AiOutlineCheck, AiOutlineClose, AiOutlineWarning, AiOutlineDelete, AiOutlineUserDelete, AiOutlineUserAdd, AiOutlineSchedule, AiOutlineStop } from "react-icons/ai";
+import { AiOutlineUser, AiOutlineEye, AiOutlineBook, AiOutlineCheck, AiOutlineClose, AiOutlineWarning, AiOutlineDelete, AiOutlineUserDelete, AiOutlineUserAdd, AiOutlineSchedule, AiOutlineStop } from "react-icons/ai";
 import { BsFillGridFill } from "react-icons/bs";
 import { calculateQuranProgress, getProgressColor, getProgressBgColor, calculateQuranBlocks } from "../utils/studentUtils";
 import QuranBlocksModal from "./QuranBlocksModal";
@@ -7,7 +7,6 @@ import QuranBlocksModal from "./QuranBlocksModal";
 const StudentCard = ({
   student,
   onView,
-  onEdit,
   onToggleStatus,
   onQuranProgress,
   onDelete,
@@ -162,15 +161,9 @@ const StudentCard = ({
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-auto pt-2 auto-rows-[60px] sm:min-h-[196px] content-start">
       <button
         onClick={() => onView(student)}
-        className="bg-blue-500 text-white py-2 px-2 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-1 text-sm min-h-12 text-center leading-snug"
+        className="bg-blue-500 text-white py-2 px-2 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-1 text-sm min-h-12 text-center leading-snug col-span-2"
       >
-        <AiOutlineEye /> عرض المعلومات
-      </button>
-      <button
-        onClick={() => onEdit(student)}
-        className="bg-yellow-500 text-white py-2 px-2 rounded-lg hover:bg-yellow-600 transition-colors flex items-center justify-center gap-1 text-sm min-h-12 text-center leading-snug"
-      >
-        <AiOutlineEdit /> تعديل الملف
+        <AiOutlineEye /> عرض المعلومات وتعديلها
       </button>
       <button
         onClick={() => onQuranProgress(student)}

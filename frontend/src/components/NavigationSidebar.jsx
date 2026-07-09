@@ -396,6 +396,24 @@ const NavigationSidebar = ({ isOpen, setIsOpen, isCollapsed, setIsCollapsed, cla
         />
       )}
 
+      <button
+        onClick={() => setIsCollapsed(!isCollapsed)}
+        className={`
+          fixed top-[calc(50%+2.5rem)] z-[90] hidden h-16 w-8 -translate-y-1/2 translate-x-1/2
+          items-center justify-center rounded-r-xl border border-white/35 bg-white/40
+          text-primary-950 shadow-lg backdrop-blur-sm transition-all duration-300 hover:bg-white/55 lg:flex
+          ${isCollapsed ? 'right-20' : 'right-72'}
+        `}
+        title={isCollapsed ? "توسيع الشريط الجانبي" : "طي الشريط الجانبي"}
+        aria-label={isCollapsed ? "توسيع الشريط الجانبي" : "طي الشريط الجانبي"}
+      >
+        {isCollapsed ? (
+          <AiOutlineMenu className="text-lg" />
+        ) : (
+          <AiOutlineClose className="text-lg" />
+        )}
+      </button>
+
       {/* Sidebar: full height on mobile; below the fixed navbar on desktop */}
       <div className={`
         fixed top-0 right-0 h-screen lg:top-20 lg:h-[calc(100vh-5rem)] shadow-2xl transition-all duration-300 ease-in-out
@@ -410,25 +428,25 @@ const NavigationSidebar = ({ isOpen, setIsOpen, isCollapsed, setIsCollapsed, cla
       }}
       dir="rtl">
         {/* Header */}
-        <div className="flex items-center justify-end p-3">
-          <div className={`flex min-w-0 flex-row-reverse items-center justify-end gap-2 ${isCollapsed ? 'hidden lg:flex' : ''}`}>
-            <button
-              onClick={() => {
-                if (window.innerWidth < 1024) {
-                  setIsOpen(false);
-                } else {
-                  setIsCollapsed(!isCollapsed);
-                }
-              }}
-              className="shrink-0 p-2.5 rounded-lg bg-white/30 hover:bg-white/45 border border-white/35 text-primary-900 shadow-sm transition-colors"
-              title={isCollapsed ? "توسيع الشريط الجانبي" : "طي الشريط الجانبي"}
-            >
-              {isCollapsed ? 
-                <AiOutlineMenu className="text-primary-900 text-lg" /> : 
-                <AiOutlineClose className="text-primary-900 text-lg" />
+        <div className="flex items-center justify-center p-3 lg:hidden">
+          <button
+            onClick={() => {
+              if (window.innerWidth < 1024) {
+                setIsOpen(false);
+              } else {
+                setIsCollapsed(!isCollapsed);
               }
-            </button>
-          </div>
+            }}
+            className="shrink-0 p-2.5 rounded-lg bg-white/30 hover:bg-white/45 border border-white/35 text-primary-900 shadow-sm transition-colors"
+            title={isCollapsed ? "توسيع الشريط الجانبي" : "طي الشريط الجانبي"}
+            aria-label={isCollapsed ? "توسيع الشريط الجانبي" : "طي الشريط الجانبي"}
+          >
+            {isCollapsed ? (
+              <AiOutlineMenu className="text-primary-900 text-lg" />
+            ) : (
+              <AiOutlineClose className="text-primary-900 text-lg" />
+            )}
+          </button>
         </div>
 
         {/* User Info */}

@@ -3,6 +3,7 @@ import axios from "axios";
 import { AiOutlinePlus } from "react-icons/ai";
 import StudentForm from "../components/StudentForm";
 import StudentCard from "../components/StudentCard";
+import StudentInfoEditModal from "../components/StudentInfoEditModal";
 import QuranProgressModal from "../components/QuranProgressModal";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
@@ -102,12 +103,15 @@ export default function StudentManagement() {
       const response = await axios.get(`${API_BASE}/api/students`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
-      setStudents(Array.isArray(response.data) ? response.data : []);
+      const list = Array.isArray(response.data) ? response.data : [];
+      setStudents(list);
       setError(null);
+      return list;
     } catch (err) {
       setError("حدث خطأ في تحميل بيانات الطلاب");
       console.error("Error fetching students:", err);
       setStudents([]);
+      return [];
     } finally {
       setLoading(false);
     }
@@ -309,22 +313,6 @@ export default function StudentManagement() {
       console.error("Response data:", err.response?.data);
       console.error("Status:", err.response?.status);
     }
-  };
-
-  const handleEdit = (student) => {
-    setEditingStudent(student);
-    // Format the date properly for the input field
-    const formattedStudent = {
-      ...student,
-      date_of_birth: student.date_of_birth ? 
-        new Date(student.date_of_birth).toISOString().split('T')[0] : "",
-      email: student.email || "",
-      phone: student.phone || "",
-      address: student.address || "",
-      notes: student.notes || ""
-    };
-    setCurrentStudent(formattedStudent);
-    setShowForm(true);
   };
 
   const handleView = (student) => {
@@ -788,7 +776,6 @@ export default function StudentManagement() {
               key={`${student.id}-${student.class_id || "no-class"}-${index}`}
               student={student}
               onView={handleView}
-              onEdit={handleEdit}
               onQuranProgress={handleQuranProgress}
               onToggleStatus={handleToggleStatus}
               onDelete={handleDeleteStudent}
@@ -897,89 +884,24 @@ export default function StudentManagement() {
         )}
 
         {showDetails && selectedStudent && (
-          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded-xl shadow-xl max-w-2xl w-full m-4">
-              <h3 className="text-xl font-bold mb-4 text-[var(--color-primary-700)]">
-                تفاصيل الطالب
-              </h3>
-              
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <strong>الاسم الكامل:</strong>
-                    <p>{selectedStudent.first_name} {selectedStudent.second_name} {selectedStudent.third_name} {selectedStudent.last_name}</p>
-                  </div>
-                  <div>
-                    <strong>رقم الهوية:</strong>
-                    <p>{selectedStudent.id}</p>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <strong>البريد الإلكتروني:</strong>
-                    <p>{selectedStudent.email || "غير محدد"}</p>
-                  </div>
-                  <div>
-                    <strong>الهاتف:</strong>
-                    <p>{selectedStudent.phone || "غير محدد"}</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <strong>المستوى الدراسي:</strong>
-                    <p>{selectedStudent.school_level}</p>
-                  </div>
-                  <div>
-                    <strong>الحالة:</strong>
-                    <p>{selectedStudent.status === 'active' ? 'نشط' : 'غير نشط'}</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <strong>مجمع الحلقات:</strong>
-                    <p>{selectedStudent.school_name || "غير محدد"}</p>
-                  </div>
-                  <div>
-                    <strong>الحلقة:</strong>
-                    <p>{selectedStudent.class_name || "غير محدد"}</p>
-                  </div>
-                </div>
-
-                {selectedStudent.address && (
-                  <div>
-                    <strong>العنوان:</strong>
-                    <p>{selectedStudent.address}</p>
-                  </div>
-                )}
-
-                {selectedStudent.notes && (
-                  <div>
-                    <strong>الملاحظات:</strong>
-                    <p>{selectedStudent.notes}</p>
-                  </div>
-                )}
-
-                {selectedStudent.enrollment_date && (
-                  <div>
-                    <strong>تاريخ التسجيل:</strong>
-                    <p>{new Date(selectedStudent.enrollment_date).toLocaleDateString('ar-SA')}</p>
-                  </div>
-                )}
-              </div>
-              
-              <div className="flex gap-2 pt-4">
-                <button
-                  onClick={() => setShowDetails(false)}
-                  className="bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600 transition-colors"
-                >
-                  إغلاق
-                </button>
-              </div>
-            </div>
-          </div>
+          <StudentInfoEditModal
+            student={selectedStudent}
+            schools={schools}
+            classes={classes}
+            onClose={() => {
+              setShowDetails(false);
+              setSelectedStudent(null);
+            }}
+            onUpdated={async () => {
+              // Refresh the list, then feed the server-truth row back into the
+              // open modal so all derived values update immediately.
+              const list = await fetchStudents();
+              const updated = list.find((s) => String(s.id) === String(selectedStudent.id));
+              if (updated) {
+                setSelectedStudent((prev) => ({ ...prev, ...updated }));
+              }
+            }}
+          />
         )}
       </div>
     </div>
