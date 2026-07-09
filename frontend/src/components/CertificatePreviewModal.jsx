@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { FaDownload, FaPrint } from "react-icons/fa";
 import CertificateTemplate from "./CertificateTemplate";
-import { downloadElementAsPdf } from "../utils/certificatePdf";
+import { downloadElementAsPdf, printElementIsolated } from "../utils/certificatePdf";
 
 // Full-screen certificate preview with a real PDF download and a print action.
 // Reused by the certificate management screen and the student/parent screen.
@@ -19,35 +19,17 @@ export default function CertificatePreviewModal({ certificate, onClose }) {
       await downloadElementAsPdf(contentRef.current, fileName);
     } catch (error) {
       console.error("Error generating certificate PDF:", error);
-      // Fall back to the browser print dialog if canvas rendering fails.
-      window.print();
+      // Fall back to the isolated print dialog if canvas rendering fails.
+      printElementIsolated(contentRef.current);
     } finally {
       setDownloading(false);
     }
   };
 
+  const handlePrint = () => printElementIsolated(contentRef.current);
+
   return (
     <div className="fixed inset-0 z-50 overflow-auto bg-slate-950/70 p-4">
-      <style>{`
-        @media print {
-          body * { visibility: hidden !important; }
-          #certificate-preview-content, #certificate-preview-content * { visibility: visible !important; }
-          #certificate-preview-content {
-            position: absolute !important;
-            inset: 0 !important;
-            width: 100% !important;
-            background: white !important;
-            padding: 0 !important;
-          }
-          .certificate-print-area {
-            box-shadow: none !important;
-            max-width: none !important;
-            min-height: 100vh !important;
-            border-radius: 0 !important;
-          }
-          .certificate-preview-toolbar { display: none !important; }
-        }
-      `}</style>
       <div className="mx-auto max-w-6xl">
         <div className="certificate-preview-toolbar mb-3 flex flex-wrap justify-between gap-2 rounded-lg bg-white p-3 shadow-lg">
           <button
@@ -60,7 +42,7 @@ export default function CertificatePreviewModal({ certificate, onClose }) {
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={() => window.print()}
+              onClick={handlePrint}
               className="inline-flex items-center gap-2 rounded-lg bg-slate-700 px-4 py-2 font-bold text-white hover:bg-slate-800"
             >
               <FaPrint /> طباعة

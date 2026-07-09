@@ -488,13 +488,15 @@ router.get('/', authenticateToken, requireRole(ROLES.SUPERVISOR), async (req, re
           COALESCE(c.school_id, t.school_id) as school_id,
           t.qualifications,
           COALESCE(
-            ARRAY_AGG(DISTINCT tca.class_id) FILTER (WHERE tca.class_id IS NOT NULL),
+            ARRAY_AGG(DISTINCT tca.class_id) FILTER (WHERE tca.class_id IS NOT NULL AND cursem.id IS NOT NULL),
             ARRAY[]::UUID[]
           ) as class_ids
         FROM users u
         LEFT JOIN teachers t ON u.id = t.id
         LEFT JOIN teacher_class_assignments tca ON u.id = tca.teacher_id AND tca.is_active = TRUE
         LEFT JOIN classes c ON tca.class_id = c.id
+        LEFT JOIN semesters cursem ON cursem.id = c.semester_id
+          AND cursem.start_date <= CURRENT_DATE AND cursem.end_date >= CURRENT_DATE
         ${whereClause}
         GROUP BY u.id, u.first_name, u.second_name, u.third_name, u.last_name,
                  u.email, u.phone, u.address, u.is_active, u.created_at,
@@ -522,12 +524,15 @@ router.get('/', authenticateToken, requireRole(ROLES.SUPERVISOR), async (req, re
           t.school_id,
           COALESCE(t.can_assign_registered_students, true) as can_assign_registered_students,
           COALESCE(
-            ARRAY_AGG(DISTINCT tca.class_id) FILTER (WHERE tca.class_id IS NOT NULL),
+            ARRAY_AGG(DISTINCT tca.class_id) FILTER (WHERE tca.class_id IS NOT NULL AND cursem.id IS NOT NULL),
             ARRAY[]::UUID[]
           ) as class_ids
         FROM users u
         LEFT JOIN teachers t ON u.id = t.id
         LEFT JOIN teacher_class_assignments tca ON u.id = tca.teacher_id AND tca.is_active = TRUE
+        LEFT JOIN classes tcls ON tca.class_id = tcls.id
+        LEFT JOIN semesters cursem ON cursem.id = tcls.semester_id
+          AND cursem.start_date <= CURRENT_DATE AND cursem.end_date >= CURRENT_DATE
         ${whereClause}
         GROUP BY u.id, u.first_name, u.second_name, u.third_name, u.last_name,
                  u.email, u.phone, u.address, u.is_active, u.created_at,
@@ -710,14 +715,41 @@ router.post('/:id/classes', authenticateToken, requireRole(ROLES.ADMINISTRATOR),
       return res.status(404).json({ error: 'المعلم غير موجود' });
     }
 
-    // Remove all existing assignments for this teacher
-    await client.query('DELETE FROM teacher_class_assignments WHERE teacher_id = $1', [id]);
+    // Replace assignments ONLY within the target semester (the current one by
+    // date, or an explicit semester_id). Assignments from other semesters are
+    // history — the teacher keeps the record of what he taught before.
+    let semesterId = req.body.semester_id || null;
+    if (!semesterId) {
+      const currentSemester = await client.query(
+        `SELECT id FROM semesters
+         WHERE start_date <= CURRENT_DATE AND end_date >= CURRENT_DATE
+         ORDER BY start_date DESC LIMIT 1`
+      );
+      semesterId = currentSemester.rows[0]?.id || null;
+    }
 
-    // Add new assignments
+    if (semesterId) {
+      await client.query(
+        `DELETE FROM teacher_class_assignments tca
+         USING classes c
+         WHERE tca.class_id = c.id
+           AND tca.teacher_id = $1
+           AND c.semester_id = $2`,
+        [id, semesterId]
+      );
+    } else {
+      // No active semester found — fall back to the old full replace.
+      await client.query('DELETE FROM teacher_class_assignments WHERE teacher_id = $1', [id]);
+    }
+
+    // Add new assignments (restricted to the target semester when one is set)
     if (class_ids.length > 0) {
       for (const classId of class_ids) {
-        // Verify class exists
-        const classCheck = await client.query('SELECT id FROM classes WHERE id = $1', [classId]);
+        // Verify class exists and belongs to the target semester
+        const classCheck = await client.query('SELECT id, semester_id FROM classes WHERE id = $1', [classId]);
+        if (semesterId && classCheck.rows[0] && String(classCheck.rows[0].semester_id) !== String(semesterId)) {
+          continue;
+        }
         if (classCheck.rows.length > 0) {
           // Determine teacher role for this class
           const role = class_roles[classId] || 'secondary';

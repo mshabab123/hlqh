@@ -361,23 +361,10 @@ export default function TeacherManagement() {
     }
   };
 
-  // Collect the teacher's current class assignments from every source the
-  // list APIs expose, then open the unified view/edit modal.
+  // class_ids from the server are the teacher's CURRENT-semester assignments;
+  // previous semesters live in the history section inside the modal.
   const openTeacherInfo = (teacher) => {
-    const assignedClassIds = [];
-    if (teacher.class_ids && Array.isArray(teacher.class_ids)) {
-      assignedClassIds.push(...teacher.class_ids.map(String));
-    }
-    classes.forEach((cls) => {
-      const assignedTeacherIds = cls.assigned_teacher_ids || [];
-      if (assignedTeacherIds.includes(teacher.id) && !assignedClassIds.includes(String(cls.id))) {
-        assignedClassIds.push(String(cls.id));
-      }
-      if (cls.teacher_id === teacher.id && !assignedClassIds.includes(String(cls.id))) {
-        assignedClassIds.push(String(cls.id));
-      }
-    });
-    setViewTeacher({ ...teacher, class_ids: assignedClassIds });
+    setViewTeacher({ ...teacher, class_ids: (teacher.class_ids || []).map(String) });
   };
 
   const handleDeleteTeacher = async (teacherId) => {
@@ -515,31 +502,22 @@ export default function TeacherManagement() {
                 </span>
               </p>
 
-              {/* Display assigned classes */}
+              {/* حلقات الفصل الدراسي الحالي فقط (المصدر: class_ids من الخادم).
+                  حلقات الفصول السابقة تبقى في سجل المعلم داخل نافذة المعلومات. */}
               {(() => {
-                // Check if teacher has class_ids array (multiple assignments)
-                const teacherClassIds = teacher.class_ids || [];
-                // Also check if teacher is assigned through the assigned_teacher_ids in classes
-                const teacherClasses = classes.filter(cls => {
-                  // Check if teacher is in the class's assigned_teacher_ids array
-                  const assignedTeacherIds = cls.assigned_teacher_ids || [];
-                  return assignedTeacherIds.includes(teacher.id) || 
-                         teacherClassIds.includes(cls.id) || 
-                         cls.teacher_id === teacher.id;
-                });
-                
-                console.log(`Teacher ${teacher.id} classes:`, teacherClasses);
-                
+                const teacherClassIds = (teacher.class_ids || []).map(String);
+                const teacherClasses = classes.filter(cls => teacherClassIds.includes(String(cls.id)));
+
                 if (teacherClasses.length > 0) {
                   return (
                     <div className="mt-3 p-2 bg-green-50 rounded-lg border border-green-200">
                       <p className="font-medium text-green-800 text-xs mb-2">
-                        حلقات مجمع الحلقات ({teacherClasses.length}):
+                        حلقات الفصل الدراسي الحالي ({teacherClasses.length}):
                       </p>
                       <div className="flex flex-wrap gap-1">
                         {teacherClasses.map(cls => (
-                          <span 
-                            key={cls.id} 
+                          <span
+                            key={cls.id}
                             className="inline-block px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full"
                           >
                             {cls.name}
@@ -552,7 +530,7 @@ export default function TeacherManagement() {
                   return (
                     <div className="mt-3 p-2 bg-gray-50 rounded-lg border border-gray-200">
                       <p className="text-gray-600 text-xs text-center">
-                        لا يدرس أي حلقة حالياً
+                        لا يدرس أي حلقة في الفصل الدراسي الحالي
                       </p>
                     </div>
                   );

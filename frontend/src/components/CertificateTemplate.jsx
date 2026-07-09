@@ -42,35 +42,47 @@ const hijriYearOf = (value) => {
   }
 };
 
-// Decorative flowing ribbons in the corners (teal + gold), drawn as SVG so they
-// rasterize cleanly when the certificate is captured to a PDF.
+// Decorative flowing ribbons in the corners (teal + gold). Implemented as
+// <img> data URIs (with explicit intrinsic width/height on the SVG) because:
+// - browsers strip CSS background-images when printing, but always print <img>
+// - html2canvas renders <img> stretched to its layout box reliably
+const svgDataUri = (inner) =>
+  `data:image/svg+xml,${encodeURIComponent(
+    `<svg xmlns='http://www.w3.org/2000/svg' width='1000' height='220' viewBox='0 0 1000 220' preserveAspectRatio='none'>${inner}</svg>`
+  )}`;
+
+const TOP_RIBBON = svgDataUri(
+  `<path d='M0,0 H360 C250,55 150,55 90,120 C55,155 25,150 0,135 Z' fill='${COLORS.gold}' opacity='0.9'/>` +
+  `<path d='M0,0 H300 C210,60 120,70 70,140 C40,180 15,175 0,160 Z' fill='${COLORS.teal}'/>` +
+  `<path d='M0,0 H210 C150,55 90,80 55,150 C30,195 12,190 0,180 Z' fill='${COLORS.tealDark}' opacity='0.85'/>` +
+  `<path d='M1000,0 H720 C820,50 900,60 960,130 C980,155 990,120 1000,90 Z' fill='${COLORS.gold}' opacity='0.9'/>` +
+  `<path d='M1000,0 H780 C860,55 930,75 975,150 C988,175 995,120 1000,80 Z' fill='${COLORS.teal}'/>`
+);
+
+const BOTTOM_RIBBON = svgDataUri(
+  `<path d='M1000,220 H620 C740,165 850,160 920,90 C955,55 985,70 1000,85 Z' fill='${COLORS.gold}' opacity='0.9'/>` +
+  `<path d='M1000,220 H700 C800,170 890,150 945,80 C972,45 990,60 1000,75 Z' fill='${COLORS.teal}'/>` +
+  `<path d='M1000,220 H790 C860,175 920,150 960,80 C978,50 992,60 1000,70 Z' fill='${COLORS.tealDark}' opacity='0.85'/>` +
+  `<path d='M0,220 H320 C210,170 120,160 60,95 C30,60 12,140 0,170 Z' fill='${COLORS.teal}' opacity='0.9'/>`
+);
+
 function CornerDecor() {
   return (
     <>
-      <svg
+      <img
+        src={TOP_RIBBON}
+        alt=""
         aria-hidden="true"
-        viewBox="0 0 1000 220"
-        preserveAspectRatio="none"
-        className="pointer-events-none absolute inset-x-0 top-0 h-[130px] w-full"
-      >
-        <path d="M0,0 H360 C250,55 150,55 90,120 C55,155 25,150 0,135 Z" fill={COLORS.gold} opacity="0.9" />
-        <path d="M0,0 H300 C210,60 120,70 70,140 C40,180 15,175 0,160 Z" fill={COLORS.teal} />
-        <path d="M0,0 H210 C150,55 90,80 55,150 C30,195 12,190 0,180 Z" fill={COLORS.tealDark} opacity="0.85" />
-        <path d="M1000,0 H720 C820,50 900,60 960,130 C980,155 990,120 1000,90 Z" fill={COLORS.gold} opacity="0.9" />
-        <path d="M1000,0 H780 C860,55 930,75 975,150 C988,175 995,120 1000,80 Z" fill={COLORS.teal} />
-      </svg>
-
-      <svg
+        draggable="false"
+        className="pointer-events-none absolute inset-x-0 top-0 h-[130px] w-full select-none"
+      />
+      <img
+        src={BOTTOM_RIBBON}
+        alt=""
         aria-hidden="true"
-        viewBox="0 0 1000 220"
-        preserveAspectRatio="none"
-        className="pointer-events-none absolute inset-x-0 bottom-0 h-[130px] w-full"
-      >
-        <path d="M1000,220 H620 C740,165 850,160 920,90 C955,55 985,70 1000,85 Z" fill={COLORS.gold} opacity="0.9" />
-        <path d="M1000,220 H700 C800,170 890,150 945,80 C972,45 990,60 1000,75 Z" fill={COLORS.teal} />
-        <path d="M1000,220 H790 C860,175 920,150 960,80 C978,50 992,60 1000,70 Z" fill={COLORS.tealDark} opacity="0.85" />
-        <path d="M0,220 H320 C210,170 120,160 60,95 C30,60 12,140 0,170 Z" fill={COLORS.teal} opacity="0.9" />
-      </svg>
+        draggable="false"
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-[130px] w-full select-none"
+      />
     </>
   );
 }
@@ -131,7 +143,8 @@ export default function CertificateTemplate({ certificate }) {
       />
 
       <div className="relative z-10 flex flex-1 flex-col items-center px-14 pb-6 pt-10 text-center">
-        <p className="text-lg font-bold tracking-wide" style={{ color: COLORS.goldDark }}>
+        {/* لا تستخدم letter-spacing هنا: يكسر اتصال الحروف العربية عند التصدير لـ PDF */}
+        <p className="text-lg font-bold" style={{ color: COLORS.goldDark }}>
           بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ
         </p>
 
@@ -157,7 +170,7 @@ export default function CertificateTemplate({ certificate }) {
           حيث أتم  <strong style={{ color: COLORS.tealDark }}>{certificate.semester_name || "—"}</strong> من عام{" "}
           <strong style={{ color: COLORS.tealDark }}>{hijriYear || "—"}</strong> هـ /{" "}
           <strong style={{ color: COLORS.tealDark }}>{miladiYear}</strong> م.
-          بنجاح، واضهر التزاماً واجتهاداً في حفظ كتاب الله عز وجل. 
+          بنجاح، أظهر التزاماً واجتهاداً في حفظ كتاب الله عز وجل. 
            ونسأل الله له التوفيق في حفظ القرآن
           والعمل به.
         </p>

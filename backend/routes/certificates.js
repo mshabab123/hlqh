@@ -110,6 +110,13 @@ const studentCertificateListQuery = `
     to_char(sem.start_date, 'YYYY-MM-DD') as semester_start_date,
     to_char(sem.end_date, 'YYYY-MM-DD') as semester_end_date,
     CONCAT_WS(' ', tu.first_name, tu.second_name, tu.third_name, tu.last_name) as teacher_name,
+    EXISTS (
+      SELECT 1 FROM student_enrollments se2
+      JOIN classes c2 ON c2.id = se2.class_id
+      WHERE se2.student_id = ss.student_id
+        AND c2.semester_id = $1
+        AND se2.status = 'enrolled'
+    ) as has_active_enrollment,
     COALESCE(gs.grade_count, 0) as grade_count,
     COALESCE(gs.average_grade, 0) as average_grade,
     COALESCE(gs.total_grade, 0) as total_grade,
@@ -215,6 +222,9 @@ router.post('/semesters/:semesterId/grant', authenticateToken, requireCertificat
     if (!semester) return;
 
     const excludedIds = new Set((req.body.excluded_student_ids || []).map(String));
+    // الطلاب الذين أزيلوا من حلقاتهم لا يُمنحون أبداً إلا بطلب صريح:
+    // يجب أن ترد هوياتهم في include_removed_student_ids.
+    const includedRemovedIds = new Set((req.body.include_removed_student_ids || []).map(String));
     const notes = req.body.notes || null;
 
     // The passing threshold is set by the admin/manager. If a value is sent with
@@ -231,6 +241,7 @@ router.post('/semesters/:semesterId/grant', authenticateToken, requireCertificat
     const eligibleStudents = students.filter((student) => {
       return (
         !excludedIds.has(String(student.student_id)) &&
+        (student.has_active_enrollment || includedRemovedIds.has(String(student.student_id))) &&
         Number(student.grade_count || 0) > 0 &&
         Number(student.average_grade || 0) >= passThreshold
       );

@@ -78,10 +78,20 @@ export default function TeacherInfoEditModal({ teacher, schools = [], classes = 
   const [success, setSuccess] = useState("");
   const [history, setHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
+  const [currentSemester, setCurrentSemester] = useState(null);
 
   useEffect(() => {
     setData(teacher);
   }, [teacher]);
+
+  // Resolve the current semester (by date) — "الحلقات الحالية" means this
+  // semester only; everything else lives in the history section.
+  useEffect(() => {
+    axios
+      .get(`${API_BASE}/api/semesters/current`, { headers: authHeaders() })
+      .then((res) => setCurrentSemester(res.data.semester || null))
+      .catch(() => setCurrentSemester(null));
+  }, []);
 
   // Load the teaching history (all semesters/classes ever taught).
   useEffect(() => {
@@ -137,7 +147,7 @@ export default function TeacherInfoEditModal({ teacher, schools = [], classes = 
       const class_ids = draft.class_ids || [];
       await axios.post(
         `${API_BASE}/api/teachers/${data.id}/classes`,
-        { class_ids },
+        { class_ids, semester_id: currentSemester?.id },
         { headers: authHeaders() }
       );
       setData((prev) => ({ ...prev, class_ids }));
@@ -155,10 +165,18 @@ export default function TeacherInfoEditModal({ teacher, schools = [], classes = 
   const d = (key) => (draft[key] !== undefined ? draft[key] : "");
   const setD = (key, value) => setDraft((prev) => ({ ...prev, [key]: value }));
 
-  const currentClassIds = (data.class_ids || []).map(String);
-  const assignedClassNames = classes
+  // Only classes of the CURRENT semester count as "حالية"; older assignments
+  // remain visible in the history section below.
+  const isCurrentSemesterClass = (cls) =>
+    currentSemester && String(cls.semester_id) === String(currentSemester.id);
+  const currentSemesterClasses = classes.filter(isCurrentSemesterClass);
+  const assignedIds = (data.class_ids || []).map(String);
+  const currentClassIds = currentSemesterClasses
+    .filter((c) => assignedIds.includes(String(c.id)))
+    .map((c) => String(c.id));
+  const assignedClassNames = currentSemesterClasses
     .filter((c) => currentClassIds.includes(String(c.id)))
-    .map((c) => `${c.name}${c.semester_name ? ` — ${c.semester_name}` : ""}`);
+    .map((c) => c.name);
 
   // History grouped by semester for display.
   const historyBySemester = history.reduce((groups, row) => {
@@ -354,18 +372,20 @@ export default function TeacherInfoEditModal({ teacher, schools = [], classes = 
             </div>
           </GroupCard>
 
-          {/* الحلقات الحالية */}
+          {/* حلقات الفصل الدراسي الحالي */}
           <GroupCard
-            title="الحلقات الحالية"
+            title={`حلقات الفصل الدراسي الحالي${currentSemester ? ` (${currentSemester.display_name})` : ""}`}
             editing={editingGroup === "classes"}
             saving={saving}
             onEdit={() => startEdit("classes", { class_ids: currentClassIds })}
             onCancel={cancelEdit}
             onSave={saveClasses}
           >
-            {editingGroup === "classes" ? (
+            {!currentSemester ? (
+              <p className="text-sm text-gray-500">لا يوجد فصل دراسي نشط حالياً</p>
+            ) : editingGroup === "classes" ? (
               <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                {classes
+                {currentSemesterClasses
                   .filter((c) => !data.school_id || String(c.school_id) === String(data.school_id))
                   .map((cls) => {
                     const checked = (draft.class_ids || []).includes(String(cls.id));
@@ -382,13 +402,13 @@ export default function TeacherInfoEditModal({ teacher, schools = [], classes = 
                           }}
                           className="h-4 w-4 accent-teal-600"
                         />
-                        <span className="text-sm">
-                          {cls.name}
-                          {cls.semester_name && <span className="text-xs text-gray-500"> — {cls.semester_name}</span>}
-                        </span>
+                        <span className="text-sm">{cls.name}</span>
                       </label>
                     );
                   })}
+                {currentSemesterClasses.length === 0 && (
+                  <p className="text-sm text-gray-500">لا توجد حلقات في الفصل الدراسي الحالي</p>
+                )}
               </div>
             ) : assignedClassNames.length > 0 ? (
               <div className="flex flex-wrap gap-1.5">
@@ -399,7 +419,9 @@ export default function TeacherInfoEditModal({ teacher, schools = [], classes = 
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-gray-500">لا يدرس أي حلقة حالياً</p>
+              <p className="text-sm text-gray-500">
+                لا يدرس أي حلقة في {currentSemester.display_name} — حلقاته السابقة في السجل أدناه
+              </p>
             )}
           </GroupCard>
 
@@ -423,7 +445,7 @@ export default function TeacherInfoEditModal({ teacher, schools = [], classes = 
                         <span
                           key={`${row.semester_id}-${row.class_id}`}
                           className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-full border ${
-                            row.is_active
+                            currentSemester && String(row.semester_id) === String(currentSemester.id)
                               ? "bg-green-50 text-green-800 border-green-200"
                               : "bg-gray-100 text-gray-600 border-gray-200"
                           }`}

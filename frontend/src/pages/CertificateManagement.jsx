@@ -96,11 +96,20 @@ export default function CertificateManagement() {
 
     try {
       const response = await axios.get(`/api/certificates/semesters/${selectedSemester}/students`);
-      setStudents(response.data.students || []);
+      const list = response.data.students || [];
+      setStudents(list);
       if (response.data.pass_threshold !== undefined && response.data.pass_threshold !== null) {
         setPassThreshold(Number(response.data.pass_threshold));
       }
-      setExcludedIds(new Set());
+      // الافتراضي: لا مَنح لمن أزيل من حلقته — كل مُزال بلا شهادة سارية
+      // مستثنى تلقائياً، ومنحه قرار صريح يتخذه المدير لكل طالب على حدة.
+      setExcludedIds(
+        new Set(
+          list
+            .filter((s) => s.has_active_enrollment === false && s.certificate_status !== "issued")
+            .map((s) => String(s.student_id))
+        )
+      );
     } catch (err) {
       setError(err.response?.data?.error || "فشل تحميل طلاب الفصل");
     } finally {
@@ -120,14 +129,19 @@ export default function CertificateManagement() {
 
   const filteredStudents = useMemo(() => {
     const term = search.trim();
-    if (!term) return students;
-    return students.filter((student) => {
-      return (
-        student.student_name?.includes(term) ||
-        String(student.student_id || "").includes(term) ||
-        student.class_name?.includes(term)
-      );
-    });
+    const list = !term
+      ? students
+      : students.filter((student) => {
+          return (
+            student.student_name?.includes(term) ||
+            String(student.student_id || "").includes(term) ||
+            student.class_name?.includes(term)
+          );
+        });
+
+    // الطلاب الذين أزيلوا من حلقاتهم (بلا شهادة) يُعرضون جميعاً في آخر القائمة.
+    const isRemovedNoCert = (s) => s.has_active_enrollment === false && s.certificate_status !== "issued";
+    return [...list].sort((a, b) => Number(isRemovedNoCert(a)) - Number(isRemovedNoCert(b)));
   }, [students, search]);
 
   const isPassing = (student) =>
@@ -172,8 +186,19 @@ export default function CertificateManagement() {
     setMessage("");
 
     try {
+      // المُزالون من حلقاتهم لا يمنحهم الخادم إلا إذا وردت هوياتهم صراحةً هنا
+      // (وهم الذين فعّل المدير خيار منحهم في القائمة).
+      const includeRemoved = students
+        .filter(
+          (s) =>
+            s.has_active_enrollment === false &&
+            !excludedIds.has(String(s.student_id))
+        )
+        .map((s) => String(s.student_id));
+
       const response = await axios.post(`/api/certificates/semesters/${selectedSemester}/grant`, {
         excluded_student_ids: Array.from(excludedIds),
+        include_removed_student_ids: includeRemoved,
         pass_threshold: Number(passThreshold),
       });
       setMessage(`تم منح ${response.data.issued_count || 0} شهادة`);
@@ -350,13 +375,23 @@ export default function CertificateManagement() {
               const excluded = excludedIds.has(String(student.student_id));
               const passing = isPassing(student);
               const failed = !noGrades && !passing;
+              // الطالب أزيل من حلقته في هذا الفصل (لا يوجد التحاق نشط)
+              const removed = student.has_active_enrollment === false;
 
               return (
-                <div key={student.student_id} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <div
+                  key={student.student_id}
+                  className={`rounded-lg border p-5 shadow-sm ${
+                    removed && !issued ? "border-red-300 bg-red-50/60" : "border-slate-200 bg-white"
+                  }`}
+                >
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-lg font-black text-slate-900">{student.student_name}</h3>
+                        <h3 className={`text-lg font-black ${removed && !issued ? "text-red-800" : "text-slate-900"}`}>
+                          {student.student_name}
+                        </h3>
+                        {removed && <span className="rounded-full bg-red-600 px-3 py-1 text-xs font-bold text-white">أزيل من الحلقة</span>}
                         {issued && <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700">شهادة ممنوحة</span>}
                         {revoked && <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-700">ملغاة</span>}
                         {!student.certificate_status && <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">بدون شهادة</span>}
@@ -394,9 +429,30 @@ export default function CertificateManagement() {
                       متوسط الطالب ({Number(student.average_grade || 0).toFixed(1)}%) أقل من درجة النجاح ({Number(passThreshold || 0)}%)، لن تُمنح له شهادة.
                     </p>
                   )}
+                  {removed && !issued && !noGrades && !failed && (
+                    <p className="mt-3 rounded-lg border border-red-200 bg-red-100 p-3 text-sm font-bold text-red-800">
+                      هذا الطالب أُزيل من حلقته في هذا الفصل — لن تُمنح له شهادة إلا إذا اخترت منحه صراحةً.
+                    </p>
+                  )}
                   {student.revoke_reason && <p className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">سبب الإلغاء: {student.revoke_reason}</p>}
 
                   <div className="mt-4 flex flex-wrap items-center gap-2">
+                    {removed && !issued ? (
+                      <label className={`inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm font-black ${
+                        excluded
+                          ? "border-red-300 bg-white text-red-700"
+                          : "border-emerald-300 bg-emerald-50 text-emerald-800"
+                      }`}>
+                        <input
+                          type="checkbox"
+                          checked={!excluded}
+                          onChange={() => toggleExclude(student.student_id)}
+                          disabled={noGrades || failed}
+                          className="h-4 w-4 accent-emerald-600"
+                        />
+                        {excluded ? "منحه الشهادة رغم الإزالة؟" : "✓ سيُمنح الشهادة"}
+                      </label>
+                    ) : (
                     <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700">
                       <input
                         type="checkbox"
@@ -406,6 +462,7 @@ export default function CertificateManagement() {
                       />
                       استثناء من المنح
                     </label>
+                    )}
 
                     {issued && (
                       <>

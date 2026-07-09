@@ -356,8 +356,8 @@ const UserDetailsModal = ({ user, onClose, schools, classes }) => {
   );
 };
 
-// Flip Card User Component
-const UserCard = ({ user, onEdit, onView, onToggleActive, onEditProfile, onDeleteUser, onManageChildren, schools, classes, hasDuplicateEmail }) => {
+// User card (static, no flip)
+const UserCard = ({ user, onEdit, onView, onToggleActive, onDeleteUser, onManageChildren, schools, classes, hasDuplicateEmail }) => {
   const getUserSchoolName = (schoolId) => {
     const school = schools.find(s => s.id == schoolId);
     return school ? school.name : 'غير محدد';
@@ -853,7 +853,6 @@ export default function UserManagement() {
             onEdit={handleEditRole}
             onView={handleViewUser}
             onToggleActive={handleToggleActive}
-            onEditProfile={handleEditProfile}
             onDeleteUser={handleDeleteUser}
             onManageChildren={handleManageChildren}
             schools={schools}

@@ -4,6 +4,7 @@ import { getSurahNameFromId } from '../utils/quranData';
 import { calculateQuranBlocks, calculateStudentGoalProgress, formatMemorizationDisplay } from '../utils/studentUtils';
 import QuranBlocksGrid from '../components/QuranBlocksGrid';
 import StudentCertificatesButton from '../components/StudentCertificatesButton';
+import ChildDashboard from '../components/ChildDashboard';
 import axios, { axiosRaw } from '../utils/axiosConfig';
 
 const SCHOOL_LEVELS = [
@@ -993,13 +994,11 @@ const Children = () => {
               )}
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {activeIsRegistered && (
-                <StudentCertificatesButton
-                  studentId={selectedChild?.student_id}
-                  semesterId={activeSemester.id}
-                  emptyMessage="لم تُمنح شهادة لهذا الفصل بعد."
-                />
-              )}
+              <StudentCertificatesButton
+                studentId={selectedChild?.student_id}
+                semesterId={activeSemester.id}
+                emptyMessage="لم تُمنح شهادة لهذا الفصل بعد."
+              />
               <button
                 type="button"
                 onClick={() => {
@@ -1721,45 +1720,32 @@ const Children = () => {
         </div>
         )}
 
-        {/* Child Details */}
+        {/* Child Details — اللوحة الحديثة */}
         <div className="w-full">
           {selectedChild && (
-            <div className="bg-white rounded-lg shadow">
-              <div className="flex flex-col gap-3 border-b border-gray-200 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h4 className="text-xl font-semibold">
-                    {selectedChild.first_name} {selectedChild.second_name} {selectedChild.third_name} {selectedChild.last_name}
-                  </h4>
-                  <p className="text-sm text-gray-600">
-                    المستوى: {selectedChild.school_level || 'غير محدد'}
-                  </p>
-                </div>
-                {!isStudentView && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedChild(null);
-                    setSelectedSemesterId(null);
-                    setSelectedSemesterPanel(null);
-                  }}
-                  className="rounded-md border border-gray-200 px-3 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-                >
-                  رجوع للأبناء
-                </button>
-                )}
+            dataLoading ? (
+              <div className="flex h-64 items-center justify-center rounded-2xl border border-slate-200 bg-white">
+                <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-teal-600"></div>
+                <p className="mr-3 text-slate-600">جاري تحميل البيانات...</p>
               </div>
-
-              <div className="p-6">
-                {dataLoading ? (
-                  <div className="flex justify-center items-center h-64">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-                    <p className="mr-3">جاري تحميل البيانات...</p>
-                  </div>
-                ) : (
-                  renderSemestersMain()
-                )}
-              </div>
-            </div>
+            ) : (
+              <ChildDashboard
+                child={selectedChild}
+                childData={childData}
+                semesterOptions={semesterOptions}
+                isStudentView={isStudentView}
+                onBack={() => {
+                  setSelectedChild(null);
+                  setSelectedSemesterId(null);
+                  setSelectedSemesterPanel(null);
+                }}
+                onOpenRegistration={openSemesterRegistration}
+                registeringSemesterId={registeringSemesterId}
+                attendanceBySemester={attendanceBySemester}
+                attendanceLoadingSemesterId={attendanceLoadingSemesterId}
+                onFetchAttendance={(semesterId) => fetchSemesterAttendance(selectedChild.student_id, semesterId)}
+              />
+            )
           )}
         </div>
       </div>
