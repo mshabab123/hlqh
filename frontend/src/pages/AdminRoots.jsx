@@ -185,6 +185,8 @@ const AdminRoots = () => {
     if (admin) {
       setFormData({
         first_name: admin.first_name || "",
+        second_name: admin.second_name || "",
+        third_name: admin.third_name || "",
         last_name: admin.last_name || "",
         email: admin.email || "",
         password: "",
@@ -200,6 +202,8 @@ const AdminRoots = () => {
     } else {
       setFormData({
         first_name: "",
+        second_name: "",
+        third_name: "",
         last_name: "",
         email: "",
         password: "",
@@ -221,6 +225,8 @@ const AdminRoots = () => {
     setEditingAdmin(null);
     setFormData({
       first_name: "",
+      second_name: "",
+      third_name: "",
       last_name: "",
       email: "",
       password: "",
@@ -587,7 +593,8 @@ const AdminRoots = () => {
               </div>
               
               <form onSubmit={handleSubmit} className="p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                {/* الأسماء الأربعة في صف واحد لسهولة القراءة */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       الاسم الأول
@@ -600,10 +607,36 @@ const AdminRoots = () => {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                     />
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      الاسم الأخير
+                      اسم الأب
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.second_name}
+                      onChange={(e) => setFormData({...formData, second_name: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      اسم الجد
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.third_name}
+                      onChange={(e) => setFormData({...formData, third_name: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      اسم العائلة
                     </label>
                     <input
                       type="text"
@@ -613,7 +646,9 @@ const AdminRoots = () => {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                     />
                   </div>
-                  
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       البريد الإلكتروني

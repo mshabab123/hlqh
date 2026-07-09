@@ -244,6 +244,129 @@ router.put('/users/:id/role',
   }
 );
 
+// PUT /api/user-management/users/:id/change-id - Change a user's national ID
+// (Admin only). Copies the users row and any role-table rows to the new id,
+// repoints every foreign key discovered dynamically from the schema, then
+// removes the old rows — all inside one transaction.
+router.put('/users/:id/change-id',
+  authenticateToken,
+  requireRole(ROLES.ADMIN),
+  [body('new_id').matches(/^\d{6,20}$/).withMessage('رقم الهوية الجديد يجب أن يتكون من أرقام فقط (6-20 رقم)')],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ error: errors.array()[0].msg });
+    }
+
+    const { id: oldId } = req.params;
+    const newId = String(req.body.new_id);
+    if (String(oldId) === newId) {
+      return res.status(400).json({ error: 'رقم الهوية الجديد مطابق للحالي' });
+    }
+
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+
+      const existing = await client.query('SELECT id FROM users WHERE id = $1', [oldId]);
+      if (existing.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'المستخدم غير موجود' });
+      }
+      const clash = await client.query('SELECT id FROM users WHERE id = $1', [newId]);
+      if (clash.rows.length > 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'رقم الهوية الجديد مستخدم من قبل مستخدم آخر' });
+      }
+
+      // Fixed whitelist of the tables whose primary key IS the user id.
+      const ID_FAMILY = ['users', 'admins', 'administrators', 'supervisors', 'teachers', 'parents', 'students'];
+
+      // Copy a row to the new id with a dynamically-built column list, so
+      // future schema changes don't break this endpoint.
+      const copyRow = async (table) => {
+        const colsRes = await client.query(
+          `SELECT column_name FROM information_schema.columns
+           WHERE table_schema = 'public' AND table_name = $1`,
+          [table]
+        );
+        const cols = colsRes.rows.map((r) => r.column_name);
+        if (!cols.includes('id')) return false;
+        const rowRes = await client.query(`SELECT 1 FROM ${table} WHERE id = $1`, [oldId]);
+        if (rowRes.rows.length === 0) return false;
+        const otherCols = cols.filter((c) => c !== 'id').map((c) => `"${c}"`);
+        await client.query(
+          `INSERT INTO ${table} (id${otherCols.length ? ', ' + otherCols.join(', ') : ''})
+           SELECT $1${otherCols.length ? ', ' + otherCols.join(', ') : ''} FROM ${table} WHERE id = $2`,
+          [newId, oldId]
+        );
+        return true;
+      };
+
+      const copiedTables = [];
+      for (const table of ID_FAMILY) {
+        if (await copyRow(table)) copiedTables.push(table);
+      }
+
+      // Discover every FK column that references the id of any family table
+      // and repoint it from the old id to the new one.
+      const fks = await client.query(
+        `SELECT DISTINCT tc.table_name, kcu.column_name
+         FROM information_schema.table_constraints tc
+         JOIN information_schema.key_column_usage kcu
+           ON tc.constraint_name = kcu.constraint_name AND tc.table_schema = kcu.table_schema
+         JOIN information_schema.constraint_column_usage ccu
+           ON ccu.constraint_name = tc.constraint_name AND ccu.table_schema = tc.table_schema
+         WHERE tc.constraint_type = 'FOREIGN KEY'
+           AND tc.table_schema = 'public'
+           AND ccu.table_name = ANY($1)
+           AND ccu.column_name = 'id'`,
+        [ID_FAMILY]
+      );
+
+      let repointed = 0;
+      for (const fk of fks.rows) {
+        // The family tables' own id columns are PK+FK and were handled by the copy step.
+        if (ID_FAMILY.includes(fk.table_name) && fk.column_name === 'id') continue;
+        const r = await client.query(
+          `UPDATE "${fk.table_name}" SET "${fk.column_name}" = $1 WHERE "${fk.column_name}" = $2`,
+          [newId, oldId]
+        );
+        repointed += r.rowCount || 0;
+      }
+
+      // Feature privileges store specific user ids as JSON (not an FK).
+      await client.query(
+        `UPDATE feature_privileges
+         SET allowed_user_ids = replace(allowed_user_ids::text, $2, $1)::jsonb
+         WHERE allowed_user_ids::text LIKE $3`,
+        [`"${newId}"`, `"${oldId}"`, `%"${oldId}"%`]
+      );
+
+      // Remove the old rows: role tables first, users last. Anything still
+      // pointing at the old id would fail here and roll everything back.
+      for (const table of copiedTables.filter((t) => t !== 'users').reverse()) {
+        await client.query(`DELETE FROM ${table} WHERE id = $1`, [oldId]);
+      }
+      await client.query('DELETE FROM users WHERE id = $1', [oldId]);
+
+      await client.query('COMMIT');
+      res.json({
+        message: 'تم تغيير رقم الهوية بنجاح',
+        old_id: oldId,
+        new_id: newId,
+        updated_references: repointed
+      });
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {});
+      console.error('Change user id error:', error);
+      res.status(500).json({ error: 'فشل تغيير رقم الهوية' });
+    } finally {
+      client.release();
+    }
+  }
+);
+
 // PUT /api/user-management/users/:id/status - Update user status (Admin only)
 router.put('/users/:id/status', 
   authenticateToken, 

@@ -3,6 +3,7 @@ import axios from "axios";
 import { AiOutlinePlus } from "react-icons/ai";
 import AdministratorForm from "../components/AdministratorForm";
 import AdministratorCard from "../components/AdministratorCard";
+import AdministratorInfoEditModal from "../components/AdministratorInfoEditModal";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 
@@ -61,10 +62,12 @@ export default function AdministratorManagement() {
 
       setAdministrators(filteredAdmins);
       setError("");
+      return filteredAdmins;
     } catch (err) {
       console.error("Error fetching administrators:", err);
       setError(err.response?.data?.error || "فشل في تحميل مديري المجمعات");
       setAdministrators([]);
+      return [];
     } finally {
       setLoading(false);
     }
@@ -76,6 +79,8 @@ export default function AdministratorManagement() {
     
     const administratorData = {
       first_name: formData.get('first_name'),
+      second_name: formData.get('second_name'),
+      third_name: formData.get('third_name'),
       last_name: formData.get('last_name'),
       email: formData.get('email'),
       phone: formData.get('phone'),
@@ -144,12 +149,6 @@ export default function AdministratorManagement() {
       permissions: "",
       is_active: true
     });
-    setShowForm(true);
-  };
-
-  const handleEdit = (administrator) => {
-    setEditingAdministrator(administrator);
-    setCurrentAdministrator(administrator);
     setShowForm(true);
   };
 
@@ -275,7 +274,6 @@ export default function AdministratorManagement() {
             key={admin.id || admin.user_id}
             administrator={admin}
             onView={handleView}
-            onEdit={handleEdit}
             onToggleActive={handleToggleActive}
             onDelete={handleDeleteAdministrator}
           />
@@ -302,82 +300,21 @@ export default function AdministratorManagement() {
 
       {/* Administrator Details Modal */}
       {showDetails && selectedAdministrator && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-gray-800">تفاصيل المدير</h2>
-              <button
-                onClick={() => setShowDetails(false)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">الاسم الأول</label>
-                  <p className="text-gray-900">{selectedAdministrator.first_name}</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">اسم العائلة</label>
-                  <p className="text-gray-900">{selectedAdministrator.last_name}</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">البريد الإلكتروني</label>
-                  <p className="text-gray-900">{selectedAdministrator.email}</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">رقم الهاتف</label>
-                  <p className="text-gray-900">{selectedAdministrator.phone || "غير محدد"}</p>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700">الدور الوظيفي</label>
-                <p className="text-gray-900">
-                  {selectedAdministrator.role === 'admin' ? 'مدير عام' :
-                   selectedAdministrator.role === 'administrator' ? 'مدير مجمع' :
-                   selectedAdministrator.role === 'supervisor' ? 'مشرف' : selectedAdministrator.role}
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700">العنوان</label>
-                <p className="text-gray-900">{selectedAdministrator.address || "غير محدد"}</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700">الصلاحيات</label>
-                <p className="text-gray-900">{selectedAdministrator.permissions || "غير محدد"}</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700">حالة الحساب</label>
-                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                  selectedAdministrator.is_active
-                    ? 'bg-green-100 text-green-800'
-                    : 'bg-red-100 text-red-800'
-                }`}>
-                  {selectedAdministrator.is_active ? 'مفعل' : 'غير مفعل'}
-                </span>
-              </div>
-            </div>
-
-            <div className="flex justify-end mt-6">
-              <button
-                onClick={() => setShowDetails(false)}
-                className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600"
-              >
-                إغلاق
-              </button>
-            </div>
-          </div>
-        </div>
+        <AdministratorInfoEditModal
+          administrator={selectedAdministrator}
+          onClose={() => {
+            setShowDetails(false);
+            setSelectedAdministrator(null);
+          }}
+          onUpdated={async () => {
+            const list = await fetchAdministrators();
+            const uid = selectedAdministrator.id || selectedAdministrator.user_id;
+            const updated = list.find((a) => String(a.id || a.user_id) === String(uid));
+            if (updated) {
+              setSelectedAdministrator((prev) => ({ ...prev, ...updated }));
+            }
+          }}
+        />
       )}
     </div>
   );

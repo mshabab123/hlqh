@@ -1,7 +1,7 @@
-import { AiOutlineUser, AiOutlineEye, AiOutlineEdit, AiOutlineCheck, AiOutlineClose, AiOutlineDelete, AiOutlineMail, AiOutlinePhone } from "react-icons/ai";
+import { AiOutlineUser, AiOutlineEye, AiOutlineCheck, AiOutlineClose, AiOutlineDelete, AiOutlineMail, AiOutlinePhone } from "react-icons/ai";
 import { FaUserTie } from "react-icons/fa";
 
-const AdministratorCard = ({ administrator, onView, onEdit, onToggleStatus, onToggleActive, onDelete }) => {
+const AdministratorCard = ({ administrator, onView, onToggleActive, onDelete }) => {
   return (
     <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200 hover:shadow-xl transition-shadow">
       <div className="flex items-start justify-between mb-4">
@@ -53,46 +53,37 @@ const AdministratorCard = ({ administrator, onView, onEdit, onToggleStatus, onTo
         )}
       </div>
 
+      {/* أزرار الإجراءات كأيقونات فقط، مع تلميح يظهر عند التمرير */}
       <div className="flex items-center justify-between pt-4 border-t border-gray-200">
-        <div className="flex gap-2">
-          <button
-            onClick={() => onView(administrator)}
-            className="flex items-center gap-1 px-3 py-1 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-            title="عرض التفاصيل"
-          >
-            <AiOutlineEye />
-            <span className="text-sm">عرض</span>
-          </button>
-          <button
-            onClick={() => onEdit(administrator)}
-            className="flex items-center gap-1 px-3 py-1 text-green-600 hover:bg-green-50 rounded transition-colors"
-            title="تعديل البيانات"
-          >
-            <AiOutlineEdit />
-            <span className="text-sm">تعديل</span>
-          </button>
-        </div>
-        
+        <button
+          onClick={() => onView(administrator)}
+          className="p-2.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+          title="عرض المعلومات وتعديلها"
+          aria-label="عرض المعلومات وتعديلها"
+        >
+          <AiOutlineEye className="text-lg" />
+        </button>
+
         <div className="flex gap-2">
           <button
             onClick={() => onToggleActive(administrator.id || administrator.user_id)}
-            className={`flex items-center gap-1 px-3 py-1 rounded transition-colors text-sm ${
+            className={`p-2.5 rounded-lg transition-colors ${
               administrator.is_active
-                ? 'text-orange-600 hover:bg-orange-50'
-                : 'text-green-600 hover:bg-green-50'
+                ? 'text-orange-600 bg-orange-50 hover:bg-orange-100'
+                : 'text-green-600 bg-green-50 hover:bg-green-100'
             }`}
             title={administrator.is_active ? 'إلغاء التفعيل' : 'تفعيل الحساب'}
+            aria-label={administrator.is_active ? 'إلغاء التفعيل' : 'تفعيل الحساب'}
           >
-            {administrator.is_active ? <AiOutlineClose /> : <AiOutlineCheck />}
-            <span>{administrator.is_active ? 'إلغاء التفعيل' : 'تفعيل'}</span>
+            {administrator.is_active ? <AiOutlineClose className="text-lg" /> : <AiOutlineCheck className="text-lg" />}
           </button>
           <button
             onClick={() => onDelete(administrator.id || administrator.user_id)}
-            className="flex items-center gap-1 px-3 py-1 text-red-600 hover:bg-red-50 rounded transition-colors text-sm"
+            className="p-2.5 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
             title="حذف المدير"
+            aria-label="حذف المدير"
           >
-            <AiOutlineDelete />
-            <span>حذف</span>
+            <AiOutlineDelete className="text-lg" />
           </button>
         </div>
       </div>

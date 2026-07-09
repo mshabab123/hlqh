@@ -207,7 +207,8 @@ export default function TeacherInfoEditModal({ teacher, schools = [], classes = 
             onCancel={cancelEdit}
             onSave={() => saveGroup(draft)}
           >
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* الأسماء الأربعة في صف واحد لسهولة القراءة */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
               <Field label="الاسم الأول">
                 {editingGroup === "personal" ? (
                   <input className={inputClass} value={d("first_name")} onChange={(e) => setD("first_name", e.target.value)} />
@@ -236,6 +237,8 @@ export default function TeacherInfoEditModal({ teacher, schools = [], classes = 
                   <ReadValue value={data.last_name} />
                 )}
               </Field>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="رقم الهوية">
                 <ReadValue value={data.id} />
               </Field>

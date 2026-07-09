@@ -276,6 +276,70 @@ router.get('/', authenticateToken, requireRole(ROLES.SUPERVISOR), async (req, re
   }
 });
 
+// PATCH /api/users/:id/info - Partial update of a user's basic info (names,
+// contact, active flag) without touching role assignments. Used by the unified
+// "عرض المعلومات وتعديلها" modals; only provided fields are changed.
+router.patch('/:id/info', authenticateToken, requireRole(ROLES.ADMINISTRATOR), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      first_name, second_name, third_name, last_name,
+      email, phone, address, is_active, permissions, date_of_birth
+    } = req.body;
+
+    if (email && !/\S+@\S+\.\S+/.test(email)) {
+      return res.status(400).json({ error: 'صيغة البريد الإلكتروني غير صحيحة' });
+    }
+    if (phone && !/^05\d{8}$/.test(phone)) {
+      return res.status(400).json({ error: 'رقم الجوال يجب أن يكون 10 أرقام ويبدأ بـ 05' });
+    }
+
+    const result = await db.query(`
+      UPDATE users SET
+        first_name = COALESCE($1, first_name),
+        second_name = COALESCE($2, second_name),
+        third_name = COALESCE($3, third_name),
+        last_name = COALESCE($4, last_name),
+        email = COALESCE($5, email),
+        phone = COALESCE($6, phone),
+        address = COALESCE($7, address),
+        is_active = COALESCE($8, is_active),
+        date_of_birth = COALESCE($9, date_of_birth),
+        updated_at = NOW()
+      WHERE id = $10
+      RETURNING id, first_name, second_name, third_name, last_name, email, phone, address, is_active, date_of_birth, role
+    `, [
+      first_name ?? null,
+      second_name ?? null,
+      third_name ?? null,
+      last_name ?? null,
+      email ?? null,
+      phone !== undefined ? (phone || '') : null,
+      address !== undefined ? (address || '') : null,
+      typeof is_active === 'boolean' ? is_active : null,
+      date_of_birth || null,
+      id
+    ]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'المستخدم غير موجود' });
+    }
+
+    // Administrators-table extras (ignored for users without a row there).
+    if (permissions !== undefined) {
+      await db.query('UPDATE administrators SET permissions = $1 WHERE id = $2', [permissions || null, id]);
+    }
+
+    res.json({ message: 'تم تحديث البيانات بنجاح', user: result.rows[0] });
+  } catch (error) {
+    console.error('Error updating user info:', error);
+    if (error.code === '23505') {
+      return res.status(400).json({ error: 'البريد الإلكتروني مستخدم من قبل' });
+    }
+    res.status(500).json({ error: 'فشل تحديث البيانات' });
+  }
+});
+
 // PUT /api/users/:id - Update user role and associated information
 router.put('/:id', authenticateToken, requireRole(ROLES.ADMINISTRATOR), async (req, res) => {
   const client = await db.connect();

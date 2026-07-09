@@ -17,6 +17,7 @@ import {
 } from "react-icons/ai";
 import { FaUserGraduate, FaChalkboardTeacher, FaUserTie, FaUsers, FaCrown } from "react-icons/fa";
 import SimpleChildrenManagement from "../components/SimpleChildrenManagement";
+import UserInfoEditModal from "../components/UserInfoEditModal";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
@@ -617,244 +618,134 @@ const UserCard = ({ user, onEdit, onView, onToggleActive, onEditProfile, onDelet
     }
   };
 
-  const [isFlipped, setIsFlipped] = useState(false);
-
   return (
-    <div className="group perspective-1000 h-[420px] sm:h-[400px] md:h-[420px] lg:h-[380px] cursor-pointer">
-      <div className={`relative w-full h-full transition-transform duration-700 transform-style-preserve-3d ${isFlipped ? 'rotate-y-180' : ''} group-hover:rotate-y-180`}
-           onClick={() => setIsFlipped(!isFlipped)}>
-        
-        {/* FRONT SIDE */}
-        <div className="absolute inset-0 w-full h-full backface-hidden">
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-200 h-full overflow-hidden">
-            {/* Header */}
-            <div className={`p-4 bg-gradient-to-br ${getRoleGradient(user.role)} relative`}>
-              <div className="absolute inset-0 bg-black/10"></div>
-              <div className="relative z-10 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="bg-white/20 p-3 rounded-xl backdrop-blur-sm">
-                    <RoleIcon className="text-white text-2xl drop-shadow-sm" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-lg text-white drop-shadow-sm">
-                      {user.first_name} {user.last_name}
-                    </h3>
-                    <span className="bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-medium text-white">
-                      {roleConfig?.name || user.role}
-                    </span>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="flex gap-1 mb-2">
-                    {[...Array(5)].map((_, i) => (
-                      <div
-                        key={i}
-                        className={`w-2 h-2 rounded-full ${
-                          i < (roleConfig?.level || 1) ? 'bg-white' : 'bg-white/30'
-                        }`}
-                      />
-                    ))}
-                  </div>
-                  <span className={`w-3 h-3 rounded-full inline-block ${
-                    user.is_active ? 'bg-green-300' : 'bg-red-300'
-                  } drop-shadow-sm`}></span>
-                </div>
-              </div>
+    <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden flex flex-col">
+      {/* Header */}
+      <div className={`p-4 bg-gradient-to-br ${getRoleGradient(user.role)} relative`}>
+        <div className="absolute inset-0 bg-black/10"></div>
+        <div className="relative z-10 flex items-center justify-between">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="bg-white/20 p-3 rounded-xl backdrop-blur-sm shrink-0">
+              <RoleIcon className="text-white text-2xl drop-shadow-sm" />
             </div>
-
-            {/* Main Info */}
-            <div className="p-6 space-y-4">
-              {/* ID */}
-              <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg">
-                <AiOutlineUser className="text-gray-500 text-xl flex-shrink-0" />
-                <div>
-                  <div className="text-xs text-gray-500 mb-1">رقم الهوية</div>
-                  <div className="font-bold text-gray-800 text-lg">
-                    {user.id || user.user_id}
-                  </div>
-                </div>
-              </div>
-
-              {/* Phone */}
-              {user.phone && (
-                <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-blue-50 to-blue-100 rounded-lg">
-                  <AiOutlineSafety className="text-blue-500 text-xl flex-shrink-0" />
-                  <div>
-                    <div className="text-xs text-blue-600 mb-1">رقم الهاتف</div>
-                    <div className="font-semibold text-blue-800 text-lg">
-                      {user.phone}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* School */}
-              {user.school_id && (
-                <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-green-50 to-green-100 rounded-lg">
-                  <AiOutlineSearch className="text-green-500 text-xl flex-shrink-0" />
-                  <div>
-                    <div className="text-xs text-green-600 mb-1">المجمع</div>
-                    <div className="font-semibold text-green-800 truncate">
-                      {getUserSchoolName(user.school_id)}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Classes */}
-              {((user.class_id) || (user.class_ids && user.class_ids.length > 0)) && (
-                <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-purple-50 to-purple-100 rounded-lg">
-                  <AiOutlineFilter className="text-purple-500 text-xl flex-shrink-0" />
-                  <div>
-                    <div className="text-xs text-purple-600 mb-1">
-                      {user.class_ids && user.class_ids.length > 1 ? 'الحلقات' : 'الحلقة'}
-                    </div>
-                    <div className="font-semibold text-purple-800">
-                      {user.class_ids && user.class_ids.length > 0
-                        ? getUserClassNames(user.class_ids)
-                        : getUserClassName(user.class_id)
-                      }
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Parent ID */}
-              {user.parent_id && (
-                <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-orange-50 to-orange-100 rounded-lg">
-                  <AiOutlineTeam className="text-orange-500 text-xl flex-shrink-0" />
-                  <div>
-                    <div className="text-xs text-orange-600 mb-1">ولي الأمر</div>
-                    <div className="font-semibold text-orange-800">
-                      {user.parent_id}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Hover/Click Indicator */}
-            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
-              <div className="bg-black/20 backdrop-blur-sm px-3 py-1 rounded-full">
-                <span className="text-xs text-gray-600 hidden sm:block">مرر للخيارات</span>
-                <span className="text-xs text-gray-600 block sm:hidden">اضغط للخيارات</span>
-              </div>
+            <div className="min-w-0">
+              <h3 className="font-bold text-lg text-white drop-shadow-sm truncate">
+                {user.first_name} {user.second_name} {user.third_name} {user.last_name}
+              </h3>
+              <span className="bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-medium text-white">
+                {roleConfig?.name || user.role}
+              </span>
             </div>
           </div>
+          <span className={`w-3 h-3 rounded-full inline-block shrink-0 ${
+            user.is_active ? 'bg-green-300' : 'bg-red-300'
+          } drop-shadow-sm`} title={user.is_active ? 'نشط' : 'موقوف'}></span>
         </div>
+      </div>
 
-        {/* BACK SIDE */}
-        <div className="absolute inset-0 w-full h-full backface-hidden rotate-y-180">
-          <div className="bg-white rounded-2xl shadow-xl border border-gray-200 h-full overflow-hidden">
-            {/* Back Header */}
-            <div className={`p-4 bg-gradient-to-br ${getRoleGradient(user.role)} relative`}>
-              <div className="absolute inset-0 bg-black/20"></div>
-              <div className="relative z-10 text-center">
-                <div className="bg-white/20 p-3 rounded-xl backdrop-blur-sm inline-block mb-2">
-                  <AiOutlinePlus className="text-white text-2xl drop-shadow-sm" />
-                </div>
-                <h3 className="font-bold text-white drop-shadow-sm">خيارات المستخدم</h3>
-                <p className="text-white/80 text-sm">{user.first_name} {user.last_name}</p>
-              </div>
-            </div>
-
-            {/* Email Section */}
-            {user.email && (
-              <div className="p-4 border-b border-gray-100" onClick={(e) => e.stopPropagation()}>
-                <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-amber-50 to-yellow-100 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <AiOutlineSearch className="text-amber-500 text-lg flex-shrink-0" />
-                    {hasDuplicateEmail(user.email) && (
-                      <AiOutlineWarning className="text-red-500 text-sm" />
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-xs text-amber-600 mb-1">البريد الإلكتروني</div>
-                    <div className="text-amber-800 text-sm truncate font-medium">
-                      {user.email}
-                    </div>
-                    {hasDuplicateEmail(user.email) && (
-                      <div className="text-xs text-red-600 mt-1">⚠️ بريد مكرر</div>
-                    )}
-                  </div>
-                </div>
-              </div>
+      {/* Info */}
+      <div className="p-4 space-y-2 text-sm flex-1">
+        <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg">
+          <span className="text-gray-500">رقم الهوية</span>
+          <span className="font-bold text-gray-800" dir="ltr">{user.id || user.user_id}</span>
+        </div>
+        {user.phone && (
+          <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg">
+            <span className="text-gray-500">الجوال</span>
+            <span className="font-semibold text-gray-800" dir="ltr">{user.phone}</span>
+          </div>
+        )}
+        {user.email && (
+          <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg gap-2">
+            <span className="text-gray-500 shrink-0">البريد</span>
+            <span className="font-semibold text-gray-800 truncate" dir="ltr">{user.email}</span>
+            {hasDuplicateEmail(user.email) && (
+              <span className="text-xs text-red-600 font-bold shrink-0" title="بريد مكرر">⚠️ مكرر</span>
             )}
-
-            {/* Action Buttons */}
-            <div className="p-3 space-y-2" onClick={(e) => e.stopPropagation()}>
-              {/* Primary Actions */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <button
-                  onClick={() => onView(user)}
-                  className="flex items-center justify-center gap-2 px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors font-medium text-sm"
-                >
-                  <AiOutlineEye />
-                  التفاصيل
-                </button>
-                <button
-                  onClick={() => onEditProfile(user)}
-                  className="flex items-center justify-center gap-2 px-3 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors font-medium text-sm"
-                >
-                  <AiOutlineUserSwitch />
-                  الملف
-                </button>
-              </div>
-
-              {/* Secondary Actions */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <button
-                  onClick={() => onEdit(user)}
-                  className="flex items-center justify-center gap-1 px-3 py-2 text-green-600 bg-green-50 hover:bg-green-100 rounded-lg transition-colors text-sm"
-                >
-                  <AiOutlineEdit />
-                  صلاحية
-                </button>
-                
-                <button
-                  onClick={() => onToggleActive(user.id || user.user_id)}
-                  className={`flex items-center justify-center gap-1 px-3 py-2 rounded-lg transition-colors text-sm ${
-                    user.is_active
-                      ? 'text-orange-600 bg-orange-50 hover:bg-orange-100'
-                      : 'text-green-600 bg-green-50 hover:bg-green-100'
-                  }`}
-                >
-                  {user.is_active ? <AiOutlineClose /> : <AiOutlineCheck />}
-                  {user.is_active ? 'إلغاء' : 'تفعيل'}
-                </button>
-              </div>
-
-              {/* Children Management */}
-              {(user.role === 'parent' || user.role === 'admin' || user.role === 'administrator' || user.role === 'teacher') && (
-                <button
-                  onClick={() => onManageChildren(user)}
-                  className="w-full flex items-center justify-center gap-2 px-3 py-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors text-sm font-medium"
-                >
-                  <AiOutlineTeam />
-                  إدارة الابناء
-                </button>
-              )}
-
-              {/* Danger Zone */}
-              <div className="pt-1 border-t border-red-100">
-                <button
-                  onClick={() => onDeleteUser(user.id || user.user_id)}
-                  className="w-full flex items-center justify-center gap-2 px-3 py-2 text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 hover:border-red-300 rounded-lg transition-colors text-sm font-medium"
-                >
-                  <AiOutlineDelete />
-                  حذف نهائياً
-                </button>
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="absolute bottom-3 left-1/2 transform -translate-x-1/2">
-              <div className="text-xs text-gray-400 text-center">
-                {new Date(user.created_at).toLocaleDateString('ar-SA')}
-              </div>
-            </div>
           </div>
+        )}
+        {user.school_id && (
+          <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg gap-2">
+            <span className="text-gray-500 shrink-0">المجمع</span>
+            <span className="font-semibold text-gray-800 truncate">{getUserSchoolName(user.school_id)}</span>
+          </div>
+        )}
+        {((user.class_id) || (user.class_ids && user.class_ids.length > 0)) && (
+          <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg gap-2">
+            <span className="text-gray-500 shrink-0">{user.class_ids && user.class_ids.length > 1 ? 'الحلقات' : 'الحلقة'}</span>
+            <span className="font-semibold text-gray-800 truncate">
+              {user.class_ids && user.class_ids.length > 0
+                ? getUserClassNames(user.class_ids)
+                : getUserClassName(user.class_id)}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* أزرار الإجراءات كأيقونات مع تلميحات */}
+      <div className="px-4 pb-3 pt-2 border-t border-gray-100 flex items-center justify-between">
+        <div className="flex gap-1.5">
+          <button
+            onClick={() => onView(user)}
+            className="p-2.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+            title="التحكم الكامل بالمستخدم (عرض وتعديل كل المعلومات)"
+            aria-label="التحكم الكامل بالمستخدم"
+          >
+            <AiOutlineEye className="text-lg" />
+          </button>
+          <button
+            onClick={() => onEditProfile(user)}
+            className="p-2.5 text-purple-600 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors"
+            title="الملف الشخصي"
+            aria-label="الملف الشخصي"
+          >
+            <AiOutlineUserSwitch className="text-lg" />
+          </button>
+          <button
+            onClick={() => onEdit(user)}
+            className="p-2.5 text-green-600 bg-green-50 hover:bg-green-100 rounded-lg transition-colors"
+            title="تعديل الصلاحيات"
+            aria-label="تعديل الصلاحيات"
+          >
+            <AiOutlineSafety className="text-lg" />
+          </button>
+          {(user.role === 'parent' || user.role === 'admin' || user.role === 'administrator' || user.role === 'teacher') && (
+            <button
+              onClick={() => onManageChildren(user)}
+              className="p-2.5 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
+              title="إدارة الأبناء"
+              aria-label="إدارة الأبناء"
+            >
+              <AiOutlineTeam className="text-lg" />
+            </button>
+          )}
         </div>
+        <div className="flex gap-1.5">
+          <button
+            onClick={() => onToggleActive(user.id || user.user_id)}
+            className={`p-2.5 rounded-lg transition-colors ${
+              user.is_active
+                ? 'text-orange-600 bg-orange-50 hover:bg-orange-100'
+                : 'text-green-600 bg-green-50 hover:bg-green-100'
+            }`}
+            title={user.is_active ? 'إيقاف الحساب' : 'تفعيل الحساب'}
+            aria-label={user.is_active ? 'إيقاف الحساب' : 'تفعيل الحساب'}
+          >
+            {user.is_active ? <AiOutlineClose className="text-lg" /> : <AiOutlineCheck className="text-lg" />}
+          </button>
+          <button
+            onClick={() => onDeleteUser(user.id || user.user_id)}
+            className="p-2.5 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+            title="حذف نهائياً"
+            aria-label="حذف نهائياً"
+          >
+            <AiOutlineDelete className="text-lg" />
+          </button>
+        </div>
+      </div>
+
+      <div className="px-4 pb-2 text-[11px] text-gray-400 text-left" dir="ltr">
+        {new Date(user.created_at).toLocaleDateString('ar-SA')}
       </div>
     </div>
   );
@@ -913,10 +804,12 @@ export default function UserManagement() {
 
       setUsers(allUsers);
       setError("");
+      return allUsers;
     } catch (err) {
       console.error("Error fetching users:", err);
       setError("فشل في تحميل المستخدمين");
       setUsers([]);
+      return [];
     } finally {
       setLoading(false);
     }
@@ -1277,14 +1170,20 @@ export default function UserManagement() {
 
       {/* User Details Modal */}
       {showDetailsModal && selectedUser && (
-        <UserDetailsModal
+        <UserInfoEditModal
           user={selectedUser}
+          schools={schools}
           onClose={() => {
             setShowDetailsModal(false);
             setSelectedUser(null);
           }}
-          schools={schools}
-          classes={classes}
+          onUpdated={async (currentId) => {
+            const list = await fetchUsers();
+            const updated = list.find((u) => String(u.id || u.user_id) === String(currentId));
+            if (updated) {
+              setSelectedUser((prev) => ({ ...prev, ...updated }));
+            }
+          }}
         />
       )}
 
