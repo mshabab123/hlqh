@@ -284,7 +284,8 @@ router.patch('/:id/info', authenticateToken, requireRole(ROLES.ADMINISTRATOR), a
     const { id } = req.params;
     const {
       first_name, second_name, third_name, last_name,
-      email, phone, address, is_active, permissions, date_of_birth
+      email, phone, address, is_active, permissions, date_of_birth,
+      neighborhood, notes
     } = req.body;
 
     if (email && !/\S+@\S+\.\S+/.test(email)) {
@@ -305,9 +306,11 @@ router.patch('/:id/info', authenticateToken, requireRole(ROLES.ADMINISTRATOR), a
         address = COALESCE($7, address),
         is_active = COALESCE($8, is_active),
         date_of_birth = COALESCE($9, date_of_birth),
+        neighborhood = COALESCE($10, neighborhood),
+        notes = COALESCE($11, notes),
         updated_at = NOW()
-      WHERE id = $10
-      RETURNING id, first_name, second_name, third_name, last_name, email, phone, address, is_active, date_of_birth, role
+      WHERE id = $12
+      RETURNING id, first_name, second_name, third_name, last_name, email, phone, address, is_active, date_of_birth, neighborhood, notes, role
     `, [
       first_name ?? null,
       second_name ?? null,
@@ -318,6 +321,8 @@ router.patch('/:id/info', authenticateToken, requireRole(ROLES.ADMINISTRATOR), a
       address !== undefined ? (address || '') : null,
       typeof is_active === 'boolean' ? is_active : null,
       date_of_birth || null,
+      neighborhood !== undefined ? (neighborhood || '') : null,
+      notes !== undefined ? (notes || '') : null,
       id
     ]);
 

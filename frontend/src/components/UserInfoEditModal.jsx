@@ -312,6 +312,7 @@ export default function UserInfoEditModal({ user, schools = [], onClose, onUpdat
                 email: data.email || "",
                 phone: data.phone || "",
                 address: data.address || "",
+                neighborhood: data.neighborhood || "",
               })
             }
             onCancel={cancelEdit}
@@ -332,7 +333,14 @@ export default function UserInfoEditModal({ user, schools = [], onClose, onUpdat
                   <ReadValue value={data.phone} />
                 )}
               </Field>
-              <Field label="العنوان" full>
+              <Field label="الحي">
+                {editingGroup === "contact" ? (
+                  <input className={inputClass} value={d("neighborhood")} onChange={(e) => setD("neighborhood", e.target.value)} />
+                ) : (
+                  <ReadValue value={data.neighborhood} />
+                )}
+              </Field>
+              <Field label="العنوان">
                 {editingGroup === "contact" ? (
                   <input className={inputClass} value={d("address")} onChange={(e) => setD("address", e.target.value)} />
                 ) : (
@@ -340,6 +348,22 @@ export default function UserInfoEditModal({ user, schools = [], onClose, onUpdat
                 )}
               </Field>
             </div>
+          </GroupCard>
+
+          {/* الملاحظات */}
+          <GroupCard
+            title="الملاحظات"
+            editing={editingGroup === "notes"}
+            saving={saving}
+            onEdit={() => startEdit("notes", { notes: data.notes || "" })}
+            onCancel={cancelEdit}
+            onSave={() => saveInfo(draft)}
+          >
+            {editingGroup === "notes" ? (
+              <textarea rows="3" className={inputClass} value={d("notes")} onChange={(e) => setD("notes", e.target.value)} />
+            ) : (
+              <ReadValue value={data.notes} />
+            )}
           </GroupCard>
 
           {/* الدور والصلاحيات */}

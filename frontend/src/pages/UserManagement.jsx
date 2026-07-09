@@ -356,231 +356,6 @@ const UserDetailsModal = ({ user, onClose, schools, classes }) => {
   );
 };
 
-// Profile Edit Modal Component
-const ProfileEditModal = ({ isOpen, user, onClose, onSubmit }) => {
-  const [formErrors, setFormErrors] = useState({});
-  
-  if (!isOpen || !user) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-gray-800">
-            تعديل الملف الشخصي
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-700"
-          >
-            <AiOutlineClose size={24} />
-          </button>
-        </div>
-
-        <form onSubmit={(e) => onSubmit(e, setFormErrors)} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                الاسم الأول *
-              </label>
-              <input
-                type="text"
-                name="first_name"
-                defaultValue={user.first_name || ""}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                الاسم الثاني
-              </label>
-              <input
-                type="text"
-                name="second_name"
-                defaultValue={user.second_name || ""}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                اسم الجد
-              </label>
-              <input
-                type="text"
-                name="third_name"
-                defaultValue={user.third_name || ""}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                اسم العائلة *
-              </label>
-              <input
-                type="text"
-                name="last_name"
-                defaultValue={user.last_name || ""}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                البريد الإلكتروني *
-              </label>
-              <input
-                type="email"
-                name="email"
-                defaultValue={user.email || ""}
-                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
-                  formErrors.email ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 focus:ring-blue-500'
-                }`}
-                required
-              />
-              {formErrors.email && (
-                <p className="text-red-600 text-sm mt-1">{formErrors.email}</p>
-              )}
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                رقم الهاتف
-              </label>
-              <input
-                type="tel"
-                name="phone"
-                defaultValue={user.phone || ""}
-                pattern="^05\d{8}$"
-                placeholder="05xxxxxxxx"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                تاريخ الميلاد
-              </label>
-              <input
-                type="date"
-                name="date_of_birth"
-                defaultValue={user.date_of_birth ? user.date_of_birth.split('T')[0] : ""}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                المستوى التعليمي
-              </label>
-              <select
-                name="school_level"
-                defaultValue={user.school_level || ""}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">اختر المستوى التعليمي</option>
-                <option value="elementary">ابتدائي</option>
-                <option value="middle">متوسط</option>
-                <option value="high">ثانوي</option>
-                <option value="university">جامعي</option>
-                <option value="graduate">اكمل الجامعة</option>
-                <option value="master">ماجستير</option>
-                <option value="phd">دكتوراه</option>
-                <option value="employee">موظف</option>
-                <option value="other">أخرى</option>
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              العنوان
-            </label>
-            <textarea
-              name="address"
-              defaultValue={user.address || ""}
-              rows="3"
-              placeholder="العنوان الكامل"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              الحي
-            </label>
-            <input
-              type="text"
-              name="neighborhood"
-              defaultValue={user.neighborhood || ""}
-              placeholder="اسم الحي"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              ملاحظات
-            </label>
-            <textarea
-              name="notes"
-              defaultValue={user.notes || ""}
-              rows="2"
-              placeholder="ملاحظات إضافية"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          <div className="bg-gray-50 p-4 rounded-lg">
-            <h3 className="text-sm font-medium text-gray-700 mb-2">معلومات إضافية</h3>
-            <div className="text-sm text-gray-600 space-y-1">
-              <p><strong>رقم الهوية:</strong> {user.id || user.user_id}</p>
-              {user.parent_id && (
-                <p><strong>رقم هوية ولي الأمر:</strong> {user.parent_id}</p>
-              )}
-              <p><strong>الصلاحية:</strong> {ROLE_CONFIG[user.role]?.name}</p>
-              <p><strong>تاريخ الإنشاء:</strong> {new Date(user.created_at).toLocaleDateString('ar-SA')}</p>
-            </div>
-          </div>
-
-          <div className="bg-green-50 p-4 rounded-lg">
-            <div className="text-sm text-green-700">
-              <p className="font-medium mb-1">✅ معلومة:</p>
-              <p>جميع الحقول في هذا النموذج يتم حفظها في قاعدة البيانات بما في ذلك: الأسماء، البريد الإلكتروني، رقم الهاتف، العنوان، تاريخ الميلاد، المستوى التعليمي، الحي، والملاحظات.</p>
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-4 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
-            >
-              إلغاء
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-            >
-              حفظ التغييرات
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-};
-
 // Flip Card User Component
 const UserCard = ({ user, onEdit, onView, onToggleActive, onEditProfile, onDeleteUser, onManageChildren, schools, classes, hasDuplicateEmail }) => {
   const getUserSchoolName = (schoolId) => {
@@ -694,14 +469,6 @@ const UserCard = ({ user, onEdit, onView, onToggleActive, onEditProfile, onDelet
             <AiOutlineEye className="text-lg" />
           </button>
           <button
-            onClick={() => onEditProfile(user)}
-            className="p-2.5 text-purple-600 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors"
-            title="الملف الشخصي"
-            aria-label="الملف الشخصي"
-          >
-            <AiOutlineUserSwitch className="text-lg" />
-          </button>
-          <button
             onClick={() => onEdit(user)}
             className="p-2.5 text-green-600 bg-green-50 hover:bg-green-100 rounded-lg transition-colors"
             title="تعديل الصلاحيات"
@@ -760,7 +527,6 @@ export default function UserManagement() {
   const [selectedUser, setSelectedUser] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [showProfileModal, setShowProfileModal] = useState(false);
   const [showChildrenModal, setShowChildrenModal] = useState(false);
   
   // Filters
@@ -888,56 +654,9 @@ export default function UserManagement() {
     }
   };
 
-  const handleEditProfile = (user) => {
-    setSelectedUser(user);
-    setShowProfileModal(true);
-  };
-
   const handleManageChildren = (user) => {
     setSelectedUser(user);
     setShowChildrenModal(true);
-  };
-
-  const handleUpdateProfile = async (e, setFormErrors = () => {}) => {
-    e.preventDefault();
-    setFormErrors({}); // Clear previous errors
-    const formData = new FormData(e.target);
-    
-    // Send all profile fields that now exist in the database
-    const profileData = {
-      first_name: formData.get('first_name'),
-      second_name: formData.get('second_name'),
-      third_name: formData.get('third_name'),
-      last_name: formData.get('last_name'),
-      email: formData.get('email'),
-      phone: formData.get('phone'),
-      address: formData.get('address'),
-      date_of_birth: formData.get('date_of_birth'),
-      school_level: formData.get('school_level'),
-      neighborhood: formData.get('neighborhood'),
-      notes: formData.get('notes')
-    };
-
-    try {
-      await axios.put(`${API_BASE}/api/users/${selectedUser.id || selectedUser.user_id}/profile`, profileData, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      
-      setShowProfileModal(false);
-      setSelectedUser(null);
-      fetchUsers();
-    } catch (err) {
-      const errorMessage = err.response?.data?.error;
-      
-      // Check if it's an email duplicate error
-      if (errorMessage && errorMessage.includes('البريد الإلكتروني مستخدم من قبل مستخدم آخر')) {
-        setFormErrors({ email: errorMessage });
-      } else {
-        setError(errorMessage || "فشل في تحديث الملف الشخصي");
-      }
-    }
   };
 
   const handleDeleteUser = async (userId) => {
@@ -1184,19 +903,6 @@ export default function UserManagement() {
               setSelectedUser((prev) => ({ ...prev, ...updated }));
             }
           }}
-        />
-      )}
-
-      {/* Profile Edit Modal */}
-      {showProfileModal && selectedUser && (
-        <ProfileEditModal
-          isOpen={showProfileModal}
-          user={selectedUser}
-          onClose={() => {
-            setShowProfileModal(false);
-            setSelectedUser(null);
-          }}
-          onSubmit={handleUpdateProfile}
         />
       )}
 
