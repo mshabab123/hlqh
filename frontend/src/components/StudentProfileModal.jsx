@@ -22,7 +22,6 @@ import QuranBlocksModal from "./QuranBlocksModal";
 import QuranTestingModal from "./QuranTestingModal";
 import QuranHomeworkModal from "./QuranHomeworkModal";
 import CircularProgressChart from "./CircularProgressChart";
-import StudentCertificatesButton from "./StudentCertificatesButton";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
@@ -142,13 +141,6 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
     grade_time: new Date().toTimeString().slice(0, 5) // Default to current time (HH:MM)
   });
   const [goalProgress, setGoalProgress] = useState({ percentage: 0, memorizedVerses: 0, totalGoalVerses: 0 });
-  const [showGoalForm, setShowGoalForm] = useState(false);
-  const [goalInput, setGoalInput] = useState({
-    target_surah: '',
-    target_ayah_number: '',
-    target_date: ''
-  });
-  const [savingGoal, setSavingGoal] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -393,55 +385,35 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
     setError('');
   };
 
-  const saveGoal = async () => {
-    if (!goalInput.target_surah || !goalInput.target_ayah_number) {
-      setError('يرجى تحديد السورة والآية المستهدفة');
-      setTimeout(() => setError(''), 3000);
-      return;
-    }
-
+  // One unified entry point for goal setting: fetch the freshest student data
+  // then open QuranProgressModal (خطة الحفظ) — the same form used everywhere,
+  // showing previous memorization alongside the new goal.
+  const openGoalPlanModal = async () => {
     try {
-      setSavingGoal(true);
-      
-      const response = await axios.put(
-        `${API_BASE}/api/classes/${classItem.id}/student/${student.id}/goal`,
-        {
-          target_surah_id: getSurahIdFromName(goalInput.target_surah),
-          target_ayah_number: parseInt(goalInput.target_ayah_number)
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}`,
-            'Content-Type': 'application/json'
-          }
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/students/${student.id}`, {
+        credentials: "include",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          'Content-Type': 'application/json'
         }
-      );
-      
-      // Update local data with new goal
-      setStudentData({
-        ...studentData,
-        goal: response.data.goal
       });
-      
-      setShowGoalForm(false);
-      setGoalInput({
-        target_surah: '',
-        target_ayah_number: '',
-        target_date: ''
-      });
-      
-      // Refresh the student profile to get updated data
-      fetchStudentProfile();
-      
-      // Show success message
-      alert('تم حفظ الهدف بنجاح!');
-      
-    } catch (err) {
-      console.error('Error saving goal:', err);
-      setError(err.response?.data?.error || "فشل في حفظ الهدف");
-      setTimeout(() => setError(''), 5000);
+
+      if (response.ok) {
+        const apiResponse = await response.json();
+        const freshStudentData = apiResponse.student || apiResponse;
+        setQuranModalStudentData({
+          ...freshStudentData,
+          memorized_surah_id: freshStudentData.memorized_surah_id ? String(freshStudentData.memorized_surah_id) : "",
+          memorized_ayah_number: freshStudentData.memorized_ayah_number ? String(freshStudentData.memorized_ayah_number) : "",
+          target_surah_id: freshStudentData.target_surah_id ? String(freshStudentData.target_surah_id) : "",
+          target_ayah_number: freshStudentData.target_ayah_number ? String(freshStudentData.target_ayah_number) : ""
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching fresh student data for goal modal:', error);
     } finally {
-      setSavingGoal(false);
+      setShowQuranProgressModal(true);
     }
   };
 
@@ -1209,54 +1181,7 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
               جدول النقاط
             </button>
             <button
-              onClick={async () => {
-                console.log('Fetching fresh student data by ID for QuranProgressModal:', student.id);
-                try {
-                  const token = localStorage.getItem('token');
-                  const response = await fetch(`/api/students/${student.id}`, {
-                    credentials: "include",
-                    headers: {
-                      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                      'Content-Type': 'application/json'
-                    }
-                  });
-
-                  if (response.ok) {
-                    const apiResponse = await response.json();
-                    console.log('Raw API response for QuranProgressModal:', apiResponse);
-                    // Extract the student object from the API response
-                    const freshStudentData = apiResponse.student || apiResponse;
-                    console.log('Fresh student data fetched for QuranProgressModal:', freshStudentData);
-                    console.log('Target surah data in fresh fetch:', {
-                      target_surah_id: freshStudentData.target_surah_id,
-                      target_ayah_number: freshStudentData.target_ayah_number,
-                      memorized_surah_id: freshStudentData.memorized_surah_id,
-                      memorized_ayah_number: freshStudentData.memorized_ayah_number
-                    });
-
-                    // Create a temporary student object for QuranProgressModal only
-                    const tempStudentForModal = {
-                      ...freshStudentData,
-                      memorized_surah_id: freshStudentData.memorized_surah_id ? String(freshStudentData.memorized_surah_id) : "",
-                      memorized_ayah_number: freshStudentData.memorized_ayah_number ? String(freshStudentData.memorized_ayah_number) : "",
-                      target_surah_id: freshStudentData.target_surah_id ? String(freshStudentData.target_surah_id) : "",
-                      target_ayah_number: freshStudentData.target_ayah_number ? String(freshStudentData.target_ayah_number) : ""
-                    };
-
-                    console.log('Formatted temp student for modal:', tempStudentForModal);
-
-                    // Store the temp data in a separate state for the modal
-                    setQuranModalStudentData(tempStudentForModal);
-                    setShowQuranProgressModal(true);
-                  } else {
-                    console.error('Failed to fetch fresh student data, using existing data');
-                    setShowQuranProgressModal(true);
-                  }
-                } catch (error) {
-                  console.error('Error fetching fresh student data:', error);
-                  setShowQuranProgressModal(true);
-                }
-              }}
+              onClick={openGoalPlanModal}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
             >
               <AiOutlineEdit />
@@ -1283,7 +1208,6 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
               <AiOutlineBook />
               مهمة جديدة
             </button>
-            <StudentCertificatesButton studentId={student.id} />
           </div>
         </div>
 
@@ -1418,54 +1342,7 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-3">
                   <h3 className="text-lg font-semibold">الهدف والتقدم</h3>
                   <button
-                    onClick={async () => {
-                      console.log('Fetching fresh student data from goal section for QuranProgressModal:', student.id);
-                      try {
-                        const token = localStorage.getItem('token');
-                        const response = await fetch(`/api/students/${student.id}`, {
-                          credentials: "include",
-                          headers: {
-                            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                            'Content-Type': 'application/json'
-                          }
-                        });
-
-                        if (response.ok) {
-                          const apiResponse = await response.json();
-                          console.log('Raw API response from goal section:', apiResponse);
-                          // Extract the student object from the API response
-                          const freshStudentData = apiResponse.student || apiResponse;
-                          console.log('Fresh student data fetched from goal section:', freshStudentData);
-                          console.log('Target surah data in goal section fetch:', {
-                            target_surah_id: freshStudentData.target_surah_id,
-                            target_ayah_number: freshStudentData.target_ayah_number,
-                            memorized_surah_id: freshStudentData.memorized_surah_id,
-                            memorized_ayah_number: freshStudentData.memorized_ayah_number
-                          });
-
-                          // Create a temporary student object for QuranProgressModal only
-                          const tempStudentForModal = {
-                            ...freshStudentData,
-                            memorized_surah_id: freshStudentData.memorized_surah_id ? String(freshStudentData.memorized_surah_id) : "",
-                            memorized_ayah_number: freshStudentData.memorized_ayah_number ? String(freshStudentData.memorized_ayah_number) : "",
-                            target_surah_id: freshStudentData.target_surah_id ? String(freshStudentData.target_surah_id) : "",
-                            target_ayah_number: freshStudentData.target_ayah_number ? String(freshStudentData.target_ayah_number) : ""
-                          };
-
-                          console.log('Formatted temp student for modal from goal section:', tempStudentForModal);
-
-                          // Store the temp data in a separate state for the modal
-                          setQuranModalStudentData(tempStudentForModal);
-                          setShowQuranProgressModal(true);
-                        } else {
-                          console.error('Failed to fetch fresh student data from goal section, using existing data');
-                          setShowQuranProgressModal(true);
-                        }
-                      } catch (error) {
-                        console.error('Error fetching fresh student data from goal section:', error);
-                        setShowQuranProgressModal(true);
-                      }
-                    }}
+                    onClick={openGoalPlanModal}
                     className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
                   >
                     تعديل الهدف
@@ -1797,97 +1674,11 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                 <p className="text-center text-yellow-700 mb-3">لم يتم تحديد هدف للطالب بعد</p>
                 <div className="text-center">
                   <button
-                    onClick={() => setShowGoalForm(true)}
+                    onClick={openGoalPlanModal}
                     className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
                   >
                     تحديد هدف جديد
                   </button>
-                </div>
-              </div>
-            )}
-
-            {/* Goal Setting Form */}
-            {showGoalForm && (
-              <div className="mt-6 bg-blue-50 p-4 rounded-lg border border-blue-200">
-                <h3 className="text-lg font-semibold mb-4">
-                  {studentData.goal?.target_surah_id ? 'تعديل الهدف' : 'تحديد هدف جديد'}
-                </h3>
-                
-                <div className="space-y-4">
-                  {/* Surah Selection */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">السورة المستهدفة:</label>
-                    <select
-                      className="w-full p-2 border rounded"
-                      value={goalInput.target_surah}
-                      onChange={(e) => {
-                        const selectedSurah = e.target.value;
-                        let defaultAyah = "";
-                        
-                        // Set last ayah as default when selecting a surah
-                        if (selectedSurah) {
-                          defaultAyah = getMaxVerse(selectedSurah).toString();
-                        }
-                        
-                        setGoalInput({
-                          ...goalInput, 
-                          target_surah: selectedSurah, 
-                          target_ayah_number: defaultAyah
-                        });
-                      }}
-                    >
-                      <option value="">اختر السورة</option>
-                      {[...QURAN_SURAHS].sort((a, b) => a.id - b.id).map(surah => (
-                        <option key={surah.id} value={surah.name}>
-                          {surah.id}. {surah.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Target Verse */}
-                  {goalInput.target_surah && (
-                    <div>
-                      <label className="block text-sm font-medium mb-1">الآية المستهدفة (من الآية 1 إلى الآية المحددة):</label>
-                      <input
-                        type="number"
-                        min="1"
-                        max={getMaxVerse(goalInput.target_surah)}
-                        className="w-full p-2 border rounded"
-                        value={goalInput.target_ayah_number}
-                        onChange={(e) => {
-                          const verse = parseInt(e.target.value);
-                          const maxVerse = getMaxVerse(goalInput.target_surah);
-                          if (verse <= maxVerse || !verse) {
-                            setGoalInput({...goalInput, target_ayah_number: e.target.value});
-                          }
-                        }}
-                        placeholder={`1 - ${getMaxVerse(goalInput.target_surah)}`}
-                      />
-                    </div>
-                  )}
-
-                  {/* Action Buttons */}
-                  <div className="flex gap-2 justify-end">
-                    <button
-                      onClick={() => {
-                        setShowGoalForm(false);
-                      }}
-                      className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
-                    >
-                      إلغاء
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowGoalForm(false);
-                        saveGoal();
-                      }}
-                      className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
-                      disabled={savingGoal}
-                    >
-                      حفظ الهدف
-                    </button>
-                  </div>
                 </div>
               </div>
             )}

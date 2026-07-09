@@ -31,7 +31,11 @@
       "Bash(taskkill //F //PID 17980)",
       "Bash(dir \"c:\\\\Workspace\\\\hlqh\")",
       "Bash(powershell:*)",
-      "Bash(del \"c:\\\\Workspace\\\\hlqh\\\\frontend\\\\fix-mobile.ps1\")"
+      "Bash(del \"c:\\\\Workspace\\\\hlqh\\\\frontend\\\\fix-mobile.ps1\")",
+      "Bash(node -e ' *)",
+      "Bash(grep -v \"//\")",
+      "Bash(python -)",
+      "Bash(node --check config/schema.js)"
     ],
     "deny": [],
     "ask": [],

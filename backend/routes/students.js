@@ -191,6 +191,27 @@ router.post('/', registerLimiter, studentValidationRules, async (req, res) => {
   }
 });
 
+// GET /api/students/:id/semester-goals - Goal history, one row per semester
+router.get('/:id/semester-goals', auth, requireStudentAccess, async (req, res) => {
+  try {
+    const result = await db.query(
+      `SELECT g.semester_id, sem.display_name as semester_name, sem.year as semester_year,
+              g.target_surah_id, g.target_ayah_number,
+              g.memorized_surah_id, g.memorized_ayah_number,
+              g.updated_at
+       FROM student_semester_goals g
+       JOIN semesters sem ON sem.id = g.semester_id
+       WHERE g.student_id = $1
+       ORDER BY g.semester_id DESC`,
+      [req.params.id]
+    );
+    res.json({ goals: result.rows });
+  } catch (err) {
+    console.error('Get semester goals error:', err);
+    res.status(500).json({ error: 'حدث خطأ أثناء جلب أهداف الفصول' });
+  }
+});
+
 // GET /api/students/:studentId/enrollments - Get student enrollments
 router.get('/:studentId/enrollments', auth, requireStudentAccess, async (req, res) => {
   try {
@@ -699,6 +720,49 @@ router.put('/:id', auth, requireRole(ROLES.TEACHER), async (req, res) => {
           WHERE id = $${studentParamCounter}
         `;
         await client.query(studentQuery, studentValues);
+      }
+
+      // Goals are per-semester: when a goal is saved, record it against the
+      // student's current semester (enrolled class's semester, falling back to
+      // the date-current semester), snapshotting the previous memorization.
+      if (target_surah_id !== undefined || target_ayah_number !== undefined) {
+        const enrolledSemester = await client.query(
+          `SELECT c.semester_id
+           FROM student_enrollments se
+           JOIN classes c ON c.id = se.class_id
+           WHERE se.student_id = $1 AND se.status = 'enrolled' AND c.semester_id IS NOT NULL
+           ORDER BY se.enrollment_date DESC NULLS LAST
+           LIMIT 1`,
+          [id]
+        );
+        let goalSemesterId = enrolledSemester.rows[0]?.semester_id;
+        if (!goalSemesterId) {
+          const currentSemester = await client.query(
+            `SELECT id FROM semesters
+             WHERE start_date <= CURRENT_DATE AND end_date >= CURRENT_DATE
+             ORDER BY start_date DESC
+             LIMIT 1`
+          );
+          goalSemesterId = currentSemester.rows[0]?.id;
+        }
+
+        if (goalSemesterId) {
+          await client.query(
+            `INSERT INTO student_semester_goals
+               (student_id, semester_id, target_surah_id, target_ayah_number, memorized_surah_id, memorized_ayah_number, set_by, updated_at)
+             SELECT s.id, $2, s.target_surah_id, s.target_ayah_number, s.memorized_surah_id, s.memorized_ayah_number, $3, NOW()
+             FROM students s
+             WHERE s.id = $1
+             ON CONFLICT (student_id, semester_id)
+             DO UPDATE SET target_surah_id = EXCLUDED.target_surah_id,
+                           target_ayah_number = EXCLUDED.target_ayah_number,
+                           memorized_surah_id = EXCLUDED.memorized_surah_id,
+                           memorized_ayah_number = EXCLUDED.memorized_ayah_number,
+                           set_by = EXCLUDED.set_by,
+                           updated_at = NOW()`,
+            [id, goalSemesterId, req.user.id]
+          );
+        }
       }
 
       // Handle class/school assignment changes

@@ -128,12 +128,40 @@ async function ensureCertificatesSchema() {
   `);
 }
 
+// One memorization goal per (student, semester). The students.target_* columns
+// remain the "current semester goal" cache; this table is the per-semester
+// source of truth and history, including the previous-memorized snapshot taken
+// when the goal was set.
+async function ensureStudentSemesterGoalsSchema() {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS student_semester_goals (
+      id serial PRIMARY KEY,
+      student_id varchar(20) NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+      semester_id integer NOT NULL REFERENCES semesters(id) ON DELETE CASCADE,
+      target_surah_id integer,
+      target_ayah_number integer,
+      memorized_surah_id integer,
+      memorized_ayah_number integer,
+      set_by varchar(20) REFERENCES users(id) ON DELETE SET NULL,
+      created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+      updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (student_id, semester_id)
+    )
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_student_semester_goals_student
+      ON student_semester_goals(student_id, semester_id DESC)
+  `);
+}
+
 async function ensureSchema() {
   await ensureAuthSchema();
   await ensureSemesterRegistrationSchema();
   await ensureParentChildRequestSchema();
   await ensureAppSettingsSchema();
   await ensureCertificatesSchema();
+  await ensureStudentSemesterGoalsSchema();
   await require('../utils/featurePrivileges').ensureFeaturePrivilegesSchema();
 }
 
@@ -143,5 +171,6 @@ module.exports = {
   ensureParentChildRequestSchema,
   ensureAppSettingsSchema,
   ensureCertificatesSchema,
+  ensureStudentSemesterGoalsSchema,
   ensureSchema,
 };

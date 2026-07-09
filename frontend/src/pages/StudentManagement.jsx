@@ -634,10 +634,15 @@ export default function StudentManagement() {
   const visibleSemesters = schoolFilter === "all"
     ? semesters
     : semesters.filter(semester => String(semester.school_id) === String(schoolFilter));
-  const visibleClasses = classes.filter(cls =>
-    (schoolFilter === "all" || String(cls.school_id) === String(schoolFilter)) &&
-    (semesterFilter === "all" || String(cls.semester_id) === String(semesterFilter))
-  );
+  // Classes cascade with the selected school/semester. Newest semester first;
+  // class names repeat across semesters, so the semester name is shown when
+  // no specific semester is selected.
+  const visibleClasses = classes
+    .filter(cls =>
+      (schoolFilter === "all" || String(cls.school_id) === String(schoolFilter)) &&
+      (semesterFilter === "all" || String(cls.semester_id) === String(semesterFilter))
+    )
+    .sort((a, b) => (b.semester_id || 0) - (a.semester_id || 0) || String(a.name).localeCompare(String(b.name), 'ar'));
 
   if (loading) {
     return <div className="flex justify-center items-center h-64">جاري التحميل...</div>;
@@ -762,7 +767,9 @@ export default function StudentManagement() {
               >
                 <option value="all">{UI_TEXT.classAll}</option>
                 {visibleClasses.map(cls => (
-                  <option key={cls.id} value={cls.id}>{cls.name}</option>
+                  <option key={cls.id} value={cls.id}>
+                    {cls.name}{semesterFilter === "all" && cls.semester_name ? ` — ${cls.semester_name}` : ''}
+                  </option>
                 ))}
               </select>
             </div>

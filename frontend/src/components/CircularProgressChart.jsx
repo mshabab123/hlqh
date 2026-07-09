@@ -48,27 +48,52 @@ const CircularProgressChart = ({
   const remainingTargetCount = remainingTargetPages.length;
   const notMemorizedCount = Math.max(0, totalPages - knownPages.size);
 
-  const segmentGap = 1.2;
   const segmentLength = circumference / totalPages;
   const segmentStroke = Math.max(1, Math.floor(strokeWidth * 0.9));
-  const revealEndPage = Math.max(
-    1,
-    targetPageNumbers.length ? Math.max(...targetPageNumbers) : 0,
-    memorizedPageNumbers?.length ? Math.max(...memorizedPageNumbers) : 0,
-    1
-  );
-  const revealDurationMs = 1400;
+
+  // Strong, high-contrast palette shared by the ring and the legend.
+  const STATUS_COLORS = {
+    'target-completed': '#2563EB', // أزرق: هدف محفوظ/مقيّم
+    'target-remaining': '#DC2626', // أحمر: هدف متبقٍ
+    memorized: '#059669',          // أخضر: محفوظ فقط
+    none: '#E5E7EB'                // رمادي فاتح: غير محفوظ
+  };
+
+  const pageStatus = (pageNumber) => {
+    const isMemorized = memorizedPageNumbers
+      ? memorizedSet.has(pageNumber)
+      : pageNumber <= memorizedPages;
+    const isTarget = targetSet.has(pageNumber);
+    if (isTarget && (isMemorized || gradedSet.has(pageNumber))) return 'target-completed';
+    if (isTarget) return 'target-remaining';
+    if (isMemorized) return 'memorized';
+    return 'none';
+  };
+
+  // Merge consecutive pages with the same status into one solid arc. Drawing
+  // one arc per run (instead of 604 gapped segments) keeps colors solid and
+  // clearly readable.
+  const arcs = [];
+  for (let page = 1; page <= totalPages; page++) {
+    const status = pageStatus(page);
+    const last = arcs[arcs.length - 1];
+    if (last && last.status === status) {
+      last.length += 1;
+    } else {
+      arcs.push({ status, start: page, length: 1 });
+    }
+  }
 
   const getColorConfig = (color) => {
     switch (color) {
       case 'blue':
-        return { primary: '#2563EB' };
+        return { primary: STATUS_COLORS['target-completed'] };
       case 'green':
-        return { primary: '#10B981' };
+        return { primary: STATUS_COLORS.memorized };
       case 'red':
-        return { primary: '#EF4444' };
+        return { primary: STATUS_COLORS['target-remaining'] };
       case 'lightgray':
-        return { primary: '#E5E7EB' };
+        return { primary: STATUS_COLORS.none };
       default:
         return { primary: '#9CA3AF' };
     }
@@ -117,42 +142,40 @@ const CircularProgressChart = ({
         <svg
           width={size}
           height={size}
-          className="absolute inset-0"
+          className="absolute inset-0 chart-reveal"
           viewBox={`0 0 ${size} ${size}`}
         >
-          {Array.from({ length: totalPages }, (_, idx) => {
-            const pageNumber = idx + 1;
-            const isMemorized = memorizedPageNumbers
-              ? memorizedSet.has(pageNumber)
-              : pageNumber <= memorizedPages;
-            const isTarget = targetSet.has(pageNumber);
-            const isCompletedTarget = isTarget && (isMemorized || gradedSet.has(pageNumber));
-            const isRemainingTarget = isTarget && !isCompletedTarget;
-            const dash = Math.max(0.5, segmentLength - segmentGap);
-            const offset = circumference * 0.25 - idx * segmentLength;
-            const revealRatio = revealEndPage > 1
-              ? Math.min(1, (pageNumber - 1) / (revealEndPage - 1))
-              : 0;
-            const revealDelay = Math.round(revealDurationMs * revealRatio);
+          {/* Base ring (unmemorized pages) drawn once as a full circle. */}
+          <circle
+            cx={center}
+            cy={center}
+            r={radius}
+            fill="transparent"
+            stroke={STATUS_COLORS.none}
+            strokeWidth={segmentStroke}
+          />
+          {arcs
+            .filter((arc) => arc.status !== 'none')
+            .map((arc) => {
+              const dash = arc.length * segmentLength;
+              const offset = circumference * 0.25 - (arc.start - 1) * segmentLength;
 
-            return (
-              <circle
-                key={`page-seg-${pageNumber}`}
-                cx={center}
-                cy={center}
-                r={radius}
-                fill="transparent"
-                stroke={isCompletedTarget ? '#2563EB' : isRemainingTarget ? '#EF4444' : isMemorized ? '#10B981' : '#E5E7EB'}
-                strokeWidth={segmentStroke}
-                strokeDasharray={`${dash} ${circumference - dash}`}
-                strokeDashoffset={offset}
-                strokeLinecap="butt"
-                title={`صفحة ${pageNumber}`}
-                className="ring-reveal"
-                style={{ animationDelay: `${revealDelay}ms` }}
-              />
-            );
-          })}
+              return (
+                <circle
+                  key={`arc-${arc.start}`}
+                  cx={center}
+                  cy={center}
+                  r={radius}
+                  fill="transparent"
+                  stroke={STATUS_COLORS[arc.status]}
+                  strokeWidth={segmentStroke}
+                  strokeDasharray={`${dash} ${circumference - dash}`}
+                  strokeDashoffset={offset}
+                  strokeLinecap="butt"
+                  title={`الصفحات ${arc.start} - ${arc.start + arc.length - 1}`}
+                />
+              );
+            })}
         </svg>
 
         <div className="absolute inset-0 flex items-center justify-center">

@@ -455,6 +455,22 @@ router.post('/copy-semester', requireAuth, async (req, res) => {
           `,
           [target_semester_id, req.user.id, newClassId]
         );
+
+        // Each semester has its own goal: transferred students start the new
+        // semester with no goal, so a fresh one must be set. Their memorized
+        // progress (المحفوظ السابق) is intentionally left untouched.
+        await client.query(
+          `
+          UPDATE students
+          SET target_surah_id = NULL,
+              target_ayah_number = NULL
+          WHERE id IN (
+            SELECT student_id FROM student_enrollments
+            WHERE class_id = $1 AND status = 'enrolled'
+          )
+          `,
+          [newClassId]
+        );
       }
 
       if (copy_teachers) {
@@ -1175,21 +1191,42 @@ router.put('/:id/student/:studentId/goal', requireAuth, requireRole(ROLES.TEACHE
     }
     
     const result = await db.query(`
-      UPDATE students 
-      SET target_surah_id = $1, 
+      UPDATE students
+      SET target_surah_id = $1,
           target_ayah_number = $2
       WHERE id = $3
       RETURNING target_surah_id, target_ayah_number
     `, [target_surah_id, target_ayah_number, studentId]);
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'فشل في تحديث الهدف' });
     }
-    
-    
-    res.json({ 
-      success: true, 
-      goal: result.rows[0] 
+
+    // Record the goal against the class's semester: one goal per semester,
+    // snapshotting the student's previous memorization at the time of setting.
+    const classSemester = await db.query('SELECT semester_id FROM classes WHERE id = $1', [classId]);
+    const semesterId = classSemester.rows[0]?.semester_id;
+    if (semesterId) {
+      await db.query(
+        `INSERT INTO student_semester_goals
+           (student_id, semester_id, target_surah_id, target_ayah_number, memorized_surah_id, memorized_ayah_number, set_by, updated_at)
+         SELECT s.id, $2, s.target_surah_id, s.target_ayah_number, s.memorized_surah_id, s.memorized_ayah_number, $3, NOW()
+         FROM students s
+         WHERE s.id = $1
+         ON CONFLICT (student_id, semester_id)
+         DO UPDATE SET target_surah_id = EXCLUDED.target_surah_id,
+                       target_ayah_number = EXCLUDED.target_ayah_number,
+                       memorized_surah_id = EXCLUDED.memorized_surah_id,
+                       memorized_ayah_number = EXCLUDED.memorized_ayah_number,
+                       set_by = EXCLUDED.set_by,
+                       updated_at = NOW()`,
+        [studentId, semesterId, req.user.id]
+      );
+    }
+
+    res.json({
+      success: true,
+      goal: result.rows[0]
     });
     
   } catch (error) {

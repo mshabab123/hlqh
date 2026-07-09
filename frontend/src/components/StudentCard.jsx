@@ -77,7 +77,7 @@ const StudentCard = ({
   };
   
   return (
-    <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200 hover:shadow-xl transition-shadow">
+    <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200 hover:shadow-xl transition-shadow h-full flex flex-col">
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-3">
           <div className="bg-[var(--color-primary-100)] p-3 rounded-full">
@@ -133,7 +133,7 @@ const StudentCard = ({
       </div>
     </div>
     
-    <div className="space-y-2 text-sm text-gray-600 mb-4">
+    <div className="space-y-2 text-sm text-gray-600 mb-4 flex-1">
       {student.email && <p>البريد: {student.email}</p>}
       {student.phone && <p>الهاتف: {student.phone}</p>}
       {student.school_name && <p>مجمع الحلقات: {student.school_name}</p>}
@@ -159,35 +159,35 @@ const StudentCard = ({
       )}
     </div>
     
-    <div className="grid grid-cols-4 gap-2">
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-auto pt-2 auto-rows-[60px] sm:min-h-[196px] content-start">
       <button
         onClick={() => onView(student)}
-        className="bg-blue-500 text-white py-2 px-2 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-1 text-sm"
+        className="bg-blue-500 text-white py-2 px-2 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-1 text-sm min-h-12 text-center leading-snug"
       >
         <AiOutlineEye /> عرض المعلومات
       </button>
       <button
         onClick={() => onEdit(student)}
-        className="bg-yellow-500 text-white py-2 px-2 rounded-lg hover:bg-yellow-600 transition-colors flex items-center justify-center gap-1 text-sm"
+        className="bg-yellow-500 text-white py-2 px-2 rounded-lg hover:bg-yellow-600 transition-colors flex items-center justify-center gap-1 text-sm min-h-12 text-center leading-snug"
       >
         <AiOutlineEdit /> تعديل الملف
       </button>
       <button
         onClick={() => onQuranProgress(student)}
-        className="bg-green-600 text-white py-2 px-2 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-1 text-sm"
+        className="bg-green-600 text-white py-2 px-2 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-1 text-sm min-h-12 text-center leading-snug"
       >
         <AiOutlineBook /> خطة الحفظ
       </button>
       <button
         onClick={handleShowBlocks}
-        className="bg-purple-600 text-white py-2 px-2 rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center gap-1 text-sm"
+        className="bg-purple-600 text-white py-2 px-2 rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center gap-1 text-sm min-h-12 text-center leading-snug"
       >
         <BsFillGridFill /> متابعة المراجعة
       </button>
       <button
         onClick={() => onToggleStatus(student)}
         disabled={student.status !== 'active' && !hasSchoolAssignment}
-        className={`py-2 px-2 rounded-lg transition-colors flex items-center justify-center gap-1 text-sm ${
+        className={`py-2 px-2 rounded-lg transition-colors flex items-center justify-center gap-1 text-sm min-h-12 text-center leading-snug ${
           student.status === 'active' 
             ? 'bg-red-500 hover:bg-red-600 text-white' 
             : hasSchoolAssignment
@@ -210,7 +210,7 @@ const StudentCard = ({
       {student.class_id && onRemoveFromClass && features.remove_student_class !== false && (
         <button
           onClick={() => onRemoveFromClass(student)}
-          className="bg-orange-500 text-white py-2 px-2 rounded-lg hover:bg-orange-600 transition-colors flex items-center justify-center gap-1 text-sm"
+          className="bg-orange-500 text-white py-2 px-2 rounded-lg hover:bg-orange-600 transition-colors flex items-center justify-center gap-1 text-sm min-h-12 text-center leading-snug"
           title="إزالة الطالب من الحلقة وإعادته إلى قائمة بانتظار الحلقة"
         >
           <AiOutlineUserDelete /> إزالة من الحلقة
@@ -219,7 +219,7 @@ const StudentCard = ({
       {hasCurrentSemester && isWaitingForClass && onAssignClass && features.assign_student_class !== false && (
         <button
           onClick={() => onAssignClass(student)}
-          className="bg-teal-600 text-white py-2 px-2 rounded-lg hover:bg-teal-700 transition-colors flex items-center justify-center gap-1 text-sm"
+          className="bg-teal-600 text-white py-2 px-2 rounded-lg hover:bg-teal-700 transition-colors flex items-center justify-center gap-1 text-sm min-h-12 text-center leading-snug"
           title="تسكين الطالب في حلقة من حلقات الفصل الحالي"
         >
           <AiOutlineUserAdd /> تسكين في حلقة
@@ -228,7 +228,7 @@ const StudentCard = ({
       {hasCurrentSemester && !isRegisteredInCurrentSemester && onRegisterSemester && features.register_student_semester !== false && (
         <button
           onClick={() => onRegisterSemester(student)}
-          className="bg-emerald-600 text-white py-2 px-2 rounded-lg hover:bg-emerald-700 transition-colors flex items-center justify-center gap-1 text-sm"
+          className="bg-emerald-600 text-white py-2 px-2 rounded-lg hover:bg-emerald-700 transition-colors flex items-center justify-center gap-1 text-sm min-h-12 text-center leading-snug"
           title="تسجيل الطالب في الفصل الدراسي الحالي"
         >
           <AiOutlineSchedule /> تسجيل في الفصل
@@ -237,7 +237,7 @@ const StudentCard = ({
       {hasCurrentSemester && isRegisteredInCurrentSemester && onUnregisterSemester && features.unregister_student_semester !== false && (
         <button
           onClick={() => onUnregisterSemester(student)}
-          className="bg-rose-500 text-white py-2 px-2 rounded-lg hover:bg-rose-600 transition-colors flex items-center justify-center gap-1 text-sm"
+          className="bg-rose-500 text-white py-2 px-2 rounded-lg hover:bg-rose-600 transition-colors flex items-center justify-center gap-1 text-sm min-h-12 text-center leading-snug"
           title="إلغاء تسجيل الطالب في الفصل الدراسي الحالي"
         >
           <AiOutlineStop /> إزالة من الفصل
@@ -246,7 +246,7 @@ const StudentCard = ({
       {features.delete_student !== false && (
         <button
           onClick={() => onDelete(student)}
-          className="bg-red-600 text-white py-2 px-2 rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-1 text-sm col-span-2"
+          className="bg-red-600 text-white py-2 px-2 rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-1 text-sm min-h-12 text-center leading-snug"
         >
           <AiOutlineDelete /> حذف الطالب
         </button>

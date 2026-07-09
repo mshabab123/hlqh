@@ -447,11 +447,19 @@ router.post('/:id/register', auth, async (req, res) => {
       [studentId, id]
     );
 
+    // Re-registering a previously cancelled registration must revive it
+    // (back to 'registered'); an existing active/assigned one is left as is.
     const result = await pool.query(
       `INSERT INTO semester_registrations (semester_id, student_id, registered_by, status, created_at, updated_at)
        VALUES ($1, $2, $3, 'registered', NOW(), NOW())
        ON CONFLICT (semester_id, student_id)
-       DO UPDATE SET updated_at = NOW()
+       DO UPDATE SET
+         status = CASE
+           WHEN semester_registrations.status = 'cancelled' THEN 'registered'
+           ELSE semester_registrations.status
+         END,
+         registered_by = EXCLUDED.registered_by,
+         updated_at = NOW()
        RETURNING *`,
       [id, studentId, req.user.id]
     );

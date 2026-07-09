@@ -411,15 +411,26 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
     ? Math.max(...memorizedPageNumbers)
     : 0;
 
+  // Prefill the "previously memorized" fields from the latest grade ONCE per
+  // form opening. lastMemorizedRef is recomputed every render (new object), so
+  // it must not drive this effect directly — that would overwrite the user's
+  // selection on every render and make the form flicker.
+  const memorizedPrefillDone = useRef(false);
   useEffect(() => {
-    if (!showForms || !lastMemorizedRef) return;
+    if (!showForms) {
+      memorizedPrefillDone.current = false;
+      return;
+    }
+    if (memorizedPrefillDone.current || loadingGrades || !lastMemorizedRef) return;
+    memorizedPrefillDone.current = true;
     if (lastMemorizedRef.surahId) {
       setSelectedMemorizedSurahId(String(lastMemorizedRef.surahId));
     }
     if (lastMemorizedRef.ayah) {
       setSelectedMemorizedAyahNumber(String(lastMemorizedRef.ayah));
     }
-  }, [showForms, lastMemorizedRef]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showForms, loadingGrades]);
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
@@ -596,8 +607,11 @@ const QuranProgressModal = ({ student, onSubmit, onCancel, onStudentChange }) =>
                 <div className="space-y-4 p-4 border rounded-lg bg-blue-50">
                   <h5 className="font-semibold text-lg text-blue-700 flex items-center gap-2">
                     <AiOutlineBook className="text-blue-600" />
-                    الهدف
+                    هدف الفصل الدراسي الحالي
                   </h5>
+                  <p className="text-xs text-blue-600">
+                    * يُحدد هدف جديد لكل فصل دراسي، وما تم حفظه سابقاً (من هدف سابق أو غيره) يُسجل ضمن المحفوظ السابق.
+                  </p>
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium mb-2">السورة المستهدفة</label>
