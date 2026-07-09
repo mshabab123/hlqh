@@ -35,7 +35,9 @@
       "Bash(node -e ' *)",
       "Bash(grep -v \"//\")",
       "Bash(python -)",
-      "Bash(node --check config/schema.js)"
+      "Bash(node --check config/schema.js)",
+      "Bash(npx eslint *)",
+      "Bash(node -e \"const{getSurahNameFromId}=require\\('D:/Workplace/hlqh/frontend/src/utils/quranData.js'\\)\")"
     ],
     "deny": [],
     "ask": [],

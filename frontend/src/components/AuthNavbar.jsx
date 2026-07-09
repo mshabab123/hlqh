@@ -209,7 +209,7 @@ export default function AuthNavbar() {
         </div>
       )}
 
-    <nav className="fixed top-0 left-0 right-0 w-full bg-gradient-to-l from-[var(--color-primary-100)] via-[var(--color-primary-400)] to-[var(--color-primary-700)] text-white shadow-xl z-[80]" dir="rtl">
+    <nav className="relative lg:fixed lg:top-0 lg:left-0 lg:right-0 w-full bg-gradient-to-l from-[var(--color-primary-100)] via-[var(--color-primary-400)] to-[var(--color-primary-700)] text-white shadow-xl z-[80]" dir="rtl">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between py-4">
           {/* Logo + App name */}
@@ -269,10 +269,11 @@ export default function AuthNavbar() {
             </button>
           </div>
 
-          {/* Mobile menu button */}
+          {/* Mobile menu button — fixed so it stays visible while the navbar
+              itself scrolls away with the page on mobile. */}
           <button
             onClick={toggleMobileMenu}
-            className="lg:hidden p-2 rounded-lg hover:bg-white/10 transition-colors"
+            className="lg:hidden fixed top-4 left-4 z-[95] p-2.5 rounded-xl bg-[var(--color-primary-700)]/95 shadow-lg border border-white/25 hover:bg-[var(--color-primary-800)] transition-colors"
             aria-label="فتح القائمة"
           >
             {isMobileMenuOpen ? (
@@ -283,20 +284,30 @@ export default function AuthNavbar() {
           </button>
         </div>
 
-        {/* Mobile Navigation */}
+        {/* Backdrop for the mobile menu */}
+        {isMobileMenuOpen && (
+          <div
+            className="lg:hidden fixed inset-0 bg-slate-950/35 z-[90]"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+        )}
+
+        {/* Mobile Navigation — fixed overlay panel so it opens in view at any
+            scroll position (the navbar is not fixed on mobile). */}
         <div
-          className={`lg:hidden overflow-hidden transition-all duration-300 ${
-            isMobileMenuOpen ? "max-h-screen pb-4" : "max-h-0"
+          className={`lg:hidden fixed top-16 inset-x-3 z-[94] rounded-xl shadow-2xl bg-[var(--color-primary-800)] px-3 overflow-y-auto transition-all duration-300 ${
+            isMobileMenuOpen ? "max-h-[75vh] pb-4" : "max-h-0 py-0 invisible"
           }`}
+          dir="rtl"
         >
-          <div className="flex flex-col gap-2 pt-2 border-t border-white/20">
+          <div className="flex flex-col gap-2 pt-2 border-t border-white/20 text-white">
             {/* User info on mobile */}
             {user && (
-              <div className="px-4 py-3 bg-white/10 rounded-lg mb-2">
-                <p className="text-white font-semibold">
+              <div className="px-4 py-3 bg-white/15 rounded-lg mb-2 ring-1 ring-white/20">
+                <p className="text-white font-bold">
                   مرحباً، {user.first_name || 'المستخدم'} {user.last_name || ''}
                 </p>
-                <p className="text-white/70 text-sm">
+                <p className="text-white/90 text-sm">
                   {user.email}
                 </p>
               </div>
@@ -309,17 +320,17 @@ export default function AuthNavbar() {
                 onClick={() => setIsMobileMenuOpen(false)}
                 className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all duration-200 ${
                   location.pathname === link.to
-                    ? "bg-white/20 text-white font-bold"
-                    : "text-white/90 hover:bg-white/10 hover:text-white"
+                    ? "bg-white/25 text-white font-bold"
+                    : "text-white hover:bg-white/15"
                 }`}
               >
                 <span className="text-xl">{link.icon}</span>
-                <span>{link.label}</span>
+                <span className="font-semibold">{link.label}</span>
               </Link>
             ))}
 
             {/* Notifications on mobile */}
-            <button className="flex items-center gap-3 px-4 py-3 text-white/90 hover:bg-white/10 rounded-lg transition-colors">
+            <button className="flex items-center gap-3 px-4 py-3 text-white hover:bg-white/15 rounded-lg transition-colors">
               <span className="text-xl relative">
                 <AiOutlineBell />
                 {notifications > 0 && (

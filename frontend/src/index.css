@@ -157,7 +157,7 @@
   background-image: none !important;
 }
 
-.app-protected-surface .fixed.inset-0:not([class*="z-[9999]"]) {
+.app-protected-surface .fixed.inset-0:not([class*="z-[9999]"]):not(.navigation-sidebar-backdrop) {
   z-index: 200 !important;
 }
 

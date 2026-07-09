@@ -24,7 +24,7 @@ export default function Navbar() {
 
   return (
     <nav
-      className="fixed top-0 left-0 right-0 w-full bg-gradient-to-l from-[var(--color-primary-100)] via-[var(--color-primary-400)] to-[var(--color-primary-700)] text-white shadow-xl z-[80]"
+      className="relative lg:fixed lg:top-0 lg:left-0 lg:right-0 w-full bg-gradient-to-l from-[var(--color-primary-100)] via-[var(--color-primary-400)] to-[var(--color-primary-700)] text-white shadow-xl z-[80]"
       dir="rtl"
     >
       <div className="container mx-auto px-4">
@@ -68,10 +68,11 @@ export default function Navbar() {
             ))}
           </div>
 
-          {/* Mobile menu button */}
+          {/* Mobile menu button — fixed so it stays visible while the navbar
+              itself scrolls away with the page on mobile. */}
           <button
             onClick={toggleMobileMenu}
-            className="lg:hidden p-2 rounded-lg hover:bg-white/10 transition-colors"
+            className="lg:hidden fixed top-4 left-4 z-[95] p-2.5 rounded-xl bg-[var(--color-primary-700)]/95 shadow-lg border border-white/25 hover:bg-[var(--color-primary-800)] transition-colors"
             aria-label="فتح القائمة"
           >
             {isMobileMenuOpen ? (
@@ -82,11 +83,21 @@ export default function Navbar() {
           </button>
         </div>
 
-        {/* Mobile Navigation */}
+        {/* Backdrop for the mobile menu */}
+        {isMobileMenuOpen && (
+          <div
+            className="lg:hidden fixed inset-0 bg-slate-950/35 z-[90]"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+        )}
+
+        {/* Mobile Navigation — fixed overlay panel so it opens in view at any
+            scroll position (the navbar is not fixed on mobile). */}
         <div
-          className={`lg:hidden overflow-hidden transition-all duration-300 ${
-            isMobileMenuOpen ? "max-h-96 pb-4" : "max-h-0"
+          className={`lg:hidden fixed top-16 inset-x-3 z-[94] rounded-xl shadow-2xl bg-gradient-to-l from-[var(--color-primary-400)] to-[var(--color-primary-700)] px-3 overflow-y-auto transition-all duration-300 ${
+            isMobileMenuOpen ? "max-h-[75vh] pb-4" : "max-h-0 py-0 invisible"
           }`}
+          dir="rtl"
         >
           <div className="flex flex-col gap-2 pt-2 border-t border-white/20">
             {navLinks.filter((link) => link.to !== "/login" && link.to !== "/Login").map((link) => (

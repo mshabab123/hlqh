@@ -141,6 +141,7 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
     grade_time: new Date().toTimeString().slice(0, 5) // Default to current time (HH:MM)
   });
   const [goalProgress, setGoalProgress] = useState({ percentage: 0, memorizedVerses: 0, totalGoalVerses: 0 });
+  const [semesterGoals, setSemesterGoals] = useState([]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -149,6 +150,17 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
       fetchUserRole();
     }
   }, [student, classItem]);
+
+  // Per-semester goal history (one goal per semester).
+  useEffect(() => {
+    if (!student?.id) return;
+    axios
+      .get(`${API_BASE}/api/students/${student.id}/semester-goals`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      })
+      .then((res) => setSemesterGoals(res.data.goals || []))
+      .catch(() => setSemesterGoals([]));
+  }, [student?.id]);
 
   // Close attendance editing dropdown when clicking outside
   useEffect(() => {
@@ -1671,7 +1683,7 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
 
             {!studentData.goal?.target_surah_id && (
               <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200 mb-6">
-                <p className="text-center text-yellow-700 mb-3">لم يتم تحديد هدف للطالب بعد</p>
+                <p className="text-center text-yellow-700 mb-3">لم يتم تحديد هدف للطالب في هذا الفصل الدراسي بعد</p>
                 <div className="text-center">
                   <button
                     onClick={openGoalPlanModal}
@@ -1679,6 +1691,41 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                   >
                     تحديد هدف جديد
                   </button>
+                </div>
+              </div>
+            )}
+
+            {/* Goal history: one goal per semester */}
+            {semesterGoals.length > 0 && (
+              <div className="bg-white p-4 rounded-lg border border-gray-200 mb-6">
+                <h3 className="text-lg font-semibold mb-3">أهداف الفصول الدراسية</h3>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-gray-50 text-gray-600">
+                      <tr>
+                        <th className="px-3 py-2 text-right">الفصل الدراسي</th>
+                        <th className="px-3 py-2 text-right">الهدف</th>
+                        <th className="px-3 py-2 text-right">المحفوظ السابق عند تحديد الهدف</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {semesterGoals.map((g) => (
+                        <tr key={g.semester_id}>
+                          <td className="px-3 py-2 font-semibold text-gray-800">{g.semester_name}</td>
+                          <td className="px-3 py-2">
+                            {g.target_surah_id
+                              ? `سورة ${getSurahNameFromId(g.target_surah_id)} حتى الآية ${g.target_ayah_number || '—'}`
+                              : 'لم يُحدد'}
+                          </td>
+                          <td className="px-3 py-2 text-gray-600">
+                            {g.memorized_surah_id
+                              ? `سورة ${getSurahNameFromId(g.memorized_surah_id)} — الآية ${g.memorized_ayah_number || '—'}`
+                              : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}

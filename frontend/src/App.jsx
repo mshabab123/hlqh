@@ -72,7 +72,9 @@ export default function App() {
         {/* Show appropriate navbar */}
         {showNavbar && (isLoggedIn ? <AuthNavbar /> : <Navbar />)}
 
-        <div className={showNavbar ? "pt-20" : ""}>
+        {/* On mobile the navbar scrolls with the page (not fixed), so the top
+            offset is only needed on desktop where the navbar is fixed. */}
+        <div className={showNavbar ? "lg:pt-20" : ""}>
         <Routes>
           <Route
             path="/"
