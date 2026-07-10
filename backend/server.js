@@ -29,6 +29,9 @@ async function startServer() {
     app.listen(PORT, () => {
       console.log(`Server is running on http://localhost:${PORT}`);
     });
+
+    // Start the periodic student-report scheduler (self-gates on the admin switches).
+    require('./utils/scheduler').startScheduler();
   } catch (err) {
     console.error('Failed to initialize database schema:', err);
     process.exit(1);

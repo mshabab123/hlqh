@@ -5,7 +5,11 @@
 // password-reset keep working even when email is disabled.
 
 const crypto = require('crypto');
-const { isEmailServiceEnabled } = require('./appSettings');
+const {
+  isEmailServiceEnabled,
+  isEmailVerificationEnabled,
+  isEmailPasswordResetEnabled,
+} = require('./appSettings');
 
 const RESEND_API_URL = 'https://api.resend.com/emails';
 const APP_NAME = process.env.APP_NAME || 'منصة الحلقات';
@@ -95,6 +99,8 @@ function button(href, label) {
 }
 
 async function sendVerificationEmail(user, token) {
+  // Independent purpose switch — verification can be off while reset is on.
+  if (!(await isEmailVerificationEnabled())) return { sent: false, reason: 'verification_disabled' };
   const link = `${getFrontendBase()}/verify-email?token=${token}`;
   const name = user.first_name || 'مستخدم';
   return sendEmail({
@@ -111,6 +117,8 @@ async function sendVerificationEmail(user, token) {
 }
 
 async function sendPasswordResetEmail(user, token) {
+  // Independent purpose switch — reset can be on while verification is off.
+  if (!(await isEmailPasswordResetEnabled())) return { sent: false, reason: 'reset_disabled' };
   const link = `${getFrontendBase()}/reset-password?token=${token}`;
   const name = user.first_name || 'مستخدم';
   return sendEmail({
@@ -122,6 +130,28 @@ async function sendPasswordResetEmail(user, token) {
        <p>تلقينا طلباً لإعادة تعيين كلمة مرور حسابك. اضغط الزر التالي لتعيين كلمة مرور جديدة:</p>
        ${button(link, 'إعادة تعيين كلمة المرور')}
        <p style="font-size:13px;color:#64748b;">هذا الرابط صالح لمدة 30 دقيقة. إذا لم تطلب ذلك، تجاهل الرسالة وحسابك آمن.</p>`
+    ),
+  });
+}
+
+// Periodic student progress report (to a parent or the student).
+async function sendStudentReportEmail(to, { studentName, periodLabel, rows, note }) {
+  const rowsHtml = rows
+    .map(
+      (r) => `<tr>
+        <td style="padding:8px 10px;border-bottom:1px solid #eef2f7;color:#475569;">${r.label}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #eef2f7;font-weight:bold;color:#0f172a;text-align:left;" dir="ltr">${r.value}</td>
+      </tr>`
+    )
+    .join('');
+  return sendEmail({
+    to,
+    subject: `تقرير الطالب ${studentName} - ${periodLabel} - ${APP_NAME}`,
+    html: layout(
+      `تقرير ${periodLabel}`,
+      `<p>هذا تقرير عن الطالب <strong>${studentName}</strong> خلال ${periodLabel}:</p>
+       <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px;">${rowsHtml}</table>
+       ${note ? `<p style="font-size:13px;color:#64748b;">${note}</p>` : ''}`
     ),
   });
 }
@@ -141,6 +171,7 @@ module.exports = {
   hashEmailToken,
   sendVerificationEmail,
   sendPasswordResetEmail,
+  sendStudentReportEmail,
   sendTestEmail,
   APP_NAME,
 };

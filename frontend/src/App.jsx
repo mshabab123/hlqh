@@ -25,6 +25,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import VerifyEmail from "./pages/VerifyEmail";
 import EmailSettings from "./pages/EmailSettings";
+import StudentReports from "./pages/StudentReports";
 import AccessDenied from "./pages/AccessDenied";
 import About from "./pages/About";
 import Registration from "./pages/registration";
@@ -100,6 +101,16 @@ export default function App() {
               <ProtectedRoute requiredRole={["admin"]}>
                 <ConditionalLayout>
                   <EmailSettings />
+                </ConditionalLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/student-reports"
+            element={
+              <ProtectedRoute requiredRole={["admin"]}>
+                <ConditionalLayout>
+                  <StudentReports />
                 </ConditionalLayout>
               </ProtectedRoute>
             }

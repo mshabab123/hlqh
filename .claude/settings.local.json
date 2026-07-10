@@ -51,7 +51,10 @@
       "Bash(node --check routes/stageExams.js)",
       "Bash(grep -E \"\\\\.env$\")",
       "Bash(node --check routes/attendance.js)",
-      "Bash(node -e \"require\\('dotenv'\\).config\\(\\);const db=require\\('./config/database'\\);db.query\\(\\\\\"SELECT column_name FROM information_schema.columns WHERE table_name='users' AND column_name IN \\('email_verified','email'\\)\\\\\"\\).then\\(r=>{console.log\\(r.rows\\);process.exit\\(0\\)}\\);\")"
+      "Bash(node -e \"require\\('dotenv'\\).config\\(\\);const db=require\\('./config/database'\\);db.query\\(\\\\\"SELECT column_name FROM information_schema.columns WHERE table_name='users' AND column_name IN \\('email_verified','email'\\)\\\\\"\\).then\\(r=>{console.log\\(r.rows\\);process.exit\\(0\\)}\\);\")",
+      "Bash(grep -iE \"^node-cron$|^cron$\")",
+      "Bash(node -e \"require\\('dotenv'\\).config\\(\\); require\\('./app'\\); require\\('./utils/scheduler'\\); console.log\\('OK'\\);\")",
+      "Bash(node -e \"const q=require\\('./utils/quranUtils.js'\\); console.log\\('getSurahNameFromId:', typeof q.getSurahNameFromId, '| calculateQuranProgress:', typeof q.calculateQuranProgress, '| TOTAL:', q.TOTAL_QURAN_PAGES\\);\")"
     ],
     "deny": [],
     "ask": [],

@@ -12,6 +12,7 @@ export default function EmailSettings() {
   const [message, setMessage] = useState("");
   const [testTo, setTestTo] = useState("");
   const [testing, setTesting] = useState(false);
+  const [sendingReports, setSendingReports] = useState(false);
 
   const load = async () => {
     try {
@@ -55,6 +56,20 @@ export default function EmailSettings() {
       setError(err.response?.data?.error || "تعذر إرسال رسالة الاختبار");
     } finally {
       setTesting(false);
+    }
+  };
+
+  const sendReportsNow = async () => {
+    try {
+      setSendingReports(true);
+      setError("");
+      setMessage("");
+      const res = await axios.post("/api/settings/email/send-reports-now");
+      setMessage(res.data?.message || "تم إرسال التقارير");
+    } catch (err) {
+      setError(err.response?.data?.error || "تعذر إرسال التقارير");
+    } finally {
+      setSendingReports(false);
     }
   };
 
@@ -120,13 +135,13 @@ export default function EmailSettings() {
               )}
             </div>
 
-            {/* المفاتيح */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+            {/* المفتاح الرئيسي */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="font-black text-slate-900">تفعيل إرسال البريد الإلكتروني</p>
+                  <p className="font-black text-slate-900">المفتاح الرئيسي لخدمة البريد</p>
                   <p className="mt-1 text-sm text-slate-500">
-                    المفتاح الرئيسي. عند إيقافه لا تُرسل أي رسائل (تأكيد أو استعادة كلمة مرور) لأي مستخدم.
+                    عند إيقافه لا تُرسل أي رسائل إطلاقاً. كل نوع أدناه يُتحكم به بشكل مستقل.
                   </p>
                 </div>
                 <Toggle
@@ -135,19 +150,97 @@ export default function EmailSettings() {
                   onChange={(v) => update({ email_service_enabled: v })}
                 />
               </div>
+            </div>
 
+            {/* تأكيد البريد */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+              <h3 className="font-bold text-slate-800">تأكيد البريد الإلكتروني (عند التسجيل)</h3>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="font-black text-slate-900">إرسال رسائل التأكيد</p>
+                  <p className="mt-1 text-sm text-slate-500">إرسال رابط تأكيد للمستخدمين الجدد.</p>
+                </div>
+                <Toggle
+                  on={settings.email_verification_enabled}
+                  disabled={!settings.email_service_enabled}
+                  onChange={(v) => update({ email_verification_enabled: v })}
+                />
+              </div>
               <div className="border-t border-slate-100 pt-4 flex items-start justify-between gap-4">
                 <div>
-                  <p className="font-black text-slate-900">اشتراط تأكيد البريد الإلكتروني</p>
-                  <p className="mt-1 text-sm text-slate-500">
-                    عند تفعيله، يُطلب من المستخدمين الجدد تأكيد بريدهم عبر الرابط المُرسَل إليهم.
-                  </p>
+                  <p className="font-black text-slate-900">اشتراط تأكيد البريد</p>
+                  <p className="mt-1 text-sm text-slate-500">إلزام المستخدم بتأكيد بريده.</p>
                 </div>
                 <Toggle
                   on={settings.email_verification_required}
                   disabled={!settings.email_service_enabled}
                   onChange={(v) => update({ email_verification_required: v })}
                 />
+              </div>
+            </div>
+
+            {/* استعادة كلمة المرور */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="font-black text-slate-900">استعادة كلمة المرور عبر البريد</p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    إرسال رابط إعادة تعيين كلمة المرور عند طلب المستخدم ذلك. (مستقل عن التأكيد.)
+                  </p>
+                </div>
+                <Toggle
+                  on={settings.email_password_reset_enabled}
+                  disabled={!settings.email_service_enabled}
+                  onChange={(v) => update({ email_password_reset_enabled: v })}
+                />
+              </div>
+            </div>
+
+            {/* التقارير الدورية */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+              <h3 className="font-bold text-slate-800">تقارير الطلاب الدورية</h3>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="font-black text-slate-900">إرسال تقارير عن الطلاب</p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    تقرير تلقائي لولي الأمر (أو الطالب) يلخّص الحضور والدرجات والنقاط.
+                  </p>
+                </div>
+                <Toggle
+                  on={settings.email_reports_enabled}
+                  disabled={!settings.email_service_enabled}
+                  onChange={(v) => update({ email_reports_enabled: v })}
+                />
+              </div>
+
+              <div className="border-t border-slate-100 pt-4 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="font-black text-slate-900">التكرار</p>
+                  <p className="mt-1 text-sm text-slate-500">يُرسل مساءً بعد تجميع بيانات اليوم/الأسبوع.</p>
+                </div>
+                <select
+                  value={settings.email_reports_frequency}
+                  onChange={(e) => update({ email_reports_frequency: e.target.value })}
+                  disabled={saving || !settings.email_service_enabled}
+                  className="rounded-lg border border-slate-300 px-4 py-2 font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:opacity-50"
+                >
+                  <option value="daily">يومي</option>
+                  <option value="weekly">أسبوعي</option>
+                </select>
+              </div>
+
+              <div className="border-t border-slate-100 pt-4">
+                <button
+                  type="button"
+                  onClick={sendReportsNow}
+                  disabled={sendingReports || !settings.service_ready}
+                  className="inline-flex items-center gap-2 rounded-lg bg-slate-800 px-5 py-2.5 font-bold text-white hover:bg-slate-900 disabled:opacity-50"
+                >
+                  <AiOutlineSend /> {sendingReports ? "جاري الإرسال..." : "إرسال التقارير الآن (اختبار)"}
+                </button>
+                <p className="mt-2 text-xs text-slate-500">
+                  يُرسل تقريراً فورياً لكل طالب لديه نشاط في الفترة الحالية — بصرف النظر عن التكرار المجدول.
+                </p>
               </div>
             </div>
 

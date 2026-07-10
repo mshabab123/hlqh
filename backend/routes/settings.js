@@ -5,13 +5,26 @@ const { requireRole, ROLES } = require('../middleware/rbac');
 const {
   STUDENT_AUTO_ACTIVATION_KEY,
   EMAIL_SERVICE_ENABLED_KEY,
+  EMAIL_VERIFICATION_ENABLED_KEY,
   EMAIL_VERIFICATION_REQUIRED_KEY,
+  EMAIL_PASSWORD_RESET_ENABLED_KEY,
+  EMAIL_REPORTS_ENABLED_KEY,
+  EMAIL_REPORTS_FREQUENCY_KEY,
   isStudentAutoActivationEnabled,
   isEmailServiceEnabled,
+  isEmailVerificationEnabled,
   isEmailVerificationRequired,
-  setBooleanSetting
+  isEmailPasswordResetEnabled,
+  isEmailReportsEnabled,
+  getEmailReportsFrequency,
+  getEmailReportFields,
+  setEmailReportFields,
+  REPORT_FIELD_CATALOG,
+  setBooleanSetting,
+  setStringSetting
 } = require('../utils/appSettings');
 const { emailReady, sendTestEmail } = require('../utils/email');
+const { runStudentReports } = require('../utils/studentReports');
 
 router.get('/student-activation', authenticateToken, requireRole(ROLES.ADMINISTRATOR), async (req, res) => {
   try {
@@ -46,43 +59,72 @@ router.put('/student-activation', authenticateToken, requireRole(ROLES.ADMINISTR
 
 // --- Email service settings (admin-only) ---------------------------------
 
-// GET /api/settings/email — current email switches + whether Resend is configured.
+async function emailSettingsPayload() {
+  const ready = await emailReady();
+  return {
+    email_service_enabled: await isEmailServiceEnabled(),
+    email_verification_enabled: await isEmailVerificationEnabled(),
+    email_verification_required: await isEmailVerificationRequired(),
+    email_password_reset_enabled: await isEmailPasswordResetEnabled(),
+    email_reports_enabled: await isEmailReportsEnabled(),
+    email_reports_frequency: await getEmailReportsFrequency(),
+    email_report_fields: await getEmailReportFields(),
+    report_field_catalog: REPORT_FIELD_CATALOG,
+    resend_configured: Boolean(process.env.RESEND_API_KEY),
+    service_ready: ready.ready === true,
+    from_address: process.env.EMAIL_FROM || null,
+  };
+}
+
+// GET /api/settings/email — current per-purpose email switches + config status.
 router.get('/email', authenticateToken, requireRole(ROLES.ADMIN), async (req, res) => {
   try {
-    const ready = await emailReady();
-    res.json({
-      email_service_enabled: await isEmailServiceEnabled(),
-      email_verification_required: await isEmailVerificationRequired(),
-      resend_configured: Boolean(process.env.RESEND_API_KEY),
-      service_ready: ready.ready === true,
-      from_address: process.env.EMAIL_FROM || null,
-    });
+    res.json(await emailSettingsPayload());
   } catch (error) {
     console.error('Error reading email settings:', error);
     res.status(500).json({ error: 'فشل قراءة إعدادات البريد' });
   }
 });
 
-// PUT /api/settings/email — toggle the master switch / verification requirement.
+// PUT /api/settings/email — toggle any subset of the independent switches.
 router.put('/email', authenticateToken, requireRole(ROLES.ADMIN), async (req, res) => {
   try {
-    if (req.body.email_service_enabled !== undefined) {
-      await setBooleanSetting(EMAIL_SERVICE_ENABLED_KEY, Boolean(req.body.email_service_enabled), req.user.id);
+    const b = req.body;
+    const boolKeys = {
+      email_service_enabled: EMAIL_SERVICE_ENABLED_KEY,
+      email_verification_enabled: EMAIL_VERIFICATION_ENABLED_KEY,
+      email_verification_required: EMAIL_VERIFICATION_REQUIRED_KEY,
+      email_password_reset_enabled: EMAIL_PASSWORD_RESET_ENABLED_KEY,
+      email_reports_enabled: EMAIL_REPORTS_ENABLED_KEY,
+    };
+    for (const [field, key] of Object.entries(boolKeys)) {
+      if (b[field] !== undefined) await setBooleanSetting(key, Boolean(b[field]), req.user.id);
     }
-    if (req.body.email_verification_required !== undefined) {
-      await setBooleanSetting(EMAIL_VERIFICATION_REQUIRED_KEY, Boolean(req.body.email_verification_required), req.user.id);
+    if (b.email_reports_frequency !== undefined) {
+      const freq = b.email_reports_frequency === 'daily' ? 'daily' : 'weekly';
+      await setStringSetting(EMAIL_REPORTS_FREQUENCY_KEY, freq, req.user.id);
     }
-    const ready = await emailReady();
-    res.json({
-      message: 'تم تحديث إعدادات البريد الإلكتروني',
-      email_service_enabled: await isEmailServiceEnabled(),
-      email_verification_required: await isEmailVerificationRequired(),
-      resend_configured: Boolean(process.env.RESEND_API_KEY),
-      service_ready: ready.ready === true,
-    });
+    if (b.email_report_fields !== undefined && typeof b.email_report_fields === 'object') {
+      await setEmailReportFields(b.email_report_fields, req.user.id);
+    }
+    res.json({ message: 'تم تحديث إعدادات البريد الإلكتروني', ...(await emailSettingsPayload()) });
   } catch (error) {
     console.error('Error updating email settings:', error);
     res.status(500).json({ error: 'فشل تحديث إعدادات البريد' });
+  }
+});
+
+// POST /api/settings/email/send-reports-now — run the report job immediately.
+router.post('/email/send-reports-now', authenticateToken, requireRole(ROLES.ADMIN), async (req, res) => {
+  try {
+    const result = await runStudentReports({ force: true });
+    if (result.skipped) {
+      return res.status(503).json({ error: 'تعذر إرسال التقارير حالياً', reason: result.skipped });
+    }
+    res.json({ message: `تم إرسال ${result.sent} تقرير (${result.frequency})`, ...result });
+  } catch (error) {
+    console.error('Error sending reports now:', error);
+    res.status(500).json({ error: 'فشل إرسال التقارير' });
   }
 });
 

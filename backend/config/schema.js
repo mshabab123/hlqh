@@ -216,11 +216,15 @@ async function ensureEmailSchema() {
   `);
 
   // Admin-controlled email switches (default OFF — must be turned on by an admin
-  // once Resend is configured).
+  // once Resend is configured). Each purpose is independent.
   await db.query(`
     INSERT INTO app_settings (key, value)
     VALUES ('email_service_enabled', 'false'::jsonb),
-           ('email_verification_required', 'false'::jsonb)
+           ('email_verification_enabled', 'false'::jsonb),
+           ('email_verification_required', 'false'::jsonb),
+           ('email_password_reset_enabled', 'false'::jsonb),
+           ('email_reports_enabled', 'false'::jsonb),
+           ('email_reports_frequency', '"weekly"'::jsonb)
     ON CONFLICT (key) DO NOTHING
   `);
 }
