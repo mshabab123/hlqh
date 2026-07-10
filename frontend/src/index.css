@@ -414,6 +414,50 @@ input:-webkit-autofill:active {
   background-color: #fff1f2;
 }
 
+.quran-continuous-text {
+  padding: 4px 20px 28px;
+  text-align: justify;
+  line-height: 2.25;
+}
+
+.quran-surah-header {
+  display: block;
+  margin: 18px 0 12px;
+  padding: 7px 14px;
+  border: 1px solid var(--color-border-medium);
+  border-radius: 8px;
+  background-color: var(--color-background-secondary);
+  text-align: center;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.quran-ayah-inline {
+  display: inline;
+}
+
+.quran-error-box--inline {
+  min-width: 27px;
+  width: 27px;
+  height: 27px;
+  margin-inline: 3px;
+  border-width: 1px;
+  border-radius: 8px;
+  vertical-align: middle;
+  font-family: sans-serif;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.quran-ayah-number {
+  display: inline-block;
+  white-space: nowrap;
+  font-family: 'HafsSmart', 'Traditional Arabic', serif;
+  font-size: 0.85em;
+  vertical-align: middle;
+}
+
 .quran-theme-btn {
   border: 1px solid var(--color-border-medium);
   border-radius: 999px;

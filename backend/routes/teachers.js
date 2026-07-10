@@ -6,6 +6,24 @@ const { BCRYPT_ROUNDS } = require('../config/security');
 const { body, validationResult } = require('express-validator');
 const { authenticateToken } = require('../middleware/auth');
 const { requireRole, ROLES } = require('../middleware/rbac');
+const { requireManageableUser } = require('../middleware/ownership');
+const { canAccessSchool, canAccessClass } = require('../utils/accessScope');
+
+// Scope a teacher-management request to the caller's school: the target teacher
+// must belong to a school the caller can access (admin bypasses).
+async function requireTeacherScope(req, res, next) {
+  try {
+    if (req.user.role === 'admin') return next();
+    const result = await db.query('SELECT school_id FROM teachers WHERE id = $1', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'المعلم غير موجود' });
+    const schoolId = result.rows[0].school_id;
+    if (schoolId && (await canAccessSchool(db, req.user, schoolId))) return next();
+    return res.status(403).json({ error: 'ليس لديك صلاحية على هذا المعلم' });
+  } catch (error) {
+    console.error('Teacher scope check failed:', error);
+    return res.status(500).json({ error: 'فشل التحقق من الصلاحية' });
+  }
+}
 
 const rateLimit = require('express-rate-limit');
 const registerLimiter = rateLimit({
@@ -115,6 +133,13 @@ router.post('/register', registerLimiter, teacherValidationRules, async (req, re
     }
 
     await client.query('COMMIT');
+
+    // Best-effort email verification (no-op if the email service is off).
+    if (email) {
+      require('../utils/emailVerification')
+        .issueVerification({ id, email, first_name })
+        .catch(() => {});
+    }
 
     res.status(201).json({
       message: 'تم استلام طلب التسجيل بنجاح. سيتم مراجعة الطلب من الإدارة قبل تفعيل الحساب.',
@@ -553,7 +578,7 @@ router.get('/', authenticateToken, requireRole(ROLES.SUPERVISOR), async (req, re
 });
 
 // PUT /api/teachers/:id - Update teacher information
-router.put('/:id', authenticateToken, requireRole(ROLES.ADMINISTRATOR), async (req, res) => {
+router.put('/:id', authenticateToken, requireRole(ROLES.ADMINISTRATOR), requireManageableUser(), requireTeacherScope, async (req, res) => {
   const client = await db.connect();
   try {
     const { id } = req.params;
@@ -633,7 +658,7 @@ router.put('/:id', authenticateToken, requireRole(ROLES.ADMINISTRATOR), async (r
 });
 
 // DELETE /api/teachers/:id - Delete teacher
-router.delete('/:id', authenticateToken, requireRole(ROLES.ADMINISTRATOR), async (req, res) => {
+router.delete('/:id', authenticateToken, requireRole(ROLES.ADMINISTRATOR), requireManageableUser(), requireTeacherScope, async (req, res) => {
   const client = await db.connect();
   try {
     const { id } = req.params;
@@ -674,7 +699,7 @@ router.delete('/:id', authenticateToken, requireRole(ROLES.ADMINISTRATOR), async
 });
 
 // PATCH /api/teachers/:id/activate - Toggle teacher activation status
-router.patch('/:id/activate', authenticateToken, requireRole(ROLES.ADMINISTRATOR), async (req, res) => {
+router.patch('/:id/activate', authenticateToken, requireRole(ROLES.ADMINISTRATOR), requireManageableUser(), requireTeacherScope, async (req, res) => {
   try {
     const { id } = req.params;
     const { is_active } = req.body;
@@ -701,11 +726,22 @@ router.patch('/:id/activate', authenticateToken, requireRole(ROLES.ADMINISTRATOR
 });
 
 // POST /api/teachers/:id/classes - Assign multiple classes to teacher with role designation
-router.post('/:id/classes', authenticateToken, requireRole(ROLES.ADMINISTRATOR), async (req, res) => {
+router.post('/:id/classes', authenticateToken, requireRole(ROLES.ADMINISTRATOR), requireTeacherScope, async (req, res) => {
   const client = await db.connect();
   try {
     const { id } = req.params;
     const { class_ids = [], class_roles = {} } = req.body; // Array of class IDs and optional role mapping
+
+    // Only allow assigning classes the caller actually has access to (prevents
+    // wiring a teacher into another school's classes).
+    if (req.user.role !== 'admin') {
+      for (const classId of Array.isArray(class_ids) ? class_ids : []) {
+        if (!(await canAccessClass(db, req.user, classId))) {
+          client.release();
+          return res.status(403).json({ error: 'إحدى الحلقات المحددة خارج نطاق صلاحيتك' });
+        }
+      }
+    }
 
     await client.query('BEGIN');
 

@@ -3,11 +3,42 @@ const router = express.Router();
 const db = require('../config/database');
 const { authenticateToken: requireAuth } = require('../middleware/auth');
 const { requireRole, ROLES } = require('../middleware/rbac');
+const { canAccessStudent, canAccessClass, getAccessibleSchoolIds } = require('../utils/accessScope');
 
-// GET /api/homework - Get all homework assignments
+// Ownership check for a single homework row (by its class or its student).
+async function canAccessHomework(user, homeworkId) {
+  const r = await db.query('SELECT class_id, student_id FROM homework WHERE id = $1', [homeworkId]);
+  if (r.rows.length === 0) return { notFound: true };
+  const { class_id, student_id } = r.rows[0];
+  if (class_id && (await canAccessClass(db, user, class_id))) return { ok: true };
+  if (student_id && (await canAccessStudent(db, user, student_id))) return { ok: true };
+  return { ok: false };
+}
+
+async function requireHomeworkAccess(req, res, next) {
+  try {
+    const access = await canAccessHomework(req.user, req.params.id);
+    if (access.notFound) return res.status(404).json({ error: 'المهمة غير موجودة' });
+    if (!access.ok) return res.status(403).json({ error: 'ليس لديك صلاحية على هذه المهمة' });
+    return next();
+  } catch (error) {
+    console.error('Homework access check failed:', error);
+    return res.status(500).json({ error: 'فشل التحقق من الصلاحية' });
+  }
+}
+
+// GET /api/homework - Get all homework assignments (scoped to the caller)
 router.get('/', requireAuth, async (req, res) => {
   try {
     const { class_id, student_id, status, course_id } = req.query;
+
+    // A caller may only filter by a student/class they actually own.
+    if (student_id && !(await canAccessStudent(db, req.user, student_id))) {
+      return res.status(403).json({ error: 'ليس لديك صلاحية على هذا الطالب' });
+    }
+    if (class_id && !(await canAccessClass(db, req.user, class_id))) {
+      return res.status(403).json({ error: 'ليس لديك صلاحية على هذه الحلقة' });
+    }
 
     let query = `
       SELECT
@@ -24,6 +55,24 @@ router.get('/', requireAuth, async (req, res) => {
 
     const params = [];
     let paramIndex = 1;
+
+    // Baseline scoping so a request with no filter can't dump everyone's homework.
+    const role = req.user.role;
+    if (role === 'student' || role === 'parent_student') {
+      query += ` AND h.student_id = $${paramIndex++}`;
+      params.push(req.user.id);
+    } else if (role === 'parent') {
+      query += ` AND h.student_id IN (SELECT student_id FROM parent_student_relationships WHERE parent_id = $${paramIndex++})`;
+      params.push(req.user.id);
+    } else if (role === 'teacher') {
+      query += ` AND h.class_id IN (SELECT class_id FROM teacher_class_assignments WHERE teacher_id = $${paramIndex++} AND is_active = true)`;
+      params.push(req.user.id);
+    } else if (role === 'administrator' || role === 'supervisor') {
+      const schoolIds = await getAccessibleSchoolIds(db, req.user);
+      if (!schoolIds || schoolIds.length === 0) return res.json([]);
+      query += ` AND h.class_id IN (SELECT id FROM classes WHERE school_id = ANY($${paramIndex++}::uuid[]))`;
+      params.push(schoolIds);
+    }
 
     if (class_id) {
       query += ` AND h.class_id = $${paramIndex}`;
@@ -63,6 +112,10 @@ router.get('/', requireAuth, async (req, res) => {
 router.get('/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
+
+    const access = await canAccessHomework(req.user, id);
+    if (access.notFound) return res.status(404).json({ error: 'المهمة غير موجودة' });
+    if (!access.ok) return res.status(403).json({ error: 'ليس لديك صلاحية على هذه المهمة' });
 
     const result = await db.query(`
       SELECT
@@ -123,6 +176,16 @@ router.post('/', requireAuth, requireRole(ROLES.TEACHER), async (req, res) => {
       });
     }
 
+    // Only allow assigning homework to a class/student the caller owns.
+    if (class_id && !(await canAccessClass(db, req.user, class_id))) {
+      client.release();
+      return res.status(403).json({ error: 'ليس لديك صلاحية على هذه الحلقة' });
+    }
+    if (student_id && !(await canAccessStudent(db, req.user, student_id))) {
+      client.release();
+      return res.status(403).json({ error: 'ليس لديك صلاحية على هذا الطالب' });
+    }
+
     // Auto-generate title if not provided
     const homeworkTitle = title || `حفظ من سورة ${start_surah} إلى سورة ${end_surah}`;
 
@@ -165,7 +228,7 @@ router.post('/', requireAuth, requireRole(ROLES.TEACHER), async (req, res) => {
 });
 
 // PUT /api/homework/:id - Update homework assignment
-router.put('/:id', requireAuth, requireRole(ROLES.TEACHER), async (req, res) => {
+router.put('/:id', requireAuth, requireRole(ROLES.TEACHER), requireHomeworkAccess, async (req, res) => {
   const client = await db.connect();
   try {
     const { id } = req.params;
@@ -240,7 +303,7 @@ router.put('/:id', requireAuth, requireRole(ROLES.TEACHER), async (req, res) => 
 });
 
 // DELETE /api/homework/:id - Delete homework assignment
-router.delete('/:id', requireAuth, requireRole(ROLES.TEACHER), async (req, res) => {
+router.delete('/:id', requireAuth, requireRole(ROLES.TEACHER), requireHomeworkAccess, async (req, res) => {
   const client = await db.connect();
   try {
     const { id } = req.params;
@@ -270,7 +333,7 @@ router.delete('/:id', requireAuth, requireRole(ROLES.TEACHER), async (req, res) 
 });
 
 // POST /api/homework/:id/complete - Mark homework as completed
-router.post('/:id/complete', requireAuth, requireRole(ROLES.TEACHER), async (req, res) => {
+router.post('/:id/complete', requireAuth, requireRole(ROLES.TEACHER), requireHomeworkAccess, async (req, res) => {
   const client = await db.connect();
   try {
     const { id } = req.params;

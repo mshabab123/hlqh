@@ -8,6 +8,8 @@ const { TOTAL_QURAN_PAGES, QURAN_SURAHS, getSurahIdFromName, getSurahNameFromId,
 const { authenticateToken: requireAuth } = require('../middleware/auth');
 const { requireRole, ROLES } = require('../middleware/rbac');
 const { requireFeature, canUseFeature } = require('../utils/featurePrivileges');
+const { requireClassAccess, requireSchoolAccess } = require('../middleware/ownership');
+const { canAccessSchool } = require('../utils/accessScope');
 
 // Helper functions are now imported from QuranData.js
 
@@ -249,6 +251,24 @@ router.get('/', requireAuth, async (req, res) => {
       paramIndex++;
     }
 
+    // Scope the list to what the caller may see: admin=all, teacher=assigned
+    // classes, administrator/supervisor=their school(s).
+    if (userRole === 'teacher') {
+      query += ` AND c.id IN (SELECT class_id FROM teacher_class_assignments WHERE teacher_id = $${paramIndex} AND is_active = TRUE)`;
+      params.push(req.user.id);
+      paramIndex++;
+    } else if (userRole === 'administrator' || userRole === 'supervisor') {
+      const { getAccessibleSchoolIds } = require('../utils/accessScope');
+      const schoolIds = await getAccessibleSchoolIds(db, req.user);
+      if (!schoolIds || schoolIds.length === 0) return res.json([]);
+      query += ` AND c.school_id = ANY($${paramIndex}::uuid[])`;
+      params.push(schoolIds);
+      paramIndex++;
+    } else if (userRole !== 'admin') {
+      // students / parents don't manage classes — no class directory for them
+      return res.json([]);
+    }
+
     query += ` GROUP BY c.id, c.name, c.max_students, c.room_number, c.school_level, c.is_active, c.created_at, c.school_id, c.semester_id, s.name, sem.display_name, se_counts.current_students, u.id, u.first_name, u.last_name`;
     query += ` ORDER BY c.created_at DESC`;
 
@@ -261,10 +281,10 @@ router.get('/', requireAuth, async (req, res) => {
 });
 
 // GET /api/classes/:id - Get class details (using current schema)
-router.get('/:id', requireAuth, async (req, res) => {
+router.get('/:id', requireAuth, requireClassAccess(), async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     const result = await db.query(`
       SELECT 
         c.id,
@@ -288,8 +308,6 @@ router.get('/:id', requireAuth, async (req, res) => {
     `, [id]);
 
     if (result.rows.length === 0) {
-      await client.query('ROLLBACK');
-      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'الحلقة غير موجودة' });
     }
 
@@ -301,7 +319,7 @@ router.get('/:id', requireAuth, async (req, res) => {
 });
 
 // POST /api/classes - Create new class
-router.post('/', requireAuth, requireRole(ROLES.ADMINISTRATOR), classValidationRules, async (req, res) => {
+router.post('/', requireAuth, requireRole(ROLES.ADMINISTRATOR), classValidationRules, requireSchoolAccess(['school_id']), async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ error: errors.array()[0].msg });
@@ -520,7 +538,7 @@ router.post('/copy-semester', requireAuth, async (req, res) => {
 });
 
 // PUT /api/classes/:id - Update class
-router.put('/:id', requireAuth, requireRole(ROLES.ADMINISTRATOR), async (req, res) => {
+router.put('/:id', requireAuth, requireRole(ROLES.ADMINISTRATOR), requireClassAccess(), async (req, res) => {
   const client = await db.connect();
   try {
     const { id } = req.params;
@@ -531,6 +549,12 @@ router.put('/:id', requireAuth, requireRole(ROLES.ADMINISTRATOR), async (req, re
       max_students,
       is_active
     } = req.body;
+
+    // Prevent moving a class into a school the caller has no access to.
+    if (school_id && req.user.role !== 'admin' && !(await canAccessSchool(db, req.user, school_id))) {
+      client.release();
+      return res.status(403).json({ error: 'ليس لديك صلاحية على المجمع المستهدف' });
+    }
 
     await client.query('BEGIN');
 
@@ -576,7 +600,7 @@ router.put('/:id', requireAuth, requireRole(ROLES.ADMINISTRATOR), async (req, re
 });
 
 // DELETE /api/classes/:id - Delete class
-router.delete('/:id', requireAuth, requireRole(ROLES.ADMINISTRATOR), async (req, res) => {
+router.delete('/:id', requireAuth, requireRole(ROLES.ADMINISTRATOR), requireClassAccess(), async (req, res) => {
   const client = await db.connect();
   try {
     const { id } = req.params;
@@ -620,7 +644,7 @@ router.delete('/:id', requireAuth, requireRole(ROLES.ADMINISTRATOR), async (req,
 });
 
 // Get students in a class
-router.get('/:id/students', requireAuth, requireRole(ROLES.TEACHER), async (req, res) => {
+router.get('/:id/students', requireAuth, requireRole(ROLES.TEACHER), requireClassAccess(), async (req, res) => {
   try {
     const { id: classId } = req.params;
     
@@ -653,7 +677,7 @@ router.get('/:id/students', requireAuth, requireRole(ROLES.TEACHER), async (req,
 });
 
 // Add student to class
-router.post('/:id/students', requireAuth, requireFeature('assign_student_class'), async (req, res) => {
+router.post('/:id/students', requireAuth, requireFeature('assign_student_class'), requireClassAccess(), async (req, res) => {
   const client = await db.connect();
   try {
     const { id: classId } = req.params;
@@ -776,7 +800,7 @@ router.post('/:id/students', requireAuth, requireFeature('assign_student_class')
 });
 
 // Remove student from class
-router.delete('/:id/students/:studentId', requireAuth, requireFeature('remove_student_class'), async (req, res) => {
+router.delete('/:id/students/:studentId', requireAuth, requireFeature('remove_student_class'), requireClassAccess(), async (req, res) => {
   const client = await db.connect();
   try {
     const { id: classId, studentId } = req.params;
@@ -821,7 +845,7 @@ router.delete('/:id/students/:studentId', requireAuth, requireFeature('remove_st
 });
 
 // Get active students available to be assigned to this class.
-router.get('/:id/available-students', requireAuth, requireRole(ROLES.TEACHER), async (req, res) => {
+router.get('/:id/available-students', requireAuth, requireRole(ROLES.TEACHER), requireClassAccess(), async (req, res) => {
   try {
     const { id: classId } = req.params;
 
@@ -905,7 +929,7 @@ router.get('/:id/available-students', requireAuth, requireRole(ROLES.TEACHER), a
 });
 
 // Get class with students and courses for grading
-router.get('/:id/grading', requireAuth, requireRole(ROLES.TEACHER), async (req, res) => {
+router.get('/:id/grading', requireAuth, requireRole(ROLES.TEACHER), requireClassAccess(), async (req, res) => {
   try {
     const { id: classId } = req.params;
     
@@ -969,7 +993,7 @@ router.get('/:id/grading', requireAuth, requireRole(ROLES.TEACHER), async (req, 
 });
 
 // Add new grade entry (allows multiple grades per course)
-router.post('/:id/grades', requireAuth, requireRole(ROLES.TEACHER), async (req, res) => {
+router.post('/:id/grades', requireAuth, requireRole(ROLES.TEACHER), requireClassAccess(), async (req, res) => {
   try {
     const { id: classId } = req.params;
     const { student_id, course_id, grade_type, grade_value, max_grade, notes, start_reference, end_reference, grade_date, error_details, quran_error_display } = req.body;
@@ -1075,7 +1099,7 @@ router.post('/:id/grades', requireAuth, requireRole(ROLES.TEACHER), async (req, 
 });
 
 // Get grades summary for a class
-router.get('/:id/grades-summary', requireAuth, requireRole(ROLES.TEACHER), async (req, res) => {
+router.get('/:id/grades-summary', requireAuth, requireRole(ROLES.TEACHER), requireClassAccess(), async (req, res) => {
   try {
     const { id: classId } = req.params;
 
@@ -1178,7 +1202,7 @@ router.get('/:id/grades-summary', requireAuth, requireRole(ROLES.TEACHER), async
 });
 
 // Update student goal (using target fields for consistency)
-router.put('/:id/student/:studentId/goal', requireAuth, requireRole(ROLES.TEACHER), async (req, res) => {
+router.put('/:id/student/:studentId/goal', requireAuth, requireRole(ROLES.TEACHER), requireClassAccess(), async (req, res) => {
   try {
     const { id: classId, studentId } = req.params;
     const { target_surah_id, target_ayah_number } = req.body;
@@ -1236,7 +1260,7 @@ router.put('/:id/student/:studentId/goal', requireAuth, requireRole(ROLES.TEACHE
 });
 
 // Get individual student profile with complete grade history
-router.get('/:id/student/:studentId/profile', requireAuth, requireRole(ROLES.TEACHER), async (req, res) => {
+router.get('/:id/student/:studentId/profile', requireAuth, requireRole(ROLES.TEACHER), requireClassAccess(), async (req, res) => {
   try {
     const { id: classId, studentId } = req.params;
     
@@ -1314,7 +1338,7 @@ router.get('/:id/student/:studentId/profile', requireAuth, requireRole(ROLES.TEA
 });
 
 // POST /api/classes/:id/teachers - Assign multiple teachers to class with primary/secondary roles
-router.post('/:id/teachers', requireAuth, requireRole(ROLES.ADMINISTRATOR), async (req, res) => {
+router.post('/:id/teachers', requireAuth, requireRole(ROLES.ADMINISTRATOR), requireClassAccess(), async (req, res) => {
   const client = await db.connect();
   try {
     const { id } = req.params;
@@ -1375,7 +1399,7 @@ router.post('/:id/teachers', requireAuth, requireRole(ROLES.ADMINISTRATOR), asyn
 });
 
 // GET /api/classes/:id/teachers - Get teachers assigned to class with their roles
-router.get('/:id/teachers', requireAuth, requireRole(ROLES.TEACHER), async (req, res) => {
+router.get('/:id/teachers', requireAuth, requireRole(ROLES.TEACHER), requireClassAccess(), async (req, res) => {
   try {
     const { id } = req.params;
     

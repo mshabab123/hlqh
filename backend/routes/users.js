@@ -6,6 +6,8 @@ const { BCRYPT_ROUNDS } = require('../config/security');
 const { body, validationResult } = require('express-validator');
 const { authenticateToken } = require('../middleware/auth');
 const { requireRole, ROLES } = require('../middleware/rbac');
+const { requireManageableUser, assertAssignableRole, levelOf } = require('../middleware/ownership');
+const { getAccessibleSchoolIds } = require('../utils/accessScope');
 
 const rateLimit = require('express-rate-limit');
 const registerLimiter = rateLimit({
@@ -118,7 +120,18 @@ router.get('/', authenticateToken, requireRole(ROLES.SUPERVISOR), async (req, re
       }
     }
 
-    res.json(users);
+    // Scope the directory: admin sees everyone; administrator/supervisor see
+    // only users within their own school(s) (plus themselves).
+    let scoped = users;
+    if (req.user.role !== 'admin') {
+      const schoolIds = await getAccessibleSchoolIds(db, req.user);
+      const allowed = new Set((schoolIds || []).map(String));
+      scoped = users.filter(
+        (u) => String(u.id) === String(req.user.id) || (u.school_id && allowed.has(String(u.school_id)))
+      );
+    }
+
+    res.json(scoped);
   } catch (err) {
     console.error('Get users error:', err);
     console.error('Error details:', err.message);
@@ -252,6 +265,14 @@ router.get('/', authenticateToken, requireRole(ROLES.SUPERVISOR), async (req, re
     }
 
     await client.query('COMMIT');
+
+    // Best-effort email verification for the new parent account.
+    if (email) {
+      require('../utils/emailVerification')
+        .issueVerification({ id, email, first_name })
+        .catch(() => {});
+    }
+
     res.status(201).json({ message: '✅ تم إنشاء الحساب بنجاح' });
 
     } catch (err) {
@@ -279,7 +300,7 @@ router.get('/', authenticateToken, requireRole(ROLES.SUPERVISOR), async (req, re
 // PATCH /api/users/:id/info - Partial update of a user's basic info (names,
 // contact, active flag) without touching role assignments. Used by the unified
 // "عرض المعلومات وتعديلها" modals; only provided fields are changed.
-router.patch('/:id/info', authenticateToken, requireRole(ROLES.ADMINISTRATOR), async (req, res) => {
+router.patch('/:id/info', authenticateToken, requireRole(ROLES.ADMINISTRATOR), requireManageableUser(), async (req, res) => {
   try {
     const { id } = req.params;
     const {
@@ -346,13 +367,20 @@ router.patch('/:id/info', authenticateToken, requireRole(ROLES.ADMINISTRATOR), a
 });
 
 // PUT /api/users/:id - Update user role and associated information
-router.put('/:id', authenticateToken, requireRole(ROLES.ADMINISTRATOR), async (req, res) => {
+router.put('/:id', authenticateToken, requireRole(ROLES.ADMINISTRATOR), requireManageableUser(), async (req, res) => {
   const client = await db.connect();
   try {
     await client.query('BEGIN');
-    
+
     const { id } = req.params;
     const { role, school_id, class_id, is_active, school_level } = req.body;
+
+    // Privilege-escalation guard: never let a caller assign a role at or above
+    // their own rank (an administrator must not mint another admin / self-promote).
+    if (role && !assertAssignableRole(req.user.role, role)) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ error: 'لا يمكنك ترقية مستخدم إلى صلاحية مساوية أو أعلى من صلاحيتك' });
+    }
 
     // Update the main users table
     const updateUserQuery = `
@@ -551,7 +579,7 @@ router.put('/:id', authenticateToken, requireRole(ROLES.ADMINISTRATOR), async (r
 });
 
 // PATCH /api/users/:id/toggle-active - Toggle user active status
-router.patch('/:id/toggle-active', authenticateToken, requireRole(ROLES.ADMINISTRATOR), async (req, res) => {
+router.patch('/:id/toggle-active', authenticateToken, requireRole(ROLES.ADMINISTRATOR), requireManageableUser(), async (req, res) => {
   let client;
   try {
     client = await db.connect();
@@ -589,13 +617,28 @@ router.put('/:id/profile', authenticateToken, async (req, res) => {
   try {
     const requesterRole = req.user?.role?.toLowerCase();
     const requesterId = req.user?.id;
+    const isSelf = String(requesterId) === String(req.params.id);
     const isPrivileged = [ROLES.ADMIN, ROLES.ADMINISTRATOR, ROLES.SUPERVISOR].includes(requesterRole);
 
-    if (!isPrivileged && String(requesterId) !== String(req.params.id)) {
+    if (!isPrivileged && !isSelf) {
       return res.status(403).json({ error: 'لا يمكنك تعديل ملف مستخدم آخر' });
     }
 
     client = await db.connect();
+
+    // Privileged editors may only edit users they outrank (or themselves) — a
+    // supervisor must not be able to change an administrator's / admin's profile.
+    if (isPrivileged && !isSelf && requesterRole !== ROLES.ADMIN) {
+      const targetRes = await client.query('SELECT role FROM users WHERE id = $1', [req.params.id]);
+      if (targetRes.rows.length === 0) {
+        client.release();
+        return res.status(404).json({ error: 'المستخدم غير موجود' });
+      }
+      if (levelOf(requesterRole) <= levelOf(targetRes.rows[0].role)) {
+        client.release();
+        return res.status(403).json({ error: 'لا يمكنك تعديل ملف مستخدم بصلاحية مساوية أو أعلى' });
+      }
+    }
 
     const { id } = req.params;
     const { 
@@ -668,13 +711,13 @@ router.put('/:id/profile', authenticateToken, async (req, res) => {
 });
 
 // DELETE /api/users/:id - Delete user permanently
-router.delete('/:id', authenticateToken, requireRole(ROLES.ADMINISTRATOR), async (req, res) => {
+router.delete('/:id', authenticateToken, requireRole(ROLES.ADMINISTRATOR), requireManageableUser(), async (req, res) => {
   const client = await db.connect();
   try {
     await client.query('BEGIN');
-    
+
     const { id } = req.params;
-    
+
     // First, delete from all role-specific tables
     await client.query('DELETE FROM teachers WHERE id = $1', [id]);
     await client.query('DELETE FROM administrators WHERE id = $1', [id]);

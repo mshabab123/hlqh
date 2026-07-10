@@ -442,6 +442,18 @@ router.post('/:parentId/add', authenticateToken, ensureOwnParentOrStaff, async (
       return res.status(400).json({ error: 'تاريخ ميلاد الطالب مطلوب' });
     }
 
+    // Staff acting on someone else's behalf may only link students within their
+    // own scope — not any student platform-wide. (A parent linking their own
+    // account still goes through the DOB verification below.)
+    const actingAsSelfParent = ['parent', 'parent_student'].includes(req.user?.role)
+      && String(req.user.id) === String(parentId);
+    if (!actingAsSelfParent && req.user?.role !== 'admin') {
+      const { canAccessStudent } = require('../utils/accessScope');
+      if (!(await canAccessStudent(pool, req.user, studentId))) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية على هذا الطالب' });
+      }
+    }
+
     if (dateOfBirth) {
       const isIsoDate = /^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth);
       if (!isIsoDate || Number.isNaN(Date.parse(dateOfBirth))) {

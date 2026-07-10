@@ -48,7 +48,10 @@
       "Bash(node --check routes/certificates.js)",
       "Bash(node --check scripts/repairCertificateRegistrations.js)",
       "Bash(node scripts/repairCertificateRegistrations.js)",
-      "Bash(node --check routes/stageExams.js)"
+      "Bash(node --check routes/stageExams.js)",
+      "Bash(grep -E \"\\\\.env$\")",
+      "Bash(node --check routes/attendance.js)",
+      "Bash(node -e \"require\\('dotenv'\\).config\\(\\);const db=require\\('./config/database'\\);db.query\\(\\\\\"SELECT column_name FROM information_schema.columns WHERE table_name='users' AND column_name IN \\('email_verified','email'\\)\\\\\"\\).then\\(r=>{console.log\\(r.rows\\);process.exit\\(0\\)}\\);\")"
     ],
     "deny": [],
     "ask": [],

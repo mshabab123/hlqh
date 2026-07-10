@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import axiosInstance from "../utils/axiosConfig";
 import { AiOutlineClose } from "react-icons/ai";
 
@@ -258,8 +258,10 @@ const QuranTestingModal = ({ student, courses = [], onClose, onSave, initialTest
         const hasError = errorSet.has(wordIndex);
         html += `<span style="${hasError ? 'color: #dc2626; font-weight: bold;' : ''}">${word} </span>`;
       });
-      html += `<span style="font-family: sans-serif; font-size: 14px;">(${toArabicIndic(ayah.ayah_number)})</span>`;
-      html += '</span><br/>';
+      if (source !== 'hafs') {
+        html += `<span style="font-family: sans-serif; font-size: 14px;">(${toArabicIndic(ayah.ayah_number)})</span>`;
+      }
+      html += '</span> ';
     });
 
     html += '</div>';
@@ -703,38 +705,40 @@ const QuranTestingModal = ({ student, courses = [], onClose, onSave, initialTest
                     <div
                       dir="rtl"
                       lang="ar"
-                      className="quran-box__content space-y-4 text-2xl leading-relaxed font-quran"
+                      className="quran-box__content text-2xl leading-relaxed font-quran"
                     >
                       <div className="bg-blue-50 p-3 rounded-lg mb-4 text-sm font-sans">
                         <p className="text-blue-800">
                           💡 <strong>تعليمات:</strong> انقر نقرًا مزدوجًا على أي كلمة لتحديدها كخطأ
                         </p>
                       </div>
-                      {ayahs.map((ayah, index) => {
-                        const ayahKey = getAyahKey(ayah);
-                        const errorSet = new Set(errorWords[ayahKey] || []);
-                        const showHeader =
-                          rangeMode &&
-                          (index === 0 ||
-                            ayah.surah_number !== ayahs[index - 1]?.surah_number);
-                        const words = ayah.text.split(/\s+/).filter(Boolean);
-                        const errorCount = errorSet.size;
-                        return (
-                          <div key={ayahKey}>
-                            {showHeader && (
-                              <h2 className="text-lg font-semibold mb-2 font-sans">
-                                {ayah.surah_number}. {ayah.surah_name_ar}
-                              </h2>
-                            )}
-                            <div className="quran-ayah-row">
-                              <span
-                                className={`quran-error-box ${
-                                  errorCount ? "quran-error-box--active" : ""
-                                }`}
-                              >
-                                {errorCount}
-                              </span>
-                              <p>
+                      <div className="quran-continuous-text">
+                        {ayahs.map((ayah, index) => {
+                          const ayahKey = getAyahKey(ayah);
+                          const errorSet = new Set(errorWords[ayahKey] || []);
+                          const showHeader =
+                            rangeMode &&
+                            (index === 0 ||
+                              ayah.surah_number !== ayahs[index - 1]?.surah_number);
+                          const words = ayah.text.split(/\s+/).filter(Boolean);
+                          const errorCount = errorSet.size;
+
+                          return (
+                            <Fragment key={ayahKey}>
+                              {showHeader && (
+                                <h2 className="quran-surah-header font-sans">
+                                  {ayah.surah_number}. {ayah.surah_name_ar}
+                                </h2>
+                              )}
+                              <span className="quran-ayah-inline">
+                                <span
+                                  className={`quran-error-box quran-error-box--inline ${
+                                    errorCount ? "quran-error-box--active" : ""
+                                  }`}
+                                  title={`عدد أخطاء الآية: ${errorCount}`}
+                                >
+                                  {errorCount}
+                                </span>{" "}
                                 {words.map((word, wordIndex) => (
                                   <span
                                     key={`${ayahKey}-${wordIndex}`}
@@ -748,17 +752,18 @@ const QuranTestingModal = ({ student, courses = [], onClose, onSave, initialTest
                                     {word}{" "}
                                   </span>
                                 ))}
-                                <span
-                                  className="font-sans text-base align-middle"
-                                  dir="ltr"
-                                >
-                                  ({toArabicIndic(ayah.ayah_number)})
-                                </span>
-                              </p>
-                            </div>
-                          </div>
-                        );
-                      })}
+                                {source !== "hafs" && (
+                                  <>
+                                    <span className="quran-ayah-number" dir="rtl">
+                                      ﴿{toArabicIndic(ayah.ayah_number)}﴾
+                                    </span>{" "}
+                                  </>
+                                )}
+                              </span>
+                            </Fragment>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
 

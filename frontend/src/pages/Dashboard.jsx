@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { AiOutlineDatabase, AiOutlineKey, AiOutlineUserSwitch, AiOutlineBarChart, AiOutlineTeam, AiOutlineBook, AiOutlineCalendar, AiOutlineRight, AiOutlineLoading3Quarters } from "react-icons/ai";
+import { AiOutlineDatabase, AiOutlineKey, AiOutlineUserSwitch, AiOutlineBarChart, AiOutlineTeam, AiOutlineBook, AiOutlineCalendar, AiOutlineRight, AiOutlineLoading3Quarters, AiOutlineMail } from "react-icons/ai";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
@@ -144,6 +144,14 @@ export default function Dashboard() {
       icon: <AiOutlineUserSwitch className="text-4xl" />,
       path: "/user-management",
       color: "from-purple-500 to-purple-700",
+      roles: ["admin"]
+    },
+    {
+      title: "إعدادات البريد الإلكتروني",
+      description: "تفعيل خدمة البريد (Resend) وتأكيد الحسابات واستعادة كلمة المرور",
+      icon: <AiOutlineMail className="text-4xl" />,
+      path: "/email-settings",
+      color: "from-teal-500 to-teal-700",
       roles: ["admin"]
     }
   ];

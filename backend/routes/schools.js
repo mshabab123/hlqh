@@ -59,27 +59,28 @@ router.get('/public', async (req, res) => {
 // GET /api/schools - Get all schools (protected endpoint for management)
 router.get('/', requireAuth, async (req, res) => {
   try {
-    const result = await db.query(`
-      SELECT 
-        s.id, 
-        s.name, 
-        s.address, 
-        s.phone, 
-        s.email, 
-        s.is_active, 
-        s.created_at,
-        s.administrator_id,
-        u.first_name as administrator_first_name,
-        u.second_name as administrator_second_name,
-        u.third_name as administrator_third_name,
-        u.last_name as administrator_last_name,
-        u.email as administrator_email,
-        u.phone as administrator_phone
-      FROM schools s
-      LEFT JOIN administrators a ON s.administrator_id = a.id
-      LEFT JOIN users u ON a.id = u.id
-      ORDER BY s.created_at DESC
-    `);
+    // Students/parents need the school list (for dropdowns) but must NOT receive
+    // the administrator's personal contact details — that's staff-only.
+    const isStaff = ['admin', 'administrator', 'supervisor', 'teacher'].includes(req.user?.role);
+
+    const result = await db.query(
+      isStaff
+        ? `SELECT s.id, s.name, s.address, s.phone, s.email, s.is_active, s.created_at,
+                  s.administrator_id,
+                  u.first_name as administrator_first_name,
+                  u.second_name as administrator_second_name,
+                  u.third_name as administrator_third_name,
+                  u.last_name as administrator_last_name,
+                  u.email as administrator_email,
+                  u.phone as administrator_phone
+           FROM schools s
+           LEFT JOIN administrators a ON s.administrator_id = a.id
+           LEFT JOIN users u ON a.id = u.id
+           ORDER BY s.created_at DESC`
+        : `SELECT s.id, s.name, s.is_active
+           FROM schools s
+           ORDER BY s.created_at DESC`
+    );
 
     res.json({ schools: result.rows });
   } catch (err) {

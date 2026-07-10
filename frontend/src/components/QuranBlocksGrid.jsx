@@ -1,4 +1,24 @@
 import React from 'react';
+import { QURAN_SURAHS } from '../utils/quranData';
+
+const getPageSurahDetails = (pageNumber) => (
+  QURAN_SURAHS
+    .filter((surah) => pageNumber >= surah.startPage && pageNumber <= surah.endPage)
+    .map((surah) => {
+      const pageSpan = surah.endPage - surah.startPage + 1;
+      const pageOffset = pageNumber - surah.startPage;
+      const firstAyah = Math.floor((pageOffset / pageSpan) * surah.ayahCount) + 1;
+      const lastAyah = pageNumber === surah.endPage
+        ? surah.ayahCount
+        : Math.floor(((pageOffset + 1) / pageSpan) * surah.ayahCount);
+
+      return {
+        ...surah,
+        firstAyah,
+        lastAyah: Math.max(firstAyah, lastAyah)
+      };
+    })
+);
 
 const QuranBlocksGrid = ({ blocksData }) => {
   const { blocks, totalBlocks, memorizedBlocks, recentActivityBlocks } = blocksData;
@@ -70,8 +90,9 @@ const QuranBlocksGrid = ({ blocksData }) => {
             </div>
 
             {/* Pages Row - Show individual pages in a horizontal line */}
-            <div className="flex flex-wrap gap-0.5">
+            <div className="flex flex-wrap gap-1">
               {block.pages ? block.pages.map((page) => {
+                const surahDetails = getPageSurahDetails(page.pageNumber);
                 const getPageColor = (status) => {
                   switch (status) {
                     case 'dark_green':
@@ -106,20 +127,22 @@ const QuranBlocksGrid = ({ blocksData }) => {
                   }
                 };
 
+                const pageStatusLabel = page.partial
+                  ? `${getStatusLabel(page.status)} / ${getStatusLabel(page.secondaryStatus)}`
+                  : getStatusLabel(page.status);
+
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={page.pageNumber}
                     className={`
-                      w-6 h-6 rounded-sm transition-all duration-200 cursor-pointer
+                      group w-10 h-10 rounded-md transition-all duration-200 cursor-pointer
                       ${page.partial ? getPageColor(page.secondaryStatus) : getPageColor(page.status)}
-                      flex items-center justify-center relative overflow-hidden
-                      border border-gray-300
+                      flex items-center justify-center relative
+                      border border-gray-300 hover:z-30 focus:z-30
+                      focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1
                     `}
-                    title={
-                      page.partial
-                        ? `صفحة ${page.pageNumber} - النصف الأعلى: ${getStatusLabel(page.status)} · النصف الأسفل: ${getStatusLabel(page.secondaryStatus)}`
-                        : `صفحة ${page.pageNumber} - ${getStatusLabel(page.status)}`
-                    }
+                    aria-label={`صفحة ${page.pageNumber} - ${pageStatusLabel}`}
                   >
                     {/* بلاطة منقسمة: النصف الأعلى بلون النشاط الجديد، والأسفل بلون الحالة السابقة */}
                     {page.partial && (
@@ -136,7 +159,21 @@ const QuranBlocksGrid = ({ blocksData }) => {
                     }`}>
                       {page.pageNumber}
                     </span>
-                  </div>
+
+                    <span
+                      className="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 hidden w-max max-w-64 -translate-x-1/2 rounded-lg bg-gray-900 px-3 py-2 text-right text-xs font-normal leading-5 text-white shadow-lg group-hover:block group-focus:block"
+                      dir="rtl"
+                    >
+                      <span className="block font-bold">صفحة {page.pageNumber}</span>
+                      <span className="mb-1 block text-gray-300">{pageStatusLabel}</span>
+                      {surahDetails.map((surah) => (
+                        <span key={surah.id} className="block whitespace-nowrap">
+                          سورة {surah.name}: الآيات {surah.firstAyah}–{surah.lastAyah}
+                        </span>
+                      ))}
+                      <span className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+                    </span>
+                  </button>
                 );
               }) : (
                 <div className="text-xs text-gray-500 p-2">

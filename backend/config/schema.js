@@ -188,6 +188,43 @@ async function ensureStageExamsSchema() {
   `);
 }
 
+// Email verification + email-service settings.
+async function ensureEmailSchema() {
+  await db.query(`
+    ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS email_verified boolean NOT NULL DEFAULT false
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS email_verification_tokens (
+      id serial PRIMARY KEY,
+      user_id varchar(20) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token_hash varchar(255) NOT NULL UNIQUE,
+      expires_at timestamp without time zone NOT NULL,
+      used boolean NOT NULL DEFAULT false,
+      created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_hash
+      ON email_verification_tokens(token_hash)
+  `);
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_user
+      ON email_verification_tokens(user_id)
+  `);
+
+  // Admin-controlled email switches (default OFF — must be turned on by an admin
+  // once Resend is configured).
+  await db.query(`
+    INSERT INTO app_settings (key, value)
+    VALUES ('email_service_enabled', 'false'::jsonb),
+           ('email_verification_required', 'false'::jsonb)
+    ON CONFLICT (key) DO NOTHING
+  `);
+}
+
 async function ensureSchema() {
   await ensureAuthSchema();
   await ensureSemesterRegistrationSchema();
@@ -196,6 +233,7 @@ async function ensureSchema() {
   await ensureCertificatesSchema();
   await ensureStudentSemesterGoalsSchema();
   await ensureStageExamsSchema();
+  await ensureEmailSchema();
   await require('../utils/featurePrivileges').ensureFeaturePrivilegesSchema();
 }
 
@@ -207,5 +245,6 @@ module.exports = {
   ensureCertificatesSchema,
   ensureStudentSemesterGoalsSchema,
   ensureStageExamsSchema,
+  ensureEmailSchema,
   ensureSchema,
 };

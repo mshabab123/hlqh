@@ -76,6 +76,14 @@ router.get('/student/:studentId', auth, async (req, res) => {
       }
     }
 
+    // Scope administrators/supervisors to students in their own school; admin passes.
+    if (userRole === 'administrator' || userRole === 'supervisor') {
+      const { canAccessStudent } = require('../utils/accessScope');
+      if (!(await canAccessStudent(pool, req.user, studentId))) {
+        return res.status(403).json({ error: 'ليس لديك صلاحية على هذا الطالب' });
+      }
+    }
+
     const result = await pool.query(`
       SELECT
         TO_CHAR(sa.attendance_date, 'YYYY-MM-DD') as attendance_date,

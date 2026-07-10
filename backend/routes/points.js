@@ -219,7 +219,13 @@ router.get('/class/:classId', auth, async (req, res) => {
       if (teacherCheck.rows.length === 0) {
         return res.status(403).json({ error: 'لا يمكنك عرض نقاط هذا الصف' });
       }
-    } else if (!['admin', 'administrator', 'supervisor'].includes(userRole)) {
+    } else if (['administrator', 'supervisor'].includes(userRole)) {
+      // Scope administrators/supervisors to classes within their own school.
+      const { canAccessClass } = require('../utils/accessScope');
+      if (!(await canAccessClass(db, req.user, classId))) {
+        return res.status(403).json({ error: 'لا يمكنك عرض نقاط هذا الصف' });
+      }
+    } else if (userRole !== 'admin') {
       return res.status(403).json({ error: 'غير مصرح لك بعرض نقاط الصفوف' });
     }
     

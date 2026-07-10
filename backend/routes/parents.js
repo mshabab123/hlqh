@@ -5,6 +5,7 @@ const db = require('../config/database');
 const { BCRYPT_ROUNDS } = require('../config/security');
 const { authenticateToken } = require('../middleware/auth');
 const { requireRole, ROLES } = require('../middleware/rbac');
+const { canAccessStudent } = require('../utils/accessScope');
 const { body, validationResult } = require('express-validator');
 
 const rateLimit = require('express-rate-limit');
@@ -110,49 +111,15 @@ router.post('/', registerLimiter, parentValidationRules, async (req, res) => {
       `, [id, selfSchoolLevel]);
     }
 
-    // Process child IDs - ensure it's an array and handle multiple IDs
-    let childIdArray = [];
-    if (Array.isArray(childIds)) {
-      childIdArray = childIds;
-    } else if (typeof childIds === 'string') {
-      // Handle comma-separated string
-      childIdArray = childIds.split(',').map(id => id.trim());
-    }
-    
-    const validChildIds = childIdArray.filter(childId => childId && childId.toString().trim().length === 10);
-    
-    for (const childId of validChildIds) {
-      const trimmedChildId = childId.toString().trim();
-      
-      // Check if student already exists
-      const studentCheck = await client.query(
-        'SELECT id FROM students WHERE id = $1', 
-        [trimmedChildId]
-      );
-
-      // Create relationship regardless of whether student exists (constraints removed)
-      await client.query(`
-        INSERT INTO parent_student_relationships (parent_id, student_id, is_primary, relationship_type)
-        VALUES ($1, $2, true, 'parent')
-        ON CONFLICT (parent_id, student_id) DO UPDATE 
-        SET relationship_type = 'parent'
-      `, [id, trimmedChildId]);
-      
-      if (studentCheck.rows.length > 0) {
-        // Student exists, update their parent_id if not set
-        await client.query(`
-          UPDATE students 
-          SET parent_id = $1 
-          WHERE id = $2 AND parent_id IS NULL
-        `, [id, trimmedChildId]);
-      } else {
-        // Student doesn't exist yet - relationship created for future
-      }
-    }
+    // SECURITY: public (unauthenticated) parent registration must NOT be able to
+    // claim arbitrary students by ID. Linking a child to a parent happens only
+    // through the authenticated, DOB-verified/reviewed flow in routes/children.js
+    // after the account is activated. So we intentionally ignore `childIds` here.
+    const validChildIds = [];
 
     await client.query('COMMIT');
-    
-    res.status(201).json({ 
+
+    res.status(201).json({
       message: '✅ تم تسجيل طلب ولي الأمر بنجاح. سيتم مراجعة طلبك وإشعارك عند تفعيل الحساب.',
       parentId: id,
       linkedChildren: validChildIds.length,
@@ -187,7 +154,9 @@ router.post('/', registerLimiter, parentValidationRules, async (req, res) => {
 router.get('/:id', authenticateToken, async (req, res) => {
   const requesterRole = req.user?.role?.toLowerCase();
   const requesterId = req.user?.id;
-  const isPrivileged = ['admin', 'administrator', 'supervisor', 'teacher'].includes(requesterRole);
+  // A parent's full contact PII is staff-only or self — teachers are not
+  // entitled to browse arbitrary parents across the platform.
+  const isPrivileged = ['admin', 'administrator', 'supervisor'].includes(requesterRole);
   if (!isPrivileged && String(requesterId) !== String(req.params.id)) {
     return res.status(403).json({ error: 'غير مصرح بالوصول إلى بيانات ولي أمر آخر' });
   }
@@ -267,11 +236,18 @@ router.put('/:id/link-child', authenticateToken, requireRole('supervisor'), [
 
     // Check if student exists
     const studentCheck = await client.query(
-      'SELECT id FROM students WHERE id = $1', 
+      'SELECT id FROM students WHERE id = $1',
       [childId]
     );
     if (studentCheck.rows.length === 0) {
       return res.status(404).json({ error: 'الطالب غير موجود' });
+    }
+
+    // Only link students within the caller's scope.
+    if (req.user.role !== 'admin' && !(await canAccessStudent(db, req.user, childId))) {
+      await client.query('ROLLBACK');
+      client.release();
+      return res.status(403).json({ error: 'ليس لديك صلاحية على هذا الطالب' });
     }
 
     // Create or update relationship
@@ -313,11 +289,17 @@ router.delete('/:id/unlink-child/:childId', authenticateToken, requireRole('supe
   try {
     const { id: parentId, childId } = req.params;
 
+    // Only unlink students within the caller's scope.
+    if (req.user.role !== 'admin' && !(await canAccessStudent(db, req.user, childId))) {
+      client.release();
+      return res.status(403).json({ error: 'ليس لديك صلاحية على هذا الطالب' });
+    }
+
     await client.query('BEGIN');
 
     // Remove relationship
     const result = await client.query(`
-      DELETE FROM parent_student_relationships 
+      DELETE FROM parent_student_relationships
       WHERE parent_id = $1 AND student_id = $2
     `, [parentId, childId]);
 

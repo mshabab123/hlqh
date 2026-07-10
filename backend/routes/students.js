@@ -6,6 +6,7 @@ const { body, validationResult } = require('express-validator');
 const { authenticateToken: auth } = require('../middleware/auth');
 const { requireRole, ROLES } = require('../middleware/rbac');
 const { requireFeature } = require('../utils/featurePrivileges');
+const { canAccessStudent, canAccessClass, getAccessibleSchoolIds } = require('../utils/accessScope');
 const { BCRYPT_ROUNDS, generateTempPassword } = require('../config/security');
 const { isStudentAutoActivationEnabled } = require('../utils/appSettings');
 
@@ -19,28 +20,10 @@ const registerLimiter = rateLimit({
 // Returns true if the caller is allowed to view a given student's data:
 // staff (supervisor+), the student themselves, a linked parent, or an
 // assigned teacher.
+// Delegate to the school-scoped ownership helper so administrator/supervisor
+// are limited to students in THEIR school (not every student platform-wide).
 async function canViewStudent(user, studentId) {
-  const role = user.role?.toLowerCase();
-  if (['admin', 'administrator', 'supervisor'].includes(role)) return true;
-  if (String(user.id) === String(studentId)) return true;
-  if (role === 'parent' || role === 'parent_student') {
-    const r = await db.query(
-      'SELECT 1 FROM parent_student_relationships WHERE parent_id = $1 AND student_id = $2',
-      [user.id, studentId]
-    );
-    return r.rows.length > 0;
-  }
-  if (role === 'teacher') {
-    const r = await db.query(
-      `SELECT 1 FROM student_enrollments se
-       JOIN teacher_class_assignments tca ON tca.class_id = se.class_id
-       WHERE se.student_id = $1 AND tca.teacher_id = $2
-         AND tca.is_active = true AND se.status = 'enrolled'`,
-      [studentId, user.id]
-    );
-    return r.rows.length > 0;
-  }
-  return false;
+  return canAccessStudent(db, user, studentId);
 }
 
 // Middleware guarding a route that exposes a single student's data.
@@ -160,8 +143,15 @@ router.post('/', registerLimiter, studentValidationRules, async (req, res) => {
     `, [id, school_level, validParentId, studentStatus]);
 
     await client.query('COMMIT');
-    
-    res.status(201).json({ 
+
+    // Best-effort email verification (no-op if the email service is off).
+    if (email) {
+      require('../utils/emailVerification')
+        .issueVerification({ id, email, first_name })
+        .catch(() => {});
+    }
+
+    res.status(201).json({
       message: '✅ تم تسجيل طلب الطالب بنجاح. سيتم مراجعة طلبك وإشعارك عند تفعيل الحساب.',
       studentId: id,
       linkedToParent: !!validParentId,
@@ -294,12 +284,27 @@ router.get('/', auth, requireRole(ROLES.TEACHER), async (req, res) => {
     // If user is a teacher, only show students from their assigned classes
     if (userRole === 'teacher') {
       query += ` AND c.id IN (
-        SELECT class_id FROM teacher_class_assignments 
+        SELECT class_id FROM teacher_class_assignments
         WHERE teacher_id = $${paramIndex}
           AND teacher_role = 'primary'
           AND is_active = true
       )`;
       params.push(req.user.id);
+      paramIndex++;
+    } else if (userRole === 'administrator' || userRole === 'supervisor') {
+      // Scope administrators/supervisors to students enrolled in a class of
+      // one of THEIR schools — not every student platform-wide.
+      const schoolIds = await getAccessibleSchoolIds(db, { role: userRole, id: req.user.id });
+      if (!schoolIds || schoolIds.length === 0) {
+        return res.json([]);
+      }
+      query += ` AND EXISTS (
+        SELECT 1 FROM student_enrollments se_scope
+        JOIN classes c_scope ON c_scope.id = se_scope.class_id
+        WHERE se_scope.student_id = s.id
+          AND c_scope.school_id = ANY($${paramIndex}::uuid[])
+      )`;
+      params.push(schoolIds);
       paramIndex++;
     }
 
@@ -559,7 +564,7 @@ router.post('/manage', auth, requireRole(ROLES.TEACHER), [
 });
 
 // PUT /api/students/:id - Update student information
-router.put('/:id', auth, requireRole(ROLES.TEACHER), async (req, res) => {
+router.put('/:id', auth, requireRole(ROLES.TEACHER), requireStudentAccess, async (req, res) => {
   try {
     // Basic validation for required fields if they are provided
     if (req.body.email && req.body.email.trim() && !/\S+@\S+\.\S+/.test(req.body.email)) {
@@ -999,7 +1004,7 @@ router.get('/:studentId/goals', auth, requireStudentAccess, async (req, res) => 
 });
 
 // Create a new goal for a student
-router.post('/:studentId/goals', auth, requireRole(ROLES.TEACHER), async (req, res) => {
+router.post('/:studentId/goals', auth, requireRole(ROLES.TEACHER), requireStudentAccess, async (req, res) => {
   try {
     const { studentId } = req.params;
     const { title, description, target_date } = req.body;
@@ -1027,7 +1032,7 @@ router.post('/:studentId/goals', auth, requireRole(ROLES.TEACHER), async (req, r
 });
 
 // Update a goal
-router.put('/:studentId/goals/:goalId', auth, requireRole(ROLES.TEACHER), async (req, res) => {
+router.put('/:studentId/goals/:goalId', auth, requireRole(ROLES.TEACHER), requireStudentAccess, async (req, res) => {
   try {
     const { studentId, goalId } = req.params;
     const { title, description, target_date, completed } = req.body;
@@ -1059,7 +1064,7 @@ router.put('/:studentId/goals/:goalId', auth, requireRole(ROLES.TEACHER), async 
 });
 
 // Delete a goal
-router.delete('/:studentId/goals/:goalId', auth, requireRole(ROLES.TEACHER), async (req, res) => {
+router.delete('/:studentId/goals/:goalId', auth, requireRole(ROLES.TEACHER), requireStudentAccess, async (req, res) => {
   try {
     const { studentId, goalId } = req.params;
     

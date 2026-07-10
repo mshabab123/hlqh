@@ -22,7 +22,8 @@ import {
   AiOutlineHeart,
   AiOutlineStar,
   AiOutlineSafety,
-  AiOutlineTable
+  AiOutlineTable,
+  AiOutlineMail
 } from "react-icons/ai";
 import { 
   FaChalkboardTeacher, 
@@ -223,6 +224,13 @@ const NavigationSidebar = ({ isOpen, setIsOpen, isCollapsed, setIsCollapsed, cla
           icon: AiOutlineSafety,
           roles: ["admin", "administrator"],
           description: "تحديد الأدوار المسموح لها بكل وظيفة (تسكين، تسجيل، شهادات...)"
+        },
+        {
+          title: "إعدادات البريد الإلكتروني",
+          path: "/email-settings",
+          icon: AiOutlineMail,
+          roles: ["admin"],
+          description: "تفعيل خدمة البريد (Resend) وتأكيد الحسابات واستعادة كلمة المرور"
         }
       ]
     },

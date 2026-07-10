@@ -154,13 +154,14 @@ router.post('/request',
         VALUES ($1, $2, $3)
       `, [user.id, resetTokenHash, expiresAt]);
       
-      // In a real application, you would send an email here
-      // For now, we'll log the reset link (in production, remove this!)
-      const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`;
-      
-      // TODO: Send email with reset link
-      // await sendPasswordResetEmail(user.email, user.first_name, resetLink);
-      
+      // Send the reset email via Resend (no-op if the admin switch is off or
+      // Resend isn't configured — the response stays identical either way so we
+      // never leak whether the account or the mail service exists).
+      if (user.email) {
+        const { sendPasswordResetEmail } = require('../utils/email');
+        await sendPasswordResetEmail(user, resetToken);
+      }
+
       res.json({
         message: 'If an account with this information exists, a password reset link has been sent.',
         success: true

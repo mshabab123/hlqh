@@ -3,6 +3,8 @@ const db = require('../config/database');
 const STUDENT_AUTO_ACTIVATION_KEY = 'student_auto_activation_enabled';
 const CERTIFICATE_PASS_THRESHOLD_KEY = 'certificate_pass_threshold';
 const DEFAULT_CERTIFICATE_PASS_THRESHOLD = 50;
+const EMAIL_SERVICE_ENABLED_KEY = 'email_service_enabled';
+const EMAIL_VERIFICATION_REQUIRED_KEY = 'email_verification_required';
 
 async function getBooleanSetting(key, defaultValue = false, client = db) {
   const result = await client.query(
@@ -78,13 +80,25 @@ async function setCertificatePassThreshold(value, updatedBy, client = db) {
   return setNumberSetting(CERTIFICATE_PASS_THRESHOLD_KEY, numericValue, updatedBy, client);
 }
 
+async function isEmailServiceEnabled(client = db) {
+  return getBooleanSetting(EMAIL_SERVICE_ENABLED_KEY, false, client);
+}
+
+async function isEmailVerificationRequired(client = db) {
+  return getBooleanSetting(EMAIL_VERIFICATION_REQUIRED_KEY, false, client);
+}
+
 module.exports = {
   STUDENT_AUTO_ACTIVATION_KEY,
   CERTIFICATE_PASS_THRESHOLD_KEY,
   DEFAULT_CERTIFICATE_PASS_THRESHOLD,
+  EMAIL_SERVICE_ENABLED_KEY,
+  EMAIL_VERIFICATION_REQUIRED_KEY,
   getBooleanSetting,
   setBooleanSetting,
   isStudentAutoActivationEnabled,
+  isEmailServiceEnabled,
+  isEmailVerificationRequired,
   getNumberSetting,
   setNumberSetting,
   getCertificatePassThreshold,

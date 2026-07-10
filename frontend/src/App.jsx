@@ -23,6 +23,8 @@ import Profile from "./pages/Profile";
 import MyStudentsPage from "./pages/MyStudentsPage";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import VerifyEmail from "./pages/VerifyEmail";
+import EmailSettings from "./pages/EmailSettings";
 import AccessDenied from "./pages/AccessDenied";
 import About from "./pages/About";
 import Registration from "./pages/registration";
@@ -51,7 +53,7 @@ export default function App() {
   const isLoggedIn = !!localStorage.getItem("user") || !!localStorage.getItem("token");
   const { updateAvailable, refresh } = useVersionCheck();
   // Routes that shouldn't show navbar
-  const noNavbarRoutes = ["/login", "/Login", "/forgot-password", "/reset-password"];
+  const noNavbarRoutes = ["/login", "/Login", "/forgot-password", "/reset-password", "/verify-email"];
   const showNavbar = !noNavbarRoutes.includes(location.pathname);
   const appSurfaceClass = isLoggedIn && showNavbar ? "app-protected-surface" : "";
 
@@ -91,6 +93,17 @@ export default function App() {
           />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/verify-email" element={<VerifyEmail />} />
+          <Route
+            path="/email-settings"
+            element={
+              <ProtectedRoute requiredRole={["admin"]}>
+                <ConditionalLayout>
+                  <EmailSettings />
+                </ConditionalLayout>
+              </ProtectedRoute>
+            }
+          />
           <Route path="/access-denied" element={<AccessDenied />} />
           <Route path="/about" element={<About />} />
           <Route path="/registration" element={<Registration />} />

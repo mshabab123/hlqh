@@ -3,9 +3,11 @@ const router = express.Router();
 const db = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 const { requireRole, ROLES } = require('../middleware/rbac');
+const { requireManageableUser } = require('../middleware/ownership');
 
-// Get user privileges
-router.get('/:userId', authenticateToken, requireRole(ROLES.SUPERVISOR), async (req, res) => {
+// Get user privileges — only for users the caller outranks (a supervisor must
+// not read an admin's/administrator's privilege map & email).
+router.get('/:userId', authenticateToken, requireRole(ROLES.SUPERVISOR), requireManageableUser(['userId']), async (req, res) => {
   try {
     const { userId } = req.params;
 
@@ -102,7 +104,7 @@ router.put('/:userId', authenticateToken, requireRole(ROLES.ADMIN), async (req, 
 });
 
 // Get all users with their roles and privileges
-router.get('/', authenticateToken, requireRole(ROLES.SUPERVISOR), async (req, res) => {
+router.get('/', authenticateToken, requireRole(ROLES.ADMIN), async (req, res) => {
   try {
     const { role, search } = req.query;
 
