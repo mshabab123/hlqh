@@ -75,7 +75,7 @@ export default function AuthNavbar() {
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [user, setUser] = useState(null);
-  const [notifications, setNotifications] = useState(0); // Mock notifications count
+  const [notifications, setNotifications] = useState(0); // عدد الطلاب الجاهزين للمرحليات
   const [navLinks, setNavLinks] = useState([]);
   const [showInactiveModal, setShowInactiveModal] = useState(false);
 
@@ -134,6 +134,36 @@ export default function AuthNavbar() {
       if (intervalId) clearInterval(intervalId);
     };
   }, [user?.is_active]);
+
+  // إشعار المرحليات: عدد الطلاب الذين أكملوا جزءين وجاهزون لدخول مرحلية.
+  useEffect(() => {
+    const role = user?.role;
+    if (!['teacher', 'admin', 'administrator', 'supervisor'].includes(role)) return;
+
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    const fetchReadyCount = () => {
+      fetch(`${API_BASE}/api/stage-exams/ready`, {
+        credentials: 'include',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data) setNotifications(Number(data.count) || 0);
+        })
+        .catch(() => {});
+    };
+
+    fetchReadyCount();
+    const interval = setInterval(fetchReadyCount, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [user?.role]);
+
+  const openNotifications = () => {
+    setIsMobileMenuOpen(false);
+    navigate('/stage-exams');
+  };
 
   const handleLogout = async () => {
     await performLogout();
@@ -249,8 +279,12 @@ export default function AuthNavbar() {
               </Link>
             ))}
 
-            {/* Notifications */}
-            <button className="relative p-2 rounded-lg hover:bg-white/10 transition-colors">
+            {/* Notifications — طلاب جاهزون للمرحليات */}
+            <button
+              onClick={openNotifications}
+              className="relative p-2 rounded-lg hover:bg-white/10 transition-colors"
+              title={notifications > 0 ? `${notifications} طالب جاهز لدخول مرحلية` : 'الإشعارات'}
+            >
               <AiOutlineBell className="h-5 w-5" />
               {notifications > 0 && (
                 <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold">
@@ -329,8 +363,11 @@ export default function AuthNavbar() {
               </Link>
             ))}
 
-            {/* Notifications on mobile */}
-            <button className="flex items-center gap-3 px-4 py-3 text-white hover:bg-white/15 rounded-lg transition-colors">
+            {/* Notifications on mobile — طلاب جاهزون للمرحليات */}
+            <button
+              onClick={openNotifications}
+              className="flex items-center gap-3 px-4 py-3 text-white hover:bg-white/15 rounded-lg transition-colors"
+            >
               <span className="text-xl relative">
                 <AiOutlineBell />
                 {notifications > 0 && (
@@ -339,7 +376,7 @@ export default function AuthNavbar() {
                   </span>
                 )}
               </span>
-              <span>الإشعارات</span>
+              <span>الإشعارات{notifications > 0 ? ` — ${notifications} جاهز للمرحليات` : ''}</span>
             </button>
 
             {/* Logout on mobile */}

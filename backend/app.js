@@ -78,6 +78,7 @@ app.use('/api/feature-privileges', require('./routes/featurePrivileges')); // Fu
 app.use('/api/grading', require('./routes/grading')); // Comprehensive grading system
 app.use('/api/settings', require('./routes/settings')); // Platform settings
 app.use('/api/certificates', require('./routes/certificates')); // Student certificates
+app.use('/api/stage-exams', require('./routes/stageExams')); // نظام المرحليات
 if (!isProduction || isEnabled(process.env.ENABLE_DEBUG_ROUTES)) {
   app.use('/api/debug', require('./routes/debug')); // Debug endpoints
 }

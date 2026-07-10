@@ -29,10 +29,12 @@ const calculateExactPageNumber = (surahId, ayahNumber) => {
     return surah.endPage;
   }
 
-  // Calculate exact page within the surah range
-  const ayahProgress = ayahNumber / surah.ayahCount;
-  const pageWithinSurah = ayahProgress * (surah.endPage - surah.startPage + 1);
-  return parseFloat((surah.startPage + pageWithinSurah - 1).toFixed(1));
+  // موضع الصفحة داخل نطاق السورة: الآية الأولى تقع على صفحة بداية السورة
+  // (المعادلة السابقة كانت تطرح 1 فتُسقط الآيات الأولى قبل صفحة البداية).
+  const span = surah.endPage - surah.startPage + 1;
+  const exact = surah.startPage + ((Math.max(1, ayahNumber) - 1) / surah.ayahCount) * span;
+  const clamped = Math.min(surah.endPage, Math.max(surah.startPage, exact));
+  return parseFloat(clamped.toFixed(1));
 };
 
 const getPageNumbersBetween = (startPage, endPage) => {
@@ -1125,9 +1127,16 @@ const getTimeBasedStatus = (activityDate) => {
   }
 };
 
+// الدروس التي تُوثّق الحفظ وتضيف صفحاتها لخريطة المحفوظ:
+// الحفظ الجديد، التقييم الفصلي، المراجعة الصغرى، المراجعة الكبرى.
 const isMemorizationExpansionGrade = (grade) => {
   const courseName = String(grade.course_name || grade.class_name || '').trim();
-  return courseName.includes('الحفظ الجديد') || courseName.includes('التقييم الفصلي');
+  return (
+    courseName.includes('الحفظ الجديد') ||
+    courseName.includes('التقييم الفصلي') ||
+    courseName.includes('المراجعة الصغرى') ||
+    courseName.includes('المراجعة الكبرى')
+  );
 };
 
 const getGradeActivityDate = (grade) => {
@@ -1174,15 +1183,78 @@ const getGradePageNumbers = (grade) => {
 export const calculateQuranBlocks = (student, grades = []) => {
   const memorizedSurahId = parseInt(student.memorized_surah_id) || 0;
   const memorizedAyah = parseInt(student.memorized_ayah_number) || 0;
-  const targetSurahId = parseInt(student.target_surah_id) || 0;
-  const targetAyah = parseInt(student.target_ayah_number) || 0;
   const memorizedPageNumber = memorizedSurahId ? calculateExactPageNumber(memorizedSurahId, memorizedAyah) : 604;
-  const memorizedPageNumbers = getMemorizedPageNumbers(memorizedSurahId, memorizedAyah);
-  const targetBoundaryPageNumbers = getMemorizedPageNumbers(targetSurahId, targetAyah);
-  const knownMemorizedPageSet = new Set([
-    ...memorizedPageNumbers,
-    ...targetBoundaryPageNumbers
-  ]);
+  // المحفوظ = الموثق فقط (حقل خطة الحفظ + درجات الحفظ) بتغطية كسرية لكل صفحة:
+  // 1 = كاملة، 0.5 = نصف صفحة (سورة تنتهي في منتصفها مثلاً). الهدف لا يُحتسب.
+  const pageCoverage = new Map();
+  const addCoverage = (lo, hi) => {
+    if (!Number.isFinite(lo) || !Number.isFinite(hi) || hi <= lo) return;
+    const from = Math.max(1, Math.floor(lo));
+    for (let p = from; p < hi && p <= TOTAL_QURAN_PAGES; p++) {
+      const cover = Math.min(hi, p + 1) - Math.max(lo, p);
+      if (cover <= 0) continue;
+      pageCoverage.set(p, Math.min(1, (pageCoverage.get(p) || 0) + cover));
+    }
+  };
+
+  // هل تشارك السورة صفحة نهايتها مع بداية سورة أخرى؟ (تنتهي في منتصف الصفحة)
+  const surahEndsMidPage = (surah) =>
+    QURAN_SURAHS.some((other) => other.id !== surah.id && other.startPage === surah.endPage);
+
+  // موضع مرجع الدرجة على خط الصفحات (float). isEnd يحدد معاملة نهاية النطاق.
+  const coveragePositionOfRef = (reference, isEnd) => {
+    if (reference === null || reference === undefined || reference === '') return null;
+    const ref = String(reference).trim();
+
+    if (!ref.includes(':')) {
+      const page = parseInt(ref, 10);
+      if (!Number.isInteger(page) || page < 1 || page > TOTAL_QURAN_PAGES) return null;
+      return isEnd ? page + 1 : page; // صفحة مذكورة رقماً تُعد كاملة
+    }
+
+    const [surahPart, ayahPart] = ref.split(':');
+    const surahId = parseInt(surahPart, 10);
+    const surah = QURAN_SURAHS.find((s) => s.id === surahId);
+    if (!surah) return null;
+    const ayah = Math.max(1, parseInt(ayahPart, 10) || 1);
+
+    if (isEnd && ayah >= surah.ayahCount) {
+      // نهاية السورة: إن كانت تنتهي في منتصف صفحة فنصفها فقط.
+      return surah.endPage + (surahEndsMidPage(surah) ? 0.5 : 1);
+    }
+    return calculateExactPageNumber(surahId, ayah);
+  };
+
+  const gradeCoverageRange = (grade) => {
+    const a = coveragePositionOfRef(grade.start_reference, false);
+    const b = coveragePositionOfRef(grade.end_reference, true);
+    if (a === null || b === null) return null;
+    return [Math.min(a, b), Math.max(a, b)];
+  };
+
+  const addGradeCoverage = (grade) => {
+    const range = gradeCoverageRange(grade);
+    if (range) addCoverage(range[0], range[1]);
+  };
+
+  // حقل خطة الحفظ: الحفظ من آخر المصحف، فالمغطى من موضع المحفوظ حتى النهاية.
+  if (memorizedSurahId && memorizedPageNumber) {
+    addCoverage(memorizedPageNumber, TOTAL_QURAN_PAGES + 1);
+  }
+
+  // تغطية النشاط (كسرية أيضاً): كم من الصفحة لمسه تسميع/مراجعة حديثة —
+  // منفصلة عن تغطية الحفظ حتى تنقسم البلاطة: جديدٌ نصفها وقديمٌ باقيها.
+  const activityCoverByPage = new Map();
+  const addActivityCoverage = (lo, hi) => {
+    if (!Number.isFinite(lo) || !Number.isFinite(hi) || hi <= lo) return;
+    const from = Math.max(1, Math.floor(lo));
+    for (let p = from; p < hi && p <= TOTAL_QURAN_PAGES; p++) {
+      const cover = Math.min(hi, p + 1) - Math.max(lo, p);
+      if (cover <= 0.05) continue;
+      activityCoverByPage.set(p, Math.min(1, (activityCoverByPage.get(p) || 0) + cover));
+    }
+  };
+
   const pageActivityByPage = new Map();
 
   // Ensure grades is an array
@@ -1199,8 +1271,12 @@ export const calculateQuranBlocks = (student, grades = []) => {
     if (!gradeDate || gradePageNumbers.length === 0) return;
 
     if (isMemorizationExpansionGrade(grade)) {
-      gradePageNumbers.forEach(page => knownMemorizedPageSet.add(page));
+      addGradeCoverage(grade);
     }
+
+    // تغطية النشاط الكسرية (النصف الجديد من الصفحة يلوَّن وحده).
+    const activityRange = gradeCoverageRange(grade);
+    if (activityRange) addActivityCoverage(activityRange[0], activityRange[1]);
 
     gradePageNumbers.forEach(page => {
       const existingDate = pageActivityByPage.get(page);
@@ -1226,26 +1302,42 @@ export const calculateQuranBlocks = (student, grades = []) => {
     // Create detailed page data for this Juz
     const pages = [];
     for (let page = startPage; page <= endPage; page++) {
+      const latestActivityDate = pageActivityByPage.get(page) || null;
+      const coverage = pageCoverage.get(page) || 0;
+      const activity = activityCoverByPage.get(page) || 0;
+
+      const memFull = coverage >= 0.75;                     // محفوظة كاملة
+      const memHalf = coverage >= 0.25 && coverage < 0.75;  // نصف محفوظة
+      const actFull = activity >= 0.75;                     // النشاط غطى الصفحة
+      const actHalf = activity >= 0.25 && activity < 0.75;  // النشاط غطى نصفها
+
+      // status: لون الجزء "النشط"، secondaryStatus: لون النصف الآخر عند الانقسام.
       let pageStatus = 'not_memorized';
-      let latestActivityDate = null;
+      let partial = false;
+      let secondaryStatus = 'not_memorized';
 
-      latestActivityDate = pageActivityByPage.get(page) || null;
-
-      // Determine page status based on activity
-      if (knownMemorizedPageSet.has(page) && latestActivityDate) {
-        // Page has recent grade activity - use time-based color
-        pageStatus = getTimeBasedStatus(latestActivityDate);
-      } else if (knownMemorizedPageSet.has(page)) {
-        // Page is memorized but no recent grade activity - use default older status
-        pageStatus = 'dark_red'; // Default for memorized pages without recent activity
-      } else {
-        // Page is not memorized and no grade activity
-        pageStatus = 'not_memorized';
+      if (memFull) {
+        if (latestActivityDate && actFull) {
+          pageStatus = getTimeBasedStatus(latestActivityDate);
+        } else if (latestActivityDate && actHalf) {
+          // محفوظة قديماً بالكامل وجُدد نصفها: أعلى بلون النشاط وأسفل بلون القديم.
+          pageStatus = getTimeBasedStatus(latestActivityDate);
+          partial = true;
+          secondaryStatus = 'dark_red';
+        } else {
+          pageStatus = 'dark_red';
+        }
+      } else if (memHalf) {
+        pageStatus = latestActivityDate ? getTimeBasedStatus(latestActivityDate) : 'dark_red';
+        partial = true;
+        secondaryStatus = 'not_memorized';
       }
 
       pages.push({
         pageNumber: page,
         status: pageStatus,
+        partial,
+        secondaryStatus,
         latestActivityDate,
         hasRecentActivity: pageStatus === 'dark_green' || pageStatus === 'light_green'
       });
@@ -1272,7 +1364,10 @@ export const calculateQuranBlocks = (student, grades = []) => {
     memorizedBlocks: blocks.filter(b => b.isMemorized).length,
     recentActivityBlocks: blocks.filter(b => b.hasRecentActivity).length,
     memorizedPageNumber,
-    memorizedPageNumbers: [...knownMemorizedPageSet].sort((a, b) => a - b),
+    memorizedPageNumbers: [...pageCoverage.entries()]
+      .filter(([, coverage]) => coverage >= 0.75)
+      .map(([page]) => page)
+      .sort((a, b) => a - b),
     currentJuz: getJuzFromPage(memorizedPageNumber)
   };
 };

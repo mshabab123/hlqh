@@ -111,19 +111,29 @@ const QuranBlocksGrid = ({ blocksData }) => {
                     key={page.pageNumber}
                     className={`
                       w-6 h-6 rounded-sm transition-all duration-200 cursor-pointer
-                      ${getPageColor(page.status)}
-                      flex items-center justify-center relative
+                      ${page.partial ? getPageColor(page.secondaryStatus) : getPageColor(page.status)}
+                      flex items-center justify-center relative overflow-hidden
                       border border-gray-300
                     `}
-                    title={`صفحة ${page.pageNumber} - ${getStatusLabel(page.status)}`}
+                    title={
+                      page.partial
+                        ? `صفحة ${page.pageNumber} - النصف الأعلى: ${getStatusLabel(page.status)} · النصف الأسفل: ${getStatusLabel(page.secondaryStatus)}`
+                        : `صفحة ${page.pageNumber} - ${getStatusLabel(page.status)}`
+                    }
                   >
+                    {/* بلاطة منقسمة: النصف الأعلى بلون النشاط الجديد، والأسفل بلون الحالة السابقة */}
+                    {page.partial && (
+                      <div className={`absolute inset-x-0 top-0 h-1/2 ${getPageColor(page.status)}`}></div>
+                    )}
                     {/* Recent activity indicator */}
                     {page.hasRecentActivity && (
-                      <div className="absolute -top-1 -right-1">
+                      <div className="absolute -top-1 -right-1 z-10">
                         <div className="w-2 h-2 bg-yellow-400 rounded-full border border-white"></div>
                       </div>
                     )}
-                    <span className="text-xs text-white font-bold opacity-80">
+                    <span className={`relative z-10 text-xs font-bold opacity-80 ${
+                      page.partial && page.secondaryStatus === 'not_memorized' ? 'text-gray-700' : 'text-white'
+                    }`}>
                       {page.pageNumber}
                     </span>
                   </div>

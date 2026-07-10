@@ -46,6 +46,12 @@ const FEATURES = [
     description: 'حذف الطالب وجميع بياناته من قاعدة البيانات (لا يمكن التراجع)',
     defaultRoles: ['admin', 'administrator'],
   },
+  {
+    key: 'manage_stage_exams',
+    label: 'إدارة المرحليات',
+    description: 'إضافة الطلاب لقوائم المرحليات وتقييمها (نجح / تحتاج إعادة)',
+    defaultRoles: ['admin', 'administrator', 'supervisor', 'teacher'],
+  },
 ];
 
 const ASSIGNABLE_ROLES = ['admin', 'administrator', 'supervisor', 'teacher', 'parent', 'student'];

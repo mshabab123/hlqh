@@ -252,6 +252,13 @@ const NavigationSidebar = ({ isOpen, setIsOpen, isCollapsed, setIsCollapsed, cla
           description: "منح وإلغاء وطباعة شهادات الطلاب"
         },
         {
+          path: "/stage-exams",
+          title: "المرحليات",
+          icon: AiOutlineStar,
+          roles: ["admin", "administrator", "supervisor", "teacher"],
+          description: "قوائم المرحليات: كل جزءين محفوظين = مرحلية"
+        },
+        {
           title: "مقررات الحلقات",
           path: "/class-courses",
           icon: AiOutlineBook,

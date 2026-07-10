@@ -45,7 +45,10 @@
       "Bash(node --check routes/userManagement.js)",
       "Bash(node --check routes/users.js)",
       "Bash(grep -o 'name=\"[a-z_]*\"\\\\|formData.get\\([^\\)]*\\)\\\\|api/[a-z-/${}.]*')",
-      "Bash(node --check routes/certificates.js)"
+      "Bash(node --check routes/certificates.js)",
+      "Bash(node --check scripts/repairCertificateRegistrations.js)",
+      "Bash(node scripts/repairCertificateRegistrations.js)",
+      "Bash(node --check routes/stageExams.js)"
     ],
     "deny": [],
     "ask": [],

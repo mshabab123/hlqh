@@ -155,6 +155,39 @@ async function ensureStudentSemesterGoalsSchema() {
   `);
 }
 
+// نظام المرحليات: كل جزءين محفوظين يؤهلان الطالب لدخول مرحلية —
+// المرحلية 1 = جزء 30+29، المرحلية 2 = جزء 28+27 ... حتى المرحلية 15.
+async function ensureStageExamsSchema() {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS stage_exams (
+      id serial PRIMARY KEY,
+      student_id varchar(20) NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+      stage_number integer NOT NULL CHECK (stage_number BETWEEN 1 AND 15),
+      status varchar(20) NOT NULL DEFAULT 'pending',
+      score numeric(5,2),
+      notes text,
+      attempts integer NOT NULL DEFAULT 1,
+      added_by varchar(20) REFERENCES users(id) ON DELETE SET NULL,
+      evaluated_by varchar(20) REFERENCES users(id) ON DELETE SET NULL,
+      evaluated_at timestamp without time zone,
+      created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+      updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (student_id, stage_number),
+      CHECK (status IN ('pending', 'passed', 'retry'))
+    )
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_stage_exams_student
+      ON stage_exams(student_id, stage_number)
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_stage_exams_status
+      ON stage_exams(status, updated_at DESC)
+  `);
+}
+
 async function ensureSchema() {
   await ensureAuthSchema();
   await ensureSemesterRegistrationSchema();
@@ -162,6 +195,7 @@ async function ensureSchema() {
   await ensureAppSettingsSchema();
   await ensureCertificatesSchema();
   await ensureStudentSemesterGoalsSchema();
+  await ensureStageExamsSchema();
   await require('../utils/featurePrivileges').ensureFeaturePrivilegesSchema();
 }
 
@@ -172,5 +206,6 @@ module.exports = {
   ensureAppSettingsSchema,
   ensureCertificatesSchema,
   ensureStudentSemesterGoalsSchema,
+  ensureStageExamsSchema,
   ensureSchema,
 };

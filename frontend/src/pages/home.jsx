@@ -5,6 +5,7 @@ import { AiOutlineExclamationCircle } from "react-icons/ai";
 import {
   FaCertificate,
   FaChalkboardTeacher,
+  FaLayerGroup,
   FaChild,
   FaClipboardCheck,
   FaDatabase,
@@ -94,6 +95,14 @@ const navigationCards = [
     path: "/certificates",
     color: "bg-amber-500",
     roles: ["admin", "administrator"],
+  },
+  {
+    title: "المرحليات",
+    description: "كل جزءين محفوظين = مرحلية. إضافة الجاهزين وتقييمهم.",
+    icon: FaLayerGroup,
+    path: "/stage-exams",
+    color: "bg-teal-600",
+    roles: ["admin", "administrator", "supervisor", "teacher"],
   },
   {
     title: "الدرجات الشاملة",

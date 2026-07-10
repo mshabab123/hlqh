@@ -38,6 +38,7 @@ import StudentPoints from "./pages/StudentPoints";
 import Children from "./pages/Children";
 import PrivilegeManagement from "./pages/PrivilegeManagement";
 import FeaturePrivileges from "./pages/FeaturePrivileges";
+import StageExams from "./pages/StageExams";
 import CertificateManagement from "./pages/CertificateManagement";
 import MyCertificates from "./pages/MyCertificates";
 import Navbar from "./components/Navbar";
@@ -405,6 +406,16 @@ export default function App() {
               <ProtectedRoute requiredRole={["admin", "administrator"]}>
                 <ConditionalLayout>
                   <FeaturePrivileges />
+                </ConditionalLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/stage-exams"
+            element={
+              <ProtectedRoute requiredRole={["admin", "administrator", "supervisor", "teacher"]}>
+                <ConditionalLayout>
+                  <StageExams />
                 </ConditionalLayout>
               </ProtectedRoute>
             }

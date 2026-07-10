@@ -142,6 +142,8 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
   });
   const [goalProgress, setGoalProgress] = useState({ percentage: 0, memorizedVerses: 0, totalGoalVerses: 0 });
   const [semesterGoals, setSemesterGoals] = useState([]);
+  const [stageInfo, setStageInfo] = useState(null); // نظام المرحليات
+  const [addingStage, setAddingStage] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -161,6 +163,39 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
       .then((res) => setSemesterGoals(res.data.goals || []))
       .catch(() => setSemesterGoals([]));
   }, [student?.id]);
+
+  // المرحليات: سجل الطالب وجاهزيته (كل جزءين = مرحلية).
+  const fetchStageInfo = () => {
+    if (!student?.id) return;
+    axios
+      .get(`${API_BASE}/api/stage-exams/student/${student.id}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      })
+      .then((res) => setStageInfo(res.data))
+      .catch(() => setStageInfo(null));
+  };
+
+  useEffect(() => {
+    fetchStageInfo();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [student?.id]);
+
+  const addStudentToNextStage = async () => {
+    if (!stageInfo?.next_stage) return;
+    try {
+      setAddingStage(true);
+      await axios.post(
+        `${API_BASE}/api/stage-exams`,
+        { student_id: student.id, stage_number: stageInfo.next_stage },
+        { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
+      );
+      fetchStageInfo();
+    } catch (err) {
+      alert(err.response?.data?.error || 'فشل إضافة الطالب للمرحلية');
+    } finally {
+      setAddingStage(false);
+    }
+  };
 
   // Close attendance editing dropdown when clicking outside
   useEffect(() => {
@@ -1692,6 +1727,62 @@ const StudentProfileModal = ({ student, classItem, onBack, onClose }) => {
                     تحديد هدف جديد
                   </button>
                 </div>
+              </div>
+            )}
+
+            {/* المرحليات: جاهزية وإشارة واضحة + سجل المراحل */}
+            {stageInfo && (
+              <div className="bg-white p-4 rounded-lg border border-gray-200 mb-6">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                  <h3 className="text-lg font-semibold">المرحليات</h3>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
+                    المحفوظ: {stageInfo.juz_completed} جزء
+                  </span>
+                </div>
+
+                {stageInfo.next_stage && (
+                  <div className="mb-4 flex flex-col gap-3 rounded-lg border-2 border-amber-300 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="font-black text-amber-900">
+                      🔔 الطالب جاهز لدخول {stageInfo.next_stage_label}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={addStudentToNextStage}
+                      disabled={addingStage}
+                      className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-black text-white hover:bg-teal-700 disabled:opacity-50"
+                    >
+                      {addingStage ? 'جاري الإضافة...' : 'إضافة لقائمة المرحليات'}
+                    </button>
+                  </div>
+                )}
+
+                {(stageInfo.stage_exams || []).length === 0 ? (
+                  <p className="rounded-lg bg-gray-50 p-4 text-center text-sm text-gray-500">لم يدخل الطالب أي مرحلية بعد</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {stageInfo.stage_exams.map((exam) => (
+                      <span
+                        key={exam.id}
+                        title={`${exam.juz_label}${exam.score != null ? ` — الدرجة ${Number(exam.score)}%` : ''}${exam.notes ? ` — ${exam.notes}` : ''}`}
+                        className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-bold ${
+                          exam.status === 'passed'
+                            ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                            : exam.status === 'retry'
+                              ? 'border-red-200 bg-red-50 text-red-700'
+                              : 'border-sky-200 bg-sky-50 text-sky-800'
+                        }`}
+                      >
+                        {exam.stage_label}
+                        <span className="text-xs opacity-75">
+                          {exam.status === 'passed' ? '✓ نجح' : exam.status === 'retry' ? '↺ إعادة' : '⏳ في القائمة'}
+                        </span>
+                        {Number(exam.attempts) > 1 && (
+                          <span className="text-[10px] opacity-60">م{exam.attempts}</span>
+                        )}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
