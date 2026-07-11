@@ -8,6 +8,17 @@ async function ensureAuthSchema() {
   `);
 }
 
+async function ensureUserHomePreferencesSchema() {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS user_home_preferences (
+      user_id varchar(20) PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      card_order jsonb NOT NULL DEFAULT '[]'::jsonb,
+      updated_at timestamptz NOT NULL DEFAULT NOW(),
+      CHECK (jsonb_typeof(card_order) = 'array')
+    )
+  `);
+}
+
 async function ensureSemesterRegistrationSchema() {
   await db.query(`
     ALTER TABLE teachers
@@ -231,6 +242,7 @@ async function ensureEmailSchema() {
 
 async function ensureSchema() {
   await ensureAuthSchema();
+  await ensureUserHomePreferencesSchema();
   await ensureSemesterRegistrationSchema();
   await ensureParentChildRequestSchema();
   await ensureAppSettingsSchema();
@@ -243,6 +255,7 @@ async function ensureSchema() {
 
 module.exports = {
   ensureAuthSchema,
+  ensureUserHomePreferencesSchema,
   ensureSemesterRegistrationSchema,
   ensureParentChildRequestSchema,
   ensureAppSettingsSchema,

@@ -203,4 +203,71 @@ router.put('/me',
   }
 );
 
+// GET /api/profile/home-card-order - Get the signed-in user's Home card order
+router.get('/home-card-order', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT card_order FROM user_home_preferences WHERE user_id = $1',
+      [req.user.id]
+    );
+
+    res.json({ cardOrder: result.rows[0]?.card_order || [] });
+  } catch (error) {
+    console.error('Get Home card order error:', error);
+    res.status(500).json({ error: 'Failed to fetch Home card order' });
+  }
+});
+
+// PUT /api/profile/home-card-order - Save the signed-in user's Home card order
+router.put(
+  '/home-card-order',
+  authenticateToken,
+  [
+    body('cardOrder')
+      .isArray({ max: 100 })
+      .withMessage('cardOrder must be an array with at most 100 items')
+      .custom((value) => {
+        if (new Set(value).size !== value.length) {
+          throw new Error('cardOrder must not contain duplicate paths');
+        }
+        return true;
+      }),
+    body('cardOrder.*')
+      .isString()
+      .isLength({ min: 1, max: 150 })
+      .matches(/^\/[a-z0-9/_-]*$/i)
+      .withMessage('Each card must have a valid path')
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          error: 'Validation failed',
+          details: errors.array()
+        });
+      }
+
+      const { cardOrder } = req.body;
+      const result = await pool.query(
+        `INSERT INTO user_home_preferences (user_id, card_order, updated_at)
+         VALUES ($1, $2::jsonb, NOW())
+         ON CONFLICT (user_id)
+         DO UPDATE SET card_order = EXCLUDED.card_order, updated_at = NOW()
+         RETURNING card_order, updated_at`,
+        [req.user.id, JSON.stringify(cardOrder)]
+      );
+
+      res.json({
+        message: 'Home card order saved',
+        cardOrder: result.rows[0].card_order,
+        updatedAt: result.rows[0].updated_at
+      });
+    } catch (error) {
+      console.error('Save Home card order error:', error);
+      res.status(500).json({ error: 'Failed to save Home card order' });
+    }
+  }
+);
+
 module.exports = router;

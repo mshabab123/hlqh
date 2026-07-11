@@ -1,5 +1,5 @@
 // src/pages/Home.jsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AiOutlineExclamationCircle } from "react-icons/ai";
 import {
@@ -10,6 +10,7 @@ import {
   FaChild,
   FaClipboardCheck,
   FaDatabase,
+  FaGripVertical,
   FaSchool,
   FaStar,
   FaUserFriends,
@@ -213,6 +214,12 @@ const navigationCards = [
 
 export default function Home() {
   const [user, setUser] = useState(null);
+  const [cardOrder, setCardOrder] = useState([]);
+  const [draggedCardPath, setDraggedCardPath] = useState(null);
+  const [orderSaveState, setOrderSaveState] = useState("idle");
+  const cardOrderRef = useRef([]);
+  const dragSessionRef = useRef(null);
+  const saveStateTimerRef = useRef(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -245,6 +252,134 @@ export default function Home() {
     if (!user?.role) return [];
     return navigationCards.filter((card) => card.roles.includes(user.role));
   }, [user?.role]);
+
+  useEffect(() => {
+    if (!user?.role || user.role === "student") return undefined;
+
+    let isMounted = true;
+    const defaultOrder = accessibleCards.map((card) => card.path);
+
+    axios
+      .get("/api/profile/home-card-order")
+      .then((response) => {
+        if (!isMounted) return;
+        const savedOrder = Array.isArray(response.data?.cardOrder)
+          ? response.data.cardOrder
+          : [];
+        const allowedPaths = new Set(defaultOrder);
+        const normalizedOrder = [
+          ...savedOrder.filter((path) => allowedPaths.has(path)),
+          ...defaultOrder.filter((path) => !savedOrder.includes(path)),
+        ];
+        cardOrderRef.current = normalizedOrder;
+        setCardOrder(normalizedOrder);
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        cardOrderRef.current = defaultOrder;
+        setCardOrder(defaultOrder);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.role, accessibleCards]);
+
+  useEffect(() => () => {
+    if (saveStateTimerRef.current) clearTimeout(saveStateTimerRef.current);
+  }, []);
+
+  const orderedAccessibleCards = useMemo(() => {
+    if (cardOrder.length === 0) return accessibleCards;
+    const cardsByPath = new Map(accessibleCards.map((card) => [card.path, card]));
+    return cardOrder.map((path) => cardsByPath.get(path)).filter(Boolean);
+  }, [accessibleCards, cardOrder]);
+
+  const moveCard = (activePath, targetPath) => {
+    const currentOrder = cardOrderRef.current.length
+      ? [...cardOrderRef.current]
+      : accessibleCards.map((card) => card.path);
+    const fromIndex = currentOrder.indexOf(activePath);
+    const toIndex = currentOrder.indexOf(targetPath);
+    if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return currentOrder;
+
+    currentOrder.splice(fromIndex, 1);
+    currentOrder.splice(toIndex, 0, activePath);
+    cardOrderRef.current = currentOrder;
+    setCardOrder(currentOrder);
+    return currentOrder;
+  };
+
+  const saveCardOrder = async (nextOrder) => {
+    setOrderSaveState("saving");
+    try {
+      await axios.put("/api/profile/home-card-order", { cardOrder: nextOrder });
+      setOrderSaveState("saved");
+      if (saveStateTimerRef.current) clearTimeout(saveStateTimerRef.current);
+      saveStateTimerRef.current = setTimeout(() => setOrderSaveState("idle"), 1800);
+    } catch {
+      setOrderSaveState("error");
+    }
+  };
+
+  const handleDragPointerDown = (event, path) => {
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragSessionRef.current = {
+      path,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      moved: false,
+    };
+    setDraggedCardPath(path);
+  };
+
+  const handleDragPointerMove = (event) => {
+    const session = dragSessionRef.current;
+    if (!session || session.pointerId !== event.pointerId) return;
+
+    if (Math.hypot(event.clientX - session.startX, event.clientY - session.startY) > 5) {
+      session.moved = true;
+    }
+    if (!session.moved) return;
+
+    const targetCard = document
+      .elementFromPoint(event.clientX, event.clientY)
+      ?.closest("[data-home-card-path]");
+    const targetPath = targetCard?.getAttribute("data-home-card-path");
+    if (targetPath && targetPath !== session.path) {
+      moveCard(session.path, targetPath);
+    }
+  };
+
+  const finishPointerDrag = (event) => {
+    const session = dragSessionRef.current;
+    if (!session || session.pointerId !== event.pointerId) return;
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    dragSessionRef.current = null;
+    setDraggedCardPath(null);
+    if (session.moved) saveCardOrder(cardOrderRef.current);
+  };
+
+  const handleDragKeyDown = (event, path) => {
+    if (!["ArrowRight", "ArrowLeft", "ArrowUp", "ArrowDown"].includes(event.key)) return;
+    event.preventDefault();
+    event.stopPropagation();
+
+    const currentOrder = cardOrderRef.current;
+    const currentIndex = currentOrder.indexOf(path);
+    const moveBackward = event.key === "ArrowRight" || event.key === "ArrowUp";
+    const targetIndex = currentIndex + (moveBackward ? -1 : 1);
+    if (currentIndex < 0 || targetIndex < 0 || targetIndex >= currentOrder.length) return;
+
+    const nextOrder = moveCard(path, currentOrder[targetIndex]);
+    saveCardOrder(nextOrder);
+  };
 
   if (!user) {
     return null;
@@ -360,29 +495,65 @@ export default function Home() {
         <section>
           <div className="mb-3 flex items-center justify-between gap-3">
             <h2 className="text-lg font-bold text-slate-900">الاختصارات</h2>
-            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-500 ring-1 ring-slate-200">
-              {accessibleCards.length} خيارات
-            </span>
+            <div className="flex items-center gap-2">
+              {orderSaveState !== "idle" && (
+                <span
+                  className={`text-xs font-semibold ${
+                    orderSaveState === "error" ? "text-red-600" : "text-emerald-600"
+                  }`}
+                  role="status"
+                >
+                  {orderSaveState === "saving" && "جاري حفظ الترتيب..."}
+                  {orderSaveState === "saved" && "تم حفظ الترتيب"}
+                  {orderSaveState === "error" && "تعذر حفظ الترتيب"}
+                </span>
+              )}
+              <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-500 ring-1 ring-slate-200">
+                {orderedAccessibleCards.length} خيارات
+              </span>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-            {accessibleCards.map((card) => (
-              <button
+            {orderedAccessibleCards.map((card) => (
+              <div
                 key={`${card.path}-${card.title}`}
-                type="button"
-                onClick={() => navigate(card.path)}
-                className="group flex min-h-[168px] flex-col rounded-xl border border-slate-200 bg-white p-5 text-right shadow-md transition-all duration-200 hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-lg"
+                data-home-card-path={card.path}
+                className={`group relative min-h-[168px] rounded-xl border bg-white shadow-md transition-all duration-200 hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-lg ${
+                  draggedCardPath === card.path
+                    ? "scale-[0.98] border-primary-400 opacity-60 ring-2 ring-primary-200"
+                    : "border-slate-200"
+                }`}
               >
-                <span className={`${card.color} mb-4 flex h-12 w-12 items-center justify-center rounded-lg text-white shadow-sm transition-transform group-hover:scale-105`}>
-                  <card.icon className="text-xl" />
-                </span>
-                <span className="mb-2 text-base font-bold leading-tight text-slate-900">
-                  {card.title}
-                </span>
-                <span className="text-sm leading-6 text-slate-600">
-                  {card.description}
-                </span>
-              </button>
+                <button
+                  type="button"
+                  onPointerDown={(event) => handleDragPointerDown(event, card.path)}
+                  onPointerMove={handleDragPointerMove}
+                  onPointerUp={finishPointerDrag}
+                  onPointerCancel={finishPointerDrag}
+                  onKeyDown={(event) => handleDragKeyDown(event, card.path)}
+                  className="touch-none absolute left-3 top-3 z-10 flex h-9 w-9 cursor-grab items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-400 active:cursor-grabbing"
+                  aria-label={`سحب كرت ${card.title} لتغيير ترتيبه`}
+                  title="اسحب لتغيير الترتيب"
+                >
+                  <FaGripVertical aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate(card.path)}
+                  className="flex min-h-[168px] w-full flex-col rounded-xl p-5 text-right"
+                >
+                  <span className={`${card.color} mb-4 flex h-12 w-12 items-center justify-center rounded-lg text-white shadow-sm transition-transform group-hover:scale-105`}>
+                    <card.icon className="text-xl" />
+                  </span>
+                  <span className="mb-2 text-base font-bold leading-tight text-slate-900">
+                    {card.title}
+                  </span>
+                  <span className="text-sm leading-6 text-slate-600">
+                    {card.description}
+                  </span>
+                </button>
+              </div>
             ))}
           </div>
         </section>
