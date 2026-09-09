@@ -576,11 +576,12 @@ router.put('/:id', auth, requireRole(ROLES.TEACHER), requireStudentAccess, async
 
     const { id } = req.params;
     
-    // Check if trying to activate student without class assignment
+    // Check if trying to activate student without a placement. A school-only
+    // placement is valid: this endpoint creates/uses its general class below.
     if (req.body.status === 'active') {
-      const isAssigningClass = req.body.class_id;
+      const isAssigningPlacement = req.body.class_id || req.body.school_id;
 
-      if (!isAssigningClass) {
+      if (!isAssigningPlacement) {
         const studentCheck = await db.query(`
           SELECT se.class_id
           FROM student_enrollments se

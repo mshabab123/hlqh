@@ -473,53 +473,162 @@ input:-webkit-autofill:active {
   color: var(--color-text-primary);
 }
 
-/* Dark mode variants */
-@media (prefers-color-scheme: dark) {
-  html,
-  body,
-  #root {
+/* The user controls the theme; the operating-system preference is ignored. */
+:root {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+:root[data-theme="dark"] body,
+:root[data-theme="dark"] #root {
     background-color: var(--color-background-dark);
     color: var(--color-text-inverse);
+}
+
+  /* Translate the light Tailwind surfaces used throughout the existing UI.
+     Without these rules, iOS correctly switches the inherited text to white
+     while cards remain white, making their content appear to disappear. */
+:root[data-theme="dark"] .bg-white,
+:root[data-theme="dark"] .bg-gray-100,
+:root[data-theme="dark"] .bg-slate-100 {
+    background-color: var(--color-background-dark-secondary);
   }
-  
-  .bg-background { background-color: var(--color-background-dark); }
-  .bg-background-secondary { background-color: var(--color-background-dark-secondary); }
-  .text-primary { color: var(--color-text-inverse); }
-  .text-secondary { color: var(--color-neutral-300); }
+
+:root[data-theme="dark"] .bg-gray-50,
+:root[data-theme="dark"] .bg-slate-50 {
+    background-color: var(--color-background-dark);
+  }
+
+:root[data-theme="dark"] .bg-gray-200,
+:root[data-theme="dark"] .bg-slate-200 {
+    background-color: #334155;
+  }
+
+:root[data-theme="dark"] .text-black,
+:root[data-theme="dark"] .text-gray-900,
+:root[data-theme="dark"] .text-gray-800,
+:root[data-theme="dark"] .text-slate-900,
+:root[data-theme="dark"] .text-slate-800 {
+    color: #f8fafc;
+  }
+
+:root[data-theme="dark"] .text-gray-700,
+:root[data-theme="dark"] .text-gray-600,
+:root[data-theme="dark"] .text-slate-700,
+:root[data-theme="dark"] .text-slate-600 {
+    color: #cbd5e1;
+  }
+
+:root[data-theme="dark"] .text-gray-500,
+:root[data-theme="dark"] .text-gray-400,
+:root[data-theme="dark"] .text-slate-500,
+:root[data-theme="dark"] .text-slate-400 {
+    color: #94a3b8;
+  }
+
+:root[data-theme="dark"] .border-gray-100,
+:root[data-theme="dark"] .border-gray-200,
+:root[data-theme="dark"] .border-gray-300,
+:root[data-theme="dark"] .border-slate-100,
+:root[data-theme="dark"] .border-slate-200,
+:root[data-theme="dark"] .border-slate-300,
+:root[data-theme="dark"] .divide-gray-100 > :not(:last-child),
+:root[data-theme="dark"] .divide-gray-200 > :not(:last-child),
+:root[data-theme="dark"] .divide-slate-100 > :not(:last-child),
+:root[data-theme="dark"] .divide-slate-200 > :not(:last-child) {
+    border-color: #475569;
+  }
+
+:root[data-theme="dark"] .bg-background { background-color: var(--color-background-dark); }
+:root[data-theme="dark"] .bg-background-secondary { background-color: var(--color-background-dark-secondary); }
+:root[data-theme="dark"] .bg-background-tertiary { background-color: #334155; }
+:root[data-theme="dark"] .bg-background-accent { background-color: #123b45; }
+:root[data-theme="dark"] .text-primary { color: var(--color-text-inverse); }
+:root[data-theme="dark"] .text-secondary { color: var(--color-neutral-300); }
   
   /* Dark mode input styles for Safari */
-  input[type="text"],
-  input[type="email"],
-  input[type="password"],
-  input[type="tel"],
-  input[type="number"],
-  input[type="date"],
-  input[type="search"],
-  select,
-  textarea {
-    background-color: var(--color-background-dark);
+:root[data-theme="dark"] input[type="text"],
+:root[data-theme="dark"] input[type="email"],
+:root[data-theme="dark"] input[type="password"],
+:root[data-theme="dark"] input[type="tel"],
+:root[data-theme="dark"] input[type="number"],
+:root[data-theme="dark"] input[type="date"],
+:root[data-theme="dark"] input[type="search"],
+:root[data-theme="dark"] select,
+:root[data-theme="dark"] textarea {
+    background-color: var(--color-background-dark-secondary);
+    color: var(--color-text-inverse);
+    border-color: #64748b;
+  }
+
+:root[data-theme="dark"] input::placeholder,
+:root[data-theme="dark"] textarea::placeholder {
+    color: #94a3b8;
+    opacity: 1;
+  }
+
+:root[data-theme="dark"] select option {
+    background-color: var(--color-background-dark-secondary);
     color: var(--color-text-inverse);
   }
   
   /* Dark mode Safari autofill */
-  input:-webkit-autofill,
-  input:-webkit-autofill:hover,
-  input:-webkit-autofill:focus,
-  input:-webkit-autofill:active {
-    -webkit-box-shadow: 0 0 0 30px var(--color-background-dark) inset !important;
+:root[data-theme="dark"] input:-webkit-autofill,
+:root[data-theme="dark"] input:-webkit-autofill:hover,
+:root[data-theme="dark"] input:-webkit-autofill:focus,
+:root[data-theme="dark"] input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 30px var(--color-background-dark-secondary) inset !important;
     -webkit-text-fill-color: var(--color-text-inverse) !important;
-    box-shadow: 0 0 0 30px var(--color-background-dark) inset !important;
+    box-shadow: 0 0 0 30px var(--color-background-dark-secondary) inset !important;
   }
 
-  .quran-total-errors {
+:root[data-theme="dark"] .quran-total-errors {
     background-color: var(--color-background-dark-secondary);
     border-color: var(--color-border-dark);
     color: var(--color-text-inverse);
   }
 
-  .quran-error-box {
+:root[data-theme="dark"] .quran-error-box {
     background-color: var(--color-background-dark-secondary);
     border-color: var(--color-border-dark);
     color: var(--color-text-inverse);
-  }
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 44px;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid rgb(255 255 255 / 0.3);
+  border-radius: 0.65rem;
+  background: rgb(255 255 255 / 0.15);
+  color: #ffffff;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 150ms ease, border-color 150ms ease;
+}
+
+.theme-toggle:hover {
+  background: rgb(255 255 255 / 0.25);
+}
+
+.theme-toggle--mobile {
+  width: 100%;
+  justify-content: flex-start;
+  padding: 0.75rem 1rem;
+}
+
+:root[data-theme="dark"] .theme-toggle {
+  border-color: rgb(255 255 255 / 0.3);
+  background: rgb(15 23 42 / 0.35);
+  color: #ffffff;
+}
+
+:root[data-theme="dark"] .theme-toggle:hover {
+  background: rgb(15 23 42 / 0.55);
 }

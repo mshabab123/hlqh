@@ -7,6 +7,7 @@ import {
   AiOutlineInfoCircle,
   AiOutlineUserAdd,
 } from "react-icons/ai";
+import ThemeToggle from "./ThemeToggle";
 
 const navLinks = [
   { to: "/", label: "الرئيسية", icon: <AiOutlineHome /> },
@@ -66,6 +67,7 @@ export default function Navbar() {
                 <span className="text-sm font-semibold">{link.label}</span>
               </Link>
             ))}
+            <ThemeToggle />
           </div>
 
           {/* Mobile menu button — fixed so it stays visible while the navbar
@@ -115,6 +117,7 @@ export default function Navbar() {
                 <span>{link.label}</span>
               </Link>
             ))}
+            <ThemeToggle mobile />
           </div>
         </div>
       </div>

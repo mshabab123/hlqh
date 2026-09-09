@@ -54,6 +54,11 @@ export default function StudentManagement() {
   const [assigningStudent, setAssigningStudent] = useState(null);
   const [assignClassId, setAssignClassId] = useState("");
   const [assignSaving, setAssignSaving] = useState(false);
+  const [activationStudent, setActivationStudent] = useState(null);
+  const [activationSchoolId, setActivationSchoolId] = useState("");
+  const [activationClassId, setActivationClassId] = useState("");
+  const [activationSaving, setActivationSaving] = useState(false);
+  const [activationError, setActivationError] = useState("");
 
   const [currentStudent, setCurrentStudent] = useState({
     id: "",
@@ -415,17 +420,19 @@ export default function StudentManagement() {
   };
 
   const handleToggleStatus = async (student) => {
+    if (student.status !== 'active') {
+      setActivationStudent(student);
+      setActivationSchoolId(student.school_id ? String(student.school_id) : "");
+      setActivationClassId(student.class_id ? String(student.class_id) : "");
+      setActivationError("");
+      return;
+    }
+
     try {
-      const newStatus = student.status === 'active' ? 'suspended' : 'active';
-      
-      // Check if trying to activate student without class assignment
-      if (newStatus === 'active' && !student.class_id) {
-        alert("يجب تعيين الطالب إلى فصل قبل تفعيله، اذهب الى تعديل الملف ومن ثم اختر الحلقة للطالب.");
-        return;
-      }
+      const newStatus = 'inactive';
 
       // Confirm deactivation
-      if (newStatus === 'suspended') {
+      if (newStatus === 'inactive') {
         const confirmed = window.confirm(
           `هل أنت متأكد من تعليق حساب الطالب "${student.first_name} ${student.last_name}"؟\n` +
           `سيتم منع الطالب من الوصول للمنصة حتى يتم تفعيل حسابه مرة أخرى.`
@@ -463,6 +470,47 @@ export default function StudentManagement() {
       setError("حدث خطأ في تغيير حالة الطالب");
       console.error("Error toggling student status:", err);
       console.error("Response data:", err.response?.data);
+    }
+  };
+
+  const closeActivationModal = () => {
+    setActivationStudent(null);
+    setActivationSchoolId("");
+    setActivationClassId("");
+    setActivationError("");
+  };
+
+  const handleActivateStudent = async () => {
+    if (!activationStudent || !activationSchoolId || !activationClassId) {
+      setActivationError("يرجى اختيار مجمع الحلقات والحلقة");
+      return;
+    }
+
+    const selectedClass = classes.find((cls) => String(cls.id) === String(activationClassId));
+    if (!selectedClass || String(selectedClass.school_id) !== String(activationSchoolId)) {
+      setActivationError("الحلقة المختارة لا تتبع مجمع الحلقات المحدد");
+      return;
+    }
+
+    try {
+      setActivationSaving(true);
+      setActivationError("");
+      await axios.put(
+        `${API_BASE}/api/students/${activationStudent.id}`,
+        {
+          status: "active",
+          school_level: activationStudent.school_level,
+          school_id: activationSchoolId,
+          class_id: activationClassId,
+        },
+        { headers: authHeaders() }
+      );
+      closeActivationModal();
+      await fetchStudents();
+    } catch (err) {
+      setActivationError(err.response?.data?.error || "تعذر تفعيل حساب الطالب");
+    } finally {
+      setActivationSaving(false);
     }
   };
 
@@ -865,6 +913,88 @@ export default function StudentManagement() {
                   className="px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700 disabled:opacity-50"
                 >
                   {assignSaving ? 'جاري الحفظ...' : 'تسكين'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activationStudent && (
+          <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/40 p-4" dir="rtl">
+            <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+              <h3 className="mb-1 text-xl font-bold text-gray-900">تفعيل حساب الطالب</h3>
+              <p className="mb-5 text-sm text-gray-600">
+                {activationStudent.first_name} {activationStudent.last_name}
+              </p>
+
+              {activationError && (
+                <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-bold text-red-700">
+                  {activationError}
+                </div>
+              )}
+
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">مجمع الحلقات</label>
+                  <select
+                    value={activationSchoolId}
+                    onChange={(event) => {
+                      setActivationSchoolId(event.target.value);
+                      setActivationClassId("");
+                      setActivationError("");
+                    }}
+                    className="w-full rounded-lg border border-gray-300 bg-white p-3 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  >
+                    <option value="">اختر مجمع الحلقات</option>
+                    {schools.map((school) => (
+                      <option key={school.id} value={school.id}>{school.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">الحلقة</label>
+                  <select
+                    value={activationClassId}
+                    onChange={(event) => {
+                      setActivationClassId(event.target.value);
+                      setActivationError("");
+                    }}
+                    disabled={!activationSchoolId}
+                    className="w-full rounded-lg border border-gray-300 bg-white p-3 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  >
+                    <option value="">اختر الحلقة</option>
+                    {classes
+                      .filter((cls) => String(cls.school_id) === String(activationSchoolId))
+                      .map((cls) => (
+                        <option key={cls.id} value={cls.id}>
+                          {cls.name}{cls.semester_name ? ` — ${cls.semester_name}` : ""}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              </div>
+
+              <p className="mt-4 text-xs text-gray-500">
+                عند التأكيد سيتم إلحاق الطالب بالحلقة وتفعيل إمكانية تسجيل الدخول.
+              </p>
+
+              <div className="mt-6 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={closeActivationModal}
+                  disabled={activationSaving}
+                  className="rounded-lg border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="button"
+                  onClick={handleActivateStudent}
+                  disabled={activationSaving || !activationSchoolId || !activationClassId}
+                  className="rounded-lg bg-emerald-600 px-5 py-2 font-bold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {activationSaving ? "جاري التفعيل..." : "تفعيل وإضافة"}
                 </button>
               </div>
             </div>

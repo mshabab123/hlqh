@@ -130,7 +130,8 @@ export default function StudentInfoEditModal({ student, schools = [], classes = 
   const d = (key) => (draft[key] !== undefined ? draft[key] : "");
   const setD = (key, value) => setDraft((prev) => ({ ...prev, [key]: value }));
 
-  const statusText = data.status === "active" ? "نشط" : "غير نشط";
+  const normalizedStatus = data.status === "active" ? "active" : "inactive";
+  const statusText = normalizedStatus === "active" ? "نشط" : "غير نشط";
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-3" dir="rtl">
@@ -272,7 +273,10 @@ export default function StudentInfoEditModal({ student, schools = [], classes = 
                 school_level: data.school_level || "",
                 school_id: data.school_id || "",
                 class_id: data.class_id || "",
-                status: data.status || "inactive",
+                // The students API returns "inactive". Using a different value
+                // here made Safari show the first (active) option while the form
+                // silently submitted the original inactive value.
+                status: normalizedStatus,
               })
             }
             onCancel={cancelEdit}
@@ -295,7 +299,7 @@ export default function StudentInfoEditModal({ student, schools = [], classes = 
                 {editingGroup === "academic" ? (
                   <select className={inputClass} value={d("status")} onChange={(e) => setD("status", e.target.value)}>
                     <option value="active">نشط</option>
-                    <option value="suspended">غير نشط</option>
+                    <option value="inactive">غير نشط</option>
                   </select>
                 ) : (
                   <ReadValue value={statusText} />

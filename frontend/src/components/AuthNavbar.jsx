@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { performLogout } from "../utils/logout";
+import ThemeToggle from "./ThemeToggle";
 import {
   AiOutlineLogout,
   AiOutlineUser,
@@ -279,6 +280,8 @@ export default function AuthNavbar() {
               </Link>
             ))}
 
+            <ThemeToggle />
+
             {/* Notifications — طلاب جاهزون للمرحليات */}
             <button
               onClick={openNotifications}
@@ -362,6 +365,8 @@ export default function AuthNavbar() {
                 <span className="font-semibold">{link.label}</span>
               </Link>
             ))}
+
+            <ThemeToggle mobile />
 
             {/* Notifications on mobile — طلاب جاهزون للمرحليات */}
             <button
