@@ -1,11 +1,22 @@
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const db = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 const { canAccessStudent } = require('../utils/accessScope');
 const { requireFeature } = require('../utils/featurePrivileges');
 const { QURAN_SURAHS, TOTAL_QURAN_PAGES } = require('../utils/quranUtils.js');
+const { sendStageExamReportEmail, sendParentMessageEmail } = require('../utils/email');
 
 const router = express.Router();
+
+const emailLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => String(req.user.id),
+  message: { error: 'تم تجاوز حد إرسال البريد. حاول مرة أخرى لاحقاً.' },
+});
 
 // نظام المرحليات: كل جزءين محفوظين = مرحلية.
 // المرحلية k تغطي الجزأين (32-2k) و(31-2k): المرحلية 1 = 30+29 ... المرحلية 15 = 2+1.
@@ -341,6 +352,95 @@ router.patch('/:id', authenticateToken, requireFeature('manage_stage_exams'), as
   } catch (error) {
     console.error('Error evaluating stage exam:', error);
     res.status(500).json({ error: 'فشل تقييم المرحلية' });
+  }
+});
+
+// POST /api/stage-exams/:id/email — manually email an exam result to the
+// parent/student, or send a one-off message to the student's primary parent.
+router.post('/:id/email', authenticateToken, emailLimiter, requireFeature('manage_stage_exams'), async (req, res) => {
+  try {
+    const type = req.body.type === 'parent_message' ? 'parent_message' : 'exam_report';
+    const recipient = req.body.recipient === 'student' ? 'student' : 'parent';
+    const examResult = await db.query(
+      `SELECT se.*, CONCAT_WS(' ', u.first_name, u.second_name, u.last_name) AS student_name,
+              u.first_name AS student_first_name, u.email AS student_email
+       FROM stage_exams se
+       JOIN users u ON u.id = se.student_id
+       WHERE se.id = $1`,
+      [req.params.id]
+    );
+    if (examResult.rows.length === 0) return res.status(404).json({ error: 'المرحلية غير موجودة' });
+
+    const exam = examResult.rows[0];
+    if (!(await canAccessStudent(db, req.user, exam.student_id))) {
+      return res.status(403).json({ error: 'ليس لديك صلاحية على هذا الطالب' });
+    }
+
+    const parentResult = await db.query(
+      `SELECT u.email, u.first_name
+       FROM parent_student_relationships psr
+       JOIN users u ON u.id = psr.parent_id
+       WHERE psr.student_id = $1 AND u.email IS NOT NULL AND BTRIM(u.email) <> ''
+       ORDER BY psr.is_primary DESC NULLS LAST
+       LIMIT 1`,
+      [exam.student_id]
+    );
+    let parent = parentResult.rows[0];
+    if (!parent) {
+      const fallback = await db.query(
+        `SELECT u.email, u.first_name
+         FROM students s JOIN users u ON u.id = s.parent_id
+         WHERE s.id = $1 AND u.email IS NOT NULL AND BTRIM(u.email) <> ''`,
+        [exam.student_id]
+      );
+      parent = fallback.rows[0];
+    }
+
+    let result;
+    let recipientEmail;
+    if (type === 'parent_message') {
+      const subject = String(req.body.subject || '').trim();
+      const message = String(req.body.message || '').trim();
+      if (!subject || subject.length > 120 || !message || message.length > 2000) {
+        return res.status(400).json({ error: 'أدخل عنواناً ورسالة لا تتجاوز 2000 حرف' });
+      }
+      if (!parent?.email) return res.status(400).json({ error: 'لا يوجد بريد إلكتروني مسجل لولي الأمر' });
+      recipientEmail = parent.email;
+      result = await sendParentMessageEmail(recipientEmail, {
+        parentName: parent.first_name,
+        studentName: exam.student_name,
+        subject,
+        message,
+      });
+    } else {
+      if (!['passed', 'retry'].includes(exam.status)) {
+        return res.status(400).json({ error: 'يجب اعتماد نتيجة الاختبار قبل إرسال التقرير' });
+      }
+      const target = recipient === 'student'
+        ? { email: exam.student_email, name: exam.student_first_name }
+        : parent;
+      if (!target?.email) {
+        return res.status(400).json({ error: recipient === 'student' ? 'لا يوجد بريد إلكتروني مسجل للطالب' : 'لا يوجد بريد إلكتروني مسجل لولي الأمر' });
+      }
+      recipientEmail = target.email;
+      result = await sendStageExamReportEmail(recipientEmail, {
+        recipientName: target.name || target.first_name,
+        studentName: exam.student_name,
+        stageLabel: `المرحلية ${exam.stage_number}`,
+        juzLabel: stageJuzLabel(exam.stage_number),
+        status: exam.status,
+        score: exam.score,
+        notes: exam.notes,
+      });
+    }
+
+    if (!result.sent) {
+      return res.status(503).json({ error: 'تعذر إرسال البريد. تحقق من تفعيل Resend وإعداداته.', reason: result.reason });
+    }
+    res.json({ message: `تم إرسال البريد إلى ${recipientEmail}`, email_id: result.id });
+  } catch (error) {
+    console.error('Error emailing stage exam:', error);
+    res.status(500).json({ error: 'فشل إرسال البريد' });
   }
 });
 

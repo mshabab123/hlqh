@@ -11,7 +11,10 @@ const csvCell = (value) => {
 
 export function exportRowsToCsv(rows, filename) {
   const csv = rows.map((row) => row.map(csvCell).join(',')).join('\r\n');
-  const blob = new Blob([`\uFEFF${csv}`], {
+  // Excel uses the Windows regional list separator by default. The `sep=,`
+  // directive makes comma-separated exports open in distinct columns even on
+  // Arabic systems whose configured separator is a semicolon.
+  const blob = new Blob([`\uFEFFsep=,\r\n${csv}`], {
     type: 'text/csv;charset=utf-8;'
   });
   const url = URL.createObjectURL(blob);

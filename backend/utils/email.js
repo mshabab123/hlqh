@@ -98,6 +98,15 @@ function button(href, label) {
   <p style="font-size:12px;color:#64748b;word-break:break-all;">أو انسخ الرابط: ${href}</p>`;
 }
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
 async function sendVerificationEmail(user, token) {
   // Independent purpose switch — verification can be off while reset is on.
   if (!(await isEmailVerificationEnabled())) return { sent: false, reason: 'verification_disabled' };
@@ -156,6 +165,44 @@ async function sendStudentReportEmail(to, { studentName, periodLabel, rows, note
   });
 }
 
+async function sendStageExamReportEmail(to, { recipientName, studentName, stageLabel, juzLabel, status, score, notes }) {
+  const resultLabel = status === 'passed' ? 'اجتاز الاختبار' : 'يحتاج إلى إعادة الاختبار';
+  const resultColor = status === 'passed' ? '#047857' : '#b91c1c';
+  const scoreRow = score === null || score === undefined
+    ? ''
+    : `<tr><td style="padding:8px;border-bottom:1px solid #e2e8f0;">الدرجة</td><td dir="ltr" style="padding:8px;border-bottom:1px solid #e2e8f0;font-weight:bold;">${escapeHtml(score)}%</td></tr>`;
+  return sendEmail({
+    to,
+    subject: `نتيجة ${stageLabel} للطالب ${studentName} - ${APP_NAME}`,
+    html: layout(
+      'نتيجة اختبار المرحلية',
+      `<p>مرحباً ${escapeHtml(recipientName || '')}،</p>
+       <p>تم اعتماد نتيجة الطالب <strong>${escapeHtml(studentName)}</strong>.</p>
+       <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px;">
+         <tr><td style="padding:8px;border-bottom:1px solid #e2e8f0;">الاختبار</td><td style="padding:8px;border-bottom:1px solid #e2e8f0;font-weight:bold;">${escapeHtml(stageLabel)}</td></tr>
+         <tr><td style="padding:8px;border-bottom:1px solid #e2e8f0;">الأجزاء</td><td style="padding:8px;border-bottom:1px solid #e2e8f0;font-weight:bold;">${escapeHtml(juzLabel)}</td></tr>
+         <tr><td style="padding:8px;border-bottom:1px solid #e2e8f0;">النتيجة</td><td style="padding:8px;border-bottom:1px solid #e2e8f0;font-weight:bold;color:${resultColor};">${resultLabel}</td></tr>
+         ${scoreRow}
+       </table>
+       ${notes ? `<p><strong>ملاحظات:</strong> ${escapeHtml(notes)}</p>` : ''}`
+    ),
+  });
+}
+
+async function sendParentMessageEmail(to, { parentName, studentName, subject, message }) {
+  const safeMessage = escapeHtml(message).replaceAll('\n', '<br>');
+  return sendEmail({
+    to,
+    subject: `${subject} - ${APP_NAME}`,
+    html: layout(
+      escapeHtml(subject),
+      `<p>مرحباً ${escapeHtml(parentName || 'ولي الأمر')}،</p>
+       <p>رسالة بخصوص الطالب <strong>${escapeHtml(studentName)}</strong>:</p>
+       <div style="margin:16px 0;padding:16px;border-right:4px solid #0f6f79;background:#f8fafc;border-radius:8px;">${safeMessage}</div>`
+    ),
+  });
+}
+
 async function sendTestEmail(to) {
   return sendEmail({
     to,
@@ -172,6 +219,8 @@ module.exports = {
   sendVerificationEmail,
   sendPasswordResetEmail,
   sendStudentReportEmail,
+  sendStageExamReportEmail,
+  sendParentMessageEmail,
   sendTestEmail,
   APP_NAME,
 };

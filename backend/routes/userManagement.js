@@ -586,7 +586,9 @@ router.post('/reset-password',
   authenticateToken,
   [
     body('userId').notEmpty().withMessage('User ID is required'),
-    body('newPassword').isLength({ min: 10 }).withMessage('Password must be at least 10 characters')
+    body('newPassword')
+      .isLength({ min: 10 }).withMessage('Password must be at least 10 characters')
+      .matches(/^(?=.*\p{L})(?=.*\d)/u).withMessage('Password must contain at least one letter and one number')
   ],
   async (req, res) => {
     try {

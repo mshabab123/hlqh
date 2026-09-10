@@ -9,6 +9,7 @@ import {
   FaRedoAlt,
   FaSearch,
   FaSyncAlt,
+  FaEnvelope,
 } from "react-icons/fa";
 
 // نظام المرحليات: كل جزءين محفوظين يؤهلان الطالب لمرحلية.
@@ -32,6 +33,11 @@ export default function StageExams() {
   const [evaluating, setEvaluating] = useState(null); // { exam, status }
   const [score, setScore] = useState("");
   const [notes, setNotes] = useState("");
+  const [emailing, setEmailing] = useState(null);
+  const [emailType, setEmailType] = useState("exam_report");
+  const [emailRecipient, setEmailRecipient] = useState("parent");
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailMessage, setEmailMessage] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -109,6 +115,39 @@ export default function StageExams() {
       await load();
     } catch (err) {
       setError(err.response?.data?.error || "فشل إعادة الإدخال");
+    } finally {
+      setActionId(null);
+    }
+  };
+
+  const openEmail = (exam) => {
+    setEmailing(exam);
+    setEmailType(exam.status === "pending" ? "parent_message" : "exam_report");
+    setEmailRecipient("parent");
+    setEmailSubject("");
+    setEmailMessage("");
+    setError("");
+  };
+
+  const sendExamEmail = async () => {
+    if (!emailing) return;
+    if (emailType === "parent_message" && (!emailSubject.trim() || !emailMessage.trim())) {
+      setError("أدخل عنوان الرسالة ونصها");
+      return;
+    }
+    try {
+      setActionId(`email-${emailing.id}`);
+      setError("");
+      const res = await axios.post(`/api/stage-exams/${emailing.id}/email`, {
+        type: emailType,
+        recipient: emailType === "parent_message" ? "parent" : emailRecipient,
+        subject: emailSubject,
+        message: emailMessage,
+      });
+      setMessage(res.data?.message || "تم إرسال البريد");
+      setEmailing(null);
+    } catch (err) {
+      setError(err.response?.data?.error || "فشل إرسال البريد");
     } finally {
       setActionId(null);
     }
@@ -295,6 +334,14 @@ export default function StageExams() {
                                 <FaRedoAlt /> إعادة إدخال
                               </button>
                             )}
+                            <button
+                              type="button"
+                              disabled={actionId === `email-${exam.id}`}
+                              onClick={() => openEmail(exam)}
+                              className="inline-flex items-center gap-1 rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-black text-white hover:bg-violet-700 disabled:opacity-50"
+                            >
+                              <FaEnvelope /> إرسال بريد
+                            </button>
                             {exam.notes && <span className="text-xs text-slate-400" title={exam.notes}>📝</span>}
                           </div>
                         </td>
@@ -357,6 +404,65 @@ export default function StageExams() {
                 }`}
               >
                 حفظ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {emailing && (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/40 p-4" dir="rtl">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <h3 className="text-lg font-black text-slate-900">إرسال بريد</h3>
+            <p className="mt-1 text-sm text-slate-600">{emailing.student_name} — {emailing.stage_label}</p>
+
+            <div className="mt-5 space-y-4">
+              <label className="block">
+                <span className="text-sm font-bold text-slate-700">نوع الرسالة</span>
+                <select
+                  value={emailType}
+                  onChange={(e) => {
+                    setEmailType(e.target.value);
+                    if (e.target.value === "parent_message") setEmailRecipient("parent");
+                  }}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+                >
+                  {emailing.status !== "pending" && <option value="exam_report">تقرير نتيجة الاختبار</option>}
+                  <option value="parent_message">رسالة خاصة لولي الأمر</option>
+                </select>
+              </label>
+
+              {emailType === "exam_report" ? (
+                <label className="block">
+                  <span className="text-sm font-bold text-slate-700">المستلم</span>
+                  <select value={emailRecipient} onChange={(e) => setEmailRecipient(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2">
+                    <option value="parent">ولي الأمر</option>
+                    <option value="student">الطالب</option>
+                  </select>
+                </label>
+              ) : (
+                <>
+                  <label className="block">
+                    <span className="text-sm font-bold text-slate-700">عنوان الرسالة</span>
+                    <input maxLength="120" value={emailSubject} onChange={(e) => setEmailSubject(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+                  </label>
+                  <label className="block">
+                    <span className="text-sm font-bold text-slate-700">نص الرسالة</span>
+                    <textarea rows="5" maxLength="2000" value={emailMessage} onChange={(e) => setEmailMessage(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+                  </label>
+                </>
+              )}
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" onClick={() => setEmailing(null)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-600">إلغاء</button>
+              <button
+                type="button"
+                onClick={sendExamEmail}
+                disabled={actionId === `email-${emailing.id}`}
+                className="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-5 py-2 text-sm font-black text-white hover:bg-violet-700 disabled:opacity-50"
+              >
+                <FaEnvelope /> {actionId === `email-${emailing.id}` ? "جاري الإرسال..." : "إرسال"}
               </button>
             </div>
           </div>

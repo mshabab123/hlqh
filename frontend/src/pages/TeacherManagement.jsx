@@ -126,7 +126,7 @@ const TeacherForm = ({ teacher, onSubmit, onCancel, isEditing = false, onTeacher
               value={teacher.password}
               onChange={(e) => onTeacherChange({...teacher, password: e.target.value})}
               className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              minLength="6"
+              minLength="10"
               required
             />
           </div>

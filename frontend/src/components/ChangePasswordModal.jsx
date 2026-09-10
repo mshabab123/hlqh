@@ -21,10 +21,10 @@ export default function ChangePasswordModal({ isOpen, onClose, onSuccess }) {
 
   const validatePassword = (password) => {
     const errors = [];
-    if (password.length < 6) {
-      errors.push("يجب أن تكون كلمة المرور 6 أحرف على الأقل");
+    if (password.length < 10) {
+      errors.push("يجب أن تكون كلمة المرور 10 أحرف على الأقل");
     }
-    if (!/(?=.*[a-zA-Z])/.test(password)) {
+    if (!/(?=.*\p{L})/u.test(password)) {
       errors.push("يجب أن تحتوي على حرف واحد على الأقل");
     }
     if (!/(?=.*\d)/.test(password)) {

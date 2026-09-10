@@ -9,6 +9,13 @@ const app = express();
 const isProduction = process.env.NODE_ENV === 'production';
 const isEnabled = (value) => ['1', 'true', 'yes'].includes(String(value).toLowerCase());
 
+app.disable('x-powered-by');
+if (isProduction) {
+  // The production app is behind one trusted reverse proxy (Cloudflare/web
+  // server). This makes rate limiting use the real client IP.
+  app.set('trust proxy', 1);
+}
+
 // Middleware
 const allowedOrigins = (process.env.FRONTEND_URL || '')
   .split(',')

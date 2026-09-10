@@ -75,8 +75,8 @@ export default function TeacherRegister() {
       errors.email = "صيغة البريد الإلكتروني غير صحيحة";
 
     if (!form.password) errors.password = "يرجى تعبئة هذا الحقل";
-    else if (form.password.length < 6)
-      errors.password = "كلمة المرور يجب أن تكون 6 أحرف أو أكثر";
+    else if (form.password.length < 10 || !/(?=.*\p{L})(?=.*\d)/u.test(form.password))
+      errors.password = "كلمة المرور يجب أن تكون 10 أحرف على الأقل وتحتوي على حرف ورقم";
 
     if (!form.user_type) errors.user_type = "يرجى اختيار نوع المستخدم";
     else if (!["teacher", "administrator"].includes(form.user_type)) {

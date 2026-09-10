@@ -34,8 +34,10 @@ const parentValidationRules = [
     .matches(/^05\d{8}$/)
     .withMessage('رقم الجوال يجب أن يكون 10 أرقام ويبدأ بـ 05'),
   body('password')
-    .isLength({ min: 6 })
-    .withMessage('كلمة المرور يجب أن تكون 6 أحرف على الأقل'),
+    .isLength({ min: 10 })
+    .withMessage('كلمة المرور يجب أن تكون 10 أحرف على الأقل')
+    .matches(/^(?=.*\p{L})(?=.*\d)/u)
+    .withMessage('كلمة المرور يجب أن تحتوي على حرف ورقم على الأقل'),
   body('childIds')
     .optional()
     .isArray()

@@ -357,8 +357,8 @@ router.post('/:parentId/register-student', authenticateToken, ensureOwnParentOrS
       return res.status(400).json({ error: 'تاريخ الميلاد غير صحيح' });
     }
 
-    if (String(password).length < 6) {
-      return res.status(400).json({ error: 'كلمة المرور يجب أن تكون 6 أحرف على الأقل' });
+    if (String(password).length < 10 || !/^(?=.*\p{L})(?=.*\d)/u.test(String(password))) {
+      return res.status(400).json({ error: 'كلمة المرور يجب أن تكون 10 أحرف على الأقل وتحتوي على حرف ورقم' });
     }
 
     if (phone && !/^05\d{8}$/.test(phone)) {

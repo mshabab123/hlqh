@@ -57,10 +57,10 @@ export default function ResetPassword() {
 
   const validatePassword = (password) => {
     const errors = [];
-    if (password.length < 6) {
-      errors.push("يجب أن تكون كلمة المرور 6 أحرف على الأقل");
+    if (password.length < 10) {
+      errors.push("يجب أن تكون كلمة المرور 10 أحرف على الأقل");
     }
-    if (!/(?=.*[a-zA-Z])/.test(password)) {
+    if (!/(?=.*\p{L})/u.test(password)) {
       errors.push("يجب أن تحتوي على حرف واحد على الأقل");
     }
     if (!/(?=.*\d)/.test(password)) {
@@ -306,7 +306,7 @@ export default function ResetPassword() {
               <p className="text-blue-800 text-sm">
                 <strong>متطلبات كلمة المرور:</strong>
                 <br />
-                • 6 أحرف على الأقل
+                • 10 أحرف على الأقل
                 <br />
                 • حرف واحد على الأقل (A-Z أو a-z)
                 <br />

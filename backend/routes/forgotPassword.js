@@ -78,6 +78,25 @@ const initializeTable = async () => {
           ON password_reset_tokens(token_hash)
         `);
       }
+
+      // Older installations stored reset tokens in a plaintext `token`
+      // column declared NOT NULL. New code deliberately stores only a SHA-256
+      // hash, so that legacy constraint would reject every secure insert.
+      // Keep the column temporarily for backwards-compatible deployments, but
+      // make it nullable; no token data is deleted by this migration.
+      const legacyTokenColumn = await pool.query(`
+        SELECT is_nullable
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'password_reset_tokens'
+          AND column_name = 'token'
+      `);
+      if (legacyTokenColumn.rows[0]?.is_nullable === 'NO') {
+        await pool.query(`
+          ALTER TABLE password_reset_tokens
+          ALTER COLUMN token DROP NOT NULL
+        `);
+      }
     }
   } catch (error) {
     // If it's a permission error, just log and continue
@@ -148,6 +167,13 @@ router.post('/request',
       const resetTokenHash = hashResetToken(resetToken);
       const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes from now
       
+      // Only the newest recovery email remains valid. This narrows the window
+      // if an older reset message is exposed or forwarded.
+      await pool.query(
+        'UPDATE password_reset_tokens SET used = true WHERE user_id = $1 AND used = false',
+        [user.id]
+      );
+
       // Store reset token in database
       await pool.query(`
         INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) 
@@ -181,7 +207,7 @@ router.post('/reset',
     body('token').notEmpty().withMessage('Reset token is required'),
     body('newPassword')
       .isLength({ min: 10 }).withMessage('Password must be at least 10 characters')
-      .matches(/^(?=.*[a-zA-Z])(?=.*\d)/)
+      .matches(/^(?=.*\p{L})(?=.*\d)/u)
       .withMessage('Password must contain at least one letter and one number'),
     body('confirmPassword').custom((value, { req }) => {
       if (value !== req.body.newPassword) {

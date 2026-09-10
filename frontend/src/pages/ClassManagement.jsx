@@ -1,6 +1,6 @@
 import { useState, useEffect, Fragment } from "react";
 import axios from "../utils/axiosConfig";
-import { AiOutlinePlus, AiOutlineEdit, AiOutlineDelete, AiOutlineUser, AiOutlineBook, AiOutlineReload, AiOutlineStar, AiOutlineFileText, AiOutlineBarChart, AiOutlineCopy, AiOutlineRollback } from "react-icons/ai";
+import { AiOutlinePlus, AiOutlineEdit, AiOutlineDelete, AiOutlineUser, AiOutlineBook, AiOutlineReload, AiOutlineStar, AiOutlineFileText, AiOutlineBarChart, AiOutlineCopy, AiOutlineRollback, AiOutlineDownload } from "react-icons/ai";
 import ClassForm from "../components/ClassForm";
 import StudentListModal from "../components/StudentListModal";
 import { 
@@ -55,6 +55,7 @@ export default function ClassManagement() {
   const [copyLoading, setCopyLoading] = useState(false);
   const [copyError, setCopyError] = useState("");
   const [copySuccess, setCopySuccess] = useState("");
+  const [exportingClassId, setExportingClassId] = useState(null);
   const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
   const [userRole, setUserRole] = useState(storedUser.role || storedUser.user_type || "admin");
   const [userSchoolId, setUserSchoolId] = useState(null); // TODO: Get from auth context
@@ -378,6 +379,63 @@ export default function ClassManagement() {
     }
   };
 
+  const handleExportStudents = async (classItem) => {
+    try {
+      setExportingClassId(classItem.id);
+      setError("");
+      const headers = { Authorization: `Bearer ${localStorage.getItem("token")}` };
+      const [studentsResponse, gradesResponse] = await Promise.all([
+        axios.get(`${API_BASE}/api/classes/${classItem.id}/students`, { headers }),
+        axios.get(`${API_BASE}/api/classes/${classItem.id}/grades-summary`, { headers })
+      ]);
+      const students = Array.isArray(studentsResponse.data) ? studentsResponse.data : [];
+      const gradeRecords = Array.isArray(gradesResponse.data) ? gradesResponse.data : [];
+      const courseNames = Array.from(new Set(
+        gradeRecords.map((record) => record.course_name).filter(Boolean)
+      ));
+      const gradeStats = new Map();
+      gradeRecords.forEach((record) => {
+        if (!record.course_name || record.percentage_score === null || record.percentage_score === undefined) return;
+        const key = `${record.student_id}:${record.course_name}`;
+        const current = gradeStats.get(key) || { sum: 0, count: 0 };
+        current.sum += Number(record.percentage_score) || 0;
+        current.count += 1;
+        gradeStats.set(key, current);
+      });
+      const rows = students.map((student) => [
+        student.id,
+        [student.first_name, student.second_name, student.third_name, student.last_name].filter(Boolean).join(" "),
+        student.phone || "-",
+        student.email || "-",
+        student.school_level || "-",
+        student.memorized_surah_name || "-",
+        student.memorized_ayah_number || "-",
+        student.last_memorized_page || "-",
+        student.memorized_pages || 0,
+        student.memorized_chapters || 0,
+        ...courseNames.map((courseName) => {
+          const stats = gradeStats.get(`${student.id}:${courseName}`);
+          return stats?.count ? (stats.sum / stats.count).toFixed(1) : "-";
+        }),
+        student.enrollment_date ? new Date(student.enrollment_date).toLocaleDateString("ar-SA") : "-",
+        student.status || "enrolled"
+      ]);
+      const safeClassName = String(classItem.name || classItem.id).replace(/[\\/:*?"<>|]/g, "-");
+      exportRowsToCsv([
+        ["الحلقة", classItem.name || "-"],
+        ["المجمع", classItem.school_name || "-"],
+        ["الفصل الدراسي", classItem.semester_name || "-"],
+        [],
+        ["معرف الطالب", "اسم الطالب", "رقم الهاتف", "البريد الإلكتروني", "المرحلة الدراسية", "آخر سورة محفوظة", "آخر آية محفوظة", "آخر صفحة محفوظة", "عدد الصفحات المحفوظة", "عدد السور المحفوظة", ...courseNames.map((name) => `درجة ${name} (%)`), "تاريخ التسجيل", "حالة التسجيل"],
+        ...rows
+      ], `طلاب-${safeClassName}.csv`);
+    } catch (err) {
+      setError(err.response?.data?.error || "فشل في تنزيل بيانات طلاب الحلقة");
+    } finally {
+      setExportingClassId(null);
+    }
+  };
+
   const toggleClassStatus = async (classId, currentStatus) => {
     try {
       await axios.put(`${API_BASE}/api/classes/${classId}`, {
@@ -554,7 +612,28 @@ export default function ClassManagement() {
                   >
                     <AiOutlineBarChart className="text-lg" /> تقارير النقاط
                   </button>
+
+                  <button
+                    onClick={() => handleExportStudents(classItem)}
+                    disabled={exportingClassId === classItem.id}
+                    className="flex items-center gap-1 px-2 py-1.5 bg-teal-600 text-white text-sm rounded-md hover:bg-teal-700 disabled:opacity-60 transition-colors justify-center self-center sm:col-start-1"
+                    title="تنزيل معلومات طلاب الحلقة"
+                  >
+                    <AiOutlineDownload />
+                    {exportingClassId === classItem.id ? "جاري..." : "تنزيل"}
+                  </button>
                 </>
+              )}
+              {isExtra && (
+                <button
+                  onClick={() => handleExportStudents(classItem)}
+                  disabled={exportingClassId === classItem.id}
+                  className="flex items-center gap-1 px-2 py-1.5 bg-teal-600 text-white text-sm rounded-md hover:bg-teal-700 disabled:opacity-60 transition-colors justify-center self-center sm:col-start-1"
+                  title="تنزيل معلومات طلاب الحلقة"
+                >
+                  <AiOutlineDownload />
+                  {exportingClassId === classItem.id ? "جاري..." : "تنزيل"}
+                </button>
               )}
             </div>
           </div>
@@ -984,7 +1063,7 @@ export default function ClassManagement() {
                     >
                       <AiOutlineUser /> الطلاب
                     </button>
-                    
+
                     <button
                       onClick={() => handleManageCourses(classItem)}
                       className="flex items-center gap-1 px-3 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors flex-1 justify-center"
@@ -1011,6 +1090,16 @@ export default function ClassManagement() {
                       title="إدارة النقاط"
                     >
                       <AiOutlineStar /> النقاط
+                    </button>
+
+                    <button
+                      onClick={() => handleExportStudents(classItem)}
+                      disabled={exportingClassId === classItem.id}
+                      className="flex items-center gap-1 px-2 py-1.5 bg-teal-600 text-white text-sm rounded-md hover:bg-teal-700 disabled:opacity-60 transition-colors justify-center self-center sm:col-start-1"
+                      title="تنزيل معلومات طلاب الحلقة"
+                    >
+                      <AiOutlineDownload />
+                      {exportingClassId === classItem.id ? "جاري..." : "تنزيل"}
                     </button>
                   </div>
                   

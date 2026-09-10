@@ -9,6 +9,7 @@ Write-Host "Backend:  npm run dev"
 Write-Host "Frontend: npm run dev"
 Write-Host "Press Ctrl+C to stop both."
 
+$env:NODE_ENV = "development"
 $backend = Start-Process -FilePath "npm.cmd" -ArgumentList @("run", "dev") -WorkingDirectory $backendPath -NoNewWindow -PassThru
 $frontend = Start-Process -FilePath "npm.cmd" -ArgumentList @("run", "dev") -WorkingDirectory $frontendPath -NoNewWindow -PassThru
 

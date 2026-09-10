@@ -84,6 +84,9 @@ export default function ParentRegistration() {
     }
 
     if (!form.password) errors.password = "يرجى تعبئة هذا الحقل";
+    else if (form.password.length < 10 || !/(?=.*\p{L})(?=.*\d)/u.test(form.password)) {
+      errors.password = "كلمة المرور يجب أن تكون 10 أحرف على الأقل وتحتوي على حرف ورقم";
+    }
 
     // Child IDs validation
     const validChildIds = childIds.filter(id => id.trim() !== "");

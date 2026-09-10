@@ -660,6 +660,8 @@ router.get('/:id/students', requireAuth, requireRole(ROLES.TEACHER), requireClas
         u.phone,
         u.email,
         u.is_active,
+        s.memorized_surah_id,
+        s.memorized_ayah_number,
         se.enrollment_date,
         se.status
       FROM students s
@@ -669,7 +671,30 @@ router.get('/:id/students', requireAuth, requireRole(ROLES.TEACHER), requireClas
       ORDER BY u.first_name, u.last_name
     `, [classId]);
     
-    res.json(result.rows);
+    const students = result.rows.map((student) => {
+      const progress = calculateQuranProgress(
+        student.memorized_surah_id,
+        student.memorized_ayah_number
+      );
+      const currentSurah = progress.currentSurah || null;
+      const pagesInCurrentSurah = currentSurah
+        ? Math.max(0, progress.memorizedPages - QURAN_SURAHS
+            .slice(0, Math.max(0, QURAN_SURAHS.findIndex((surah) => surah.id == student.memorized_surah_id)))
+            .reduce((sum, surah) => sum + surah.totalPages, 0))
+        : 0;
+
+      return {
+        ...student,
+        memorized_surah_name: currentSurah?.name || null,
+        memorized_pages: progress.memorizedPages || 0,
+        memorized_chapters: progress.completedSurahs || 0,
+        last_memorized_page: currentSurah && pagesInCurrentSurah > 0
+          ? Math.min(currentSurah.startPage + pagesInCurrentSurah - 1, currentSurah.endPage)
+          : null
+      };
+    });
+
+    res.json(students);
   } catch (error) {
     console.error('Error fetching class students:', error);
     res.status(500).json({ error: 'حدث خطأ في جلب طلاب الحلقة' });
