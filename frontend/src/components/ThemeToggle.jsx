@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { AiOutlineMoon, AiOutlineSun } from "react-icons/ai";
 
 const STORAGE_KEY = "hlqh-theme";
+const THEME_CHANGE_EVENT = "hlqh-theme-change";
 
 function readTheme() {
   return localStorage.getItem(STORAGE_KEY) === "dark" ? "dark" : "light";
@@ -12,14 +13,32 @@ export default function ThemeToggle({ mobile = false }) {
   const isDark = theme === "dark";
 
   useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    localStorage.setItem(STORAGE_KEY, theme);
-  }, [theme]);
+    const syncTheme = (event) => {
+      const nextTheme = event.detail || readTheme();
+      setTheme(nextTheme);
+      document.documentElement.dataset.theme = nextTheme;
+    };
+    const syncStoredTheme = () => syncTheme({ detail: readTheme() });
+
+    window.addEventListener(THEME_CHANGE_EVENT, syncTheme);
+    window.addEventListener("storage", syncStoredTheme);
+    return () => {
+      window.removeEventListener(THEME_CHANGE_EVENT, syncTheme);
+      window.removeEventListener("storage", syncStoredTheme);
+    };
+  }, []);
+
+  const toggleTheme = () => {
+    const nextTheme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = nextTheme;
+    localStorage.setItem(STORAGE_KEY, nextTheme);
+    window.dispatchEvent(new CustomEvent(THEME_CHANGE_EVENT, { detail: nextTheme }));
+  };
 
   return (
     <button
       type="button"
-      onClick={() => setTheme(isDark ? "light" : "dark")}
+      onClick={toggleTheme}
       className={`theme-toggle ${mobile ? "theme-toggle--mobile" : ""}`}
       aria-label={isDark ? "تفعيل الوضع الفاتح" : "تفعيل الوضع الداكن"}
       title={isDark ? "الوضع الفاتح" : "الوضع الداكن"}
