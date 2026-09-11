@@ -117,7 +117,7 @@ export default function Navbar() {
                 <span>{link.label}</span>
               </Link>
             ))}
-            <ThemeToggle mobile />
+            <ThemeToggle mobile onChange={() => setIsMobileMenuOpen(false)} />
           </div>
         </div>
       </div>

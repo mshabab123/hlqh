@@ -8,7 +8,7 @@ function readTheme() {
   return localStorage.getItem(STORAGE_KEY) === "dark" ? "dark" : "light";
 }
 
-export default function ThemeToggle({ mobile = false }) {
+export default function ThemeToggle({ mobile = false, onChange }) {
   const [theme, setTheme] = useState(readTheme);
   const isDark = theme === "dark";
 
@@ -29,10 +29,12 @@ export default function ThemeToggle({ mobile = false }) {
   }, []);
 
   const toggleTheme = () => {
-    const nextTheme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    const nextTheme = isDark ? "light" : "dark";
+    setTheme(nextTheme);
     document.documentElement.dataset.theme = nextTheme;
     localStorage.setItem(STORAGE_KEY, nextTheme);
     window.dispatchEvent(new CustomEvent(THEME_CHANGE_EVENT, { detail: nextTheme }));
+    onChange?.(nextTheme);
   };
 
   return (
@@ -40,6 +42,7 @@ export default function ThemeToggle({ mobile = false }) {
       type="button"
       onClick={toggleTheme}
       className={`theme-toggle ${mobile ? "theme-toggle--mobile" : ""}`}
+      aria-pressed={isDark}
       aria-label={isDark ? "تفعيل الوضع الفاتح" : "تفعيل الوضع الداكن"}
       title={isDark ? "الوضع الفاتح" : "الوضع الداكن"}
     >

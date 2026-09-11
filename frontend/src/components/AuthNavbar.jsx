@@ -366,7 +366,7 @@ export default function AuthNavbar() {
               </Link>
             ))}
 
-            <ThemeToggle mobile />
+            <ThemeToggle mobile onChange={() => setIsMobileMenuOpen(false)} />
 
             {/* Notifications on mobile — طلاب جاهزون للمرحليات */}
             <button
