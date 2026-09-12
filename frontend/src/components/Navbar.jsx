@@ -83,6 +83,10 @@ export default function Navbar() {
               <AiOutlineMenu className="h-6 w-6" />
             )}
           </button>
+
+          <div className="lg:hidden fixed top-4 left-16 z-[95]">
+            <ThemeToggle iconOnly />
+          </div>
         </div>
 
         {/* Backdrop for the mobile menu */}
@@ -117,7 +121,6 @@ export default function Navbar() {
                 <span>{link.label}</span>
               </Link>
             ))}
-            <ThemeToggle mobile onChange={() => setIsMobileMenuOpen(false)} />
           </div>
         </div>
       </div>

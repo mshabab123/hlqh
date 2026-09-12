@@ -218,6 +218,9 @@ router.get('/', requireAuth, async (req, res) => {
       LEFT JOIN teacher_class_assignments tca ON c.id = tca.class_id AND tca.is_active = TRUE
       LEFT JOIN users tu ON tca.teacher_id = tu.id
       WHERE 1=1
+        -- School-only student placement used to create an internal placeholder
+        -- class. It is not a real halaqah and must not appear in class lists.
+        AND NOT (c.semester_id IS NULL AND c.name LIKE 'عام - %')
     `;
     
     const params = [];

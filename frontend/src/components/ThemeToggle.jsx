@@ -8,7 +8,7 @@ function readTheme() {
   return localStorage.getItem(STORAGE_KEY) === "dark" ? "dark" : "light";
 }
 
-export default function ThemeToggle({ mobile = false, onChange }) {
+export default function ThemeToggle({ mobile = false, iconOnly = false, onChange }) {
   const [theme, setTheme] = useState(readTheme);
   const isDark = theme === "dark";
 
@@ -41,13 +41,13 @@ export default function ThemeToggle({ mobile = false, onChange }) {
     <button
       type="button"
       onClick={toggleTheme}
-      className={`theme-toggle ${mobile ? "theme-toggle--mobile" : ""}`}
+      className={`theme-toggle ${mobile ? "theme-toggle--mobile" : ""} ${iconOnly ? "theme-toggle--icon-only" : ""}`}
       aria-pressed={isDark}
       aria-label={isDark ? "تفعيل الوضع الفاتح" : "تفعيل الوضع الداكن"}
       title={isDark ? "الوضع الفاتح" : "الوضع الداكن"}
     >
       {isDark ? <AiOutlineSun aria-hidden="true" /> : <AiOutlineMoon aria-hidden="true" />}
-      <span>{isDark ? "فاتح" : "داكن"}</span>
+      {!iconOnly && <span>{isDark ? "فاتح" : "داكن"}</span>}
     </button>
   );
 }
