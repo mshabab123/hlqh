@@ -240,6 +240,23 @@ async function ensureEmailSchema() {
   `);
 }
 
+async function ensureInternalMessagesSchema() {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS internal_messages (
+      id bigserial PRIMARY KEY,
+      sender_id varchar(20) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      recipient_id varchar(20) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      body text NOT NULL,
+      read_at timestamptz,
+      created_at timestamptz NOT NULL DEFAULT NOW(),
+      CHECK (sender_id <> recipient_id),
+      CHECK (char_length(body) BETWEEN 1 AND 4000)
+    )
+  `);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_internal_messages_sender ON internal_messages(sender_id, created_at DESC)`);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_internal_messages_recipient ON internal_messages(recipient_id, read_at, created_at DESC)`);
+}
+
 async function ensureSchema() {
   await ensureAuthSchema();
   await ensureUserHomePreferencesSchema();
@@ -250,6 +267,7 @@ async function ensureSchema() {
   await ensureStudentSemesterGoalsSchema();
   await ensureStageExamsSchema();
   await ensureEmailSchema();
+  await ensureInternalMessagesSchema();
   await require('../utils/featurePrivileges').ensureFeaturePrivilegesSchema();
 }
 
@@ -263,5 +281,6 @@ module.exports = {
   ensureStudentSemesterGoalsSchema,
   ensureStageExamsSchema,
   ensureEmailSchema,
+  ensureInternalMessagesSchema,
   ensureSchema,
 };

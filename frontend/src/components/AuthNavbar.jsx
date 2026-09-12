@@ -77,6 +77,8 @@ export default function AuthNavbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [notifications, setNotifications] = useState(0); // عدد الطلاب الجاهزين للمرحليات
+  const [messageNotifications, setMessageNotifications] = useState([]);
+  const [showNotifications, setShowNotifications] = useState(false);
   const [navLinks, setNavLinks] = useState([]);
   const [showInactiveModal, setShowInactiveModal] = useState(false);
 
@@ -142,12 +144,11 @@ export default function AuthNavbar() {
     if (!['teacher', 'admin', 'administrator', 'supervisor'].includes(role)) return;
 
     const token = localStorage.getItem('token');
-    if (!token) return;
 
     const fetchReadyCount = () => {
       fetch(`${API_BASE}/api/stage-exams/ready`, {
         credentials: 'include',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
@@ -161,9 +162,40 @@ export default function AuthNavbar() {
     return () => clearInterval(interval);
   }, [user?.role]);
 
-  const openNotifications = () => {
+  useEffect(() => {
+    if (!user || user.is_active === false) return undefined;
+    const token = localStorage.getItem('token');
+    const fetchUnreadMessages = () => {
+      fetch(`${API_BASE}/api/messages/conversations`, {
+        credentials: 'include',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => setMessageNotifications(
+          (data?.conversations || []).filter((item) => Number(item.unread_count) > 0)
+        ))
+        .catch(() => {});
+    };
+    fetchUnreadMessages();
+    const interval = setInterval(fetchUnreadMessages, 30000);
+    return () => clearInterval(interval);
+  }, [user?.id, user?.is_active, location.pathname]);
+
+  const unreadMessagesCount = messageNotifications.reduce(
+    (total, item) => total + Number(item.unread_count || 0), 0
+  );
+  const totalNotifications = notifications + unreadMessagesCount;
+
+  const openStageNotifications = () => {
     setIsMobileMenuOpen(false);
+    setShowNotifications(false);
     navigate('/stage-exams');
+  };
+
+  const openMessageNotification = (contactId) => {
+    setIsMobileMenuOpen(false);
+    setShowNotifications(false);
+    navigate(`/messages?contact=${contactId}`);
   };
 
   const handleLogout = async () => {
@@ -282,19 +314,44 @@ export default function AuthNavbar() {
 
             <ThemeToggle />
 
-            {/* Notifications — طلاب جاهزون للمرحليات */}
-            <button
-              onClick={openNotifications}
-              className="relative p-2 rounded-lg hover:bg-white/10 transition-colors"
-              title={notifications > 0 ? `${notifications} طالب جاهز لدخول مرحلية` : 'الإشعارات'}
-            >
-              <AiOutlineBell className="h-5 w-5" />
-              {notifications > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold">
-                  {notifications}
-                </span>
+            <div className="relative">
+              <button
+                onClick={() => setShowNotifications((visible) => !visible)}
+                className="relative p-2 rounded-lg hover:bg-white/10 transition-colors"
+                title="الإشعارات"
+              >
+                <AiOutlineBell className="h-5 w-5" />
+                {totalNotifications > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full min-w-5 h-5 px-1 flex items-center justify-center font-bold">
+                    {totalNotifications > 99 ? '99+' : totalNotifications}
+                  </span>
+                )}
+              </button>
+              {showNotifications && (
+                <div className="absolute left-0 top-full mt-3 w-80 overflow-hidden rounded-2xl border border-gray-200 bg-white text-gray-800 shadow-2xl" dir="rtl">
+                  <div className="flex items-center justify-between border-b bg-gray-50 px-4 py-3">
+                    <span className="font-bold">الإشعارات</span>
+                    <button onClick={() => setShowNotifications(false)} className="text-gray-400 hover:text-gray-700">✕</button>
+                  </div>
+                  <div className="max-h-96 overflow-y-auto p-2">
+                    {messageNotifications.map((item) => (
+                      <button key={item.id} onClick={() => openMessageNotification(item.id)} className="mb-1 flex w-full items-start gap-3 rounded-xl p-3 text-right hover:bg-teal-50">
+                        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-teal-100 text-teal-700"><AiOutlineMail /></span>
+                        <span className="min-w-0 flex-1"><span className="block font-bold">رسالة من {item.name}</span><span className="block truncate text-xs text-gray-500">{item.last_message}</span></span>
+                        <span className="rounded-full bg-red-500 px-2 py-0.5 text-xs text-white">{item.unread_count}</span>
+                      </button>
+                    ))}
+                    {notifications > 0 && (
+                      <button onClick={openStageNotifications} className="flex w-full items-start gap-3 rounded-xl p-3 text-right hover:bg-amber-50">
+                        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-amber-100 text-amber-700"><AiOutlineBell /></span>
+                        <span className="flex-1"><span className="block font-bold">طلاب جاهزون للمرحليات</span><span className="text-xs text-gray-500">{notifications} طالب جاهز للتقييم</span></span>
+                      </button>
+                    )}
+                    {totalNotifications === 0 && <p className="p-6 text-center text-sm text-gray-500">لا توجد إشعارات جديدة</p>}
+                  </div>
+                </div>
               )}
-            </button>
+            </div>
 
             {/* Logout Button */}
             <button
@@ -370,20 +427,22 @@ export default function AuthNavbar() {
               </Link>
             ))}
 
-            {/* Notifications on mobile — طلاب جاهزون للمرحليات */}
+            {/* Notifications on mobile */}
             <button
-              onClick={openNotifications}
+              onClick={() => messageNotifications.length
+                ? openMessageNotification(messageNotifications[0].id)
+                : openStageNotifications()}
               className="flex items-center gap-3 px-4 py-3 text-white hover:bg-white/15 rounded-lg transition-colors"
             >
               <span className="text-xl relative">
                 <AiOutlineBell />
-                {notifications > 0 && (
+                {totalNotifications > 0 && (
                   <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center font-bold">
-                    {notifications}
+                    {totalNotifications}
                   </span>
                 )}
               </span>
-              <span>الإشعارات{notifications > 0 ? ` — ${notifications} جاهز للمرحليات` : ''}</span>
+              <span>الإشعارات{unreadMessagesCount > 0 ? ` — ${unreadMessagesCount} رسالة جديدة` : notifications > 0 ? ` — ${notifications} جاهز للمرحليات` : ''}</span>
             </button>
 
             {/* Logout on mobile */}

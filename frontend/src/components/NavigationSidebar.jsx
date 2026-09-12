@@ -160,7 +160,7 @@ const NavigationSidebar = ({ isOpen, setIsOpen, isCollapsed, setIsCollapsed, cla
           title: "لوحة التحكم",
           path: "/dashboard", 
           icon: AiOutlineDashboard,
-          roles: ["admin", "supervisor", "administrator", "teacher"],
+          roles: ["admin", "supervisor", "administrator"],
           description: "عرض إحصائيات النظام"
         }
       ]
@@ -361,6 +361,13 @@ const NavigationSidebar = ({ isOpen, setIsOpen, isCollapsed, setIsCollapsed, cla
       title: "الشخصي",
       icon: AiOutlineUser,
       items: [
+        {
+          title: "الرسائل",
+          path: "/messages",
+          icon: AiOutlineMail,
+          roles: null,
+          description: "الرسائل الداخلية"
+        },
         {
           title: "الملف الشخصي",
           path: "/profile",

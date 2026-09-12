@@ -14,33 +14,20 @@ const getXlsxFilename = (filename) => {
 // Keep the existing function name so all report buttons automatically switch
 // from CSV to a native Excel workbook.
 export async function exportRowsToCsv(rows, filename) {
-  const { default: ExcelJS } = await import('exceljs');
-  const workbook = new ExcelJS.Workbook();
-  const worksheet = workbook.addWorksheet('البيانات', {
-    views: [{ rightToLeft: true }]
-  });
-  worksheet.addRows(rows.map((row) => row.map(normalizeExcelValue)));
+  const { default: writeExcelFile } = await import('write-excel-file/browser');
+  const data = rows.map((row) => row.map((value) => ({
+    value: normalizeExcelValue(value),
+    align: 'right',
+    verticalAlign: 'center',
+  })));
+  const columnCount = Math.max(0, ...rows.map((row) => row.length));
+  const columns = Array.from({ length: columnCount }, (_, index) => ({
+    width: Math.min(45, Math.max(10, ...rows.map((row) => String(row[index] ?? '').length + 2)))
+  }));
 
-  for (let columnIndex = 1; columnIndex <= worksheet.columnCount; columnIndex += 1) {
-    const column = worksheet.getColumn(columnIndex);
-    let width = 10;
-    column.eachCell({ includeEmpty: false }, (cell) => {
-      width = Math.max(width, String(cell.value ?? '').length + 2);
-    });
-    column.width = Math.min(width, 45);
-    column.alignment = { horizontal: 'right', vertical: 'middle' };
-  }
-
-  const buffer = await workbook.xlsx.writeBuffer();
-  const blob = new Blob([buffer], {
-    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-  });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = getXlsxFilename(filename);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  await writeExcelFile(data, {
+    sheet: 'البيانات',
+    columns,
+    rightToLeft: true,
+  }).toFile(getXlsxFilename(filename));
 }

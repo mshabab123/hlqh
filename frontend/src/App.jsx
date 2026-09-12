@@ -44,6 +44,7 @@ import FeaturePrivileges from "./pages/FeaturePrivileges";
 import StageExams from "./pages/StageExams";
 import CertificateManagement from "./pages/CertificateManagement";
 import MyCertificates from "./pages/MyCertificates";
+import Messages from "./pages/Messages";
 import Navbar from "./components/Navbar";
 import AuthNavbar from "./components/AuthNavbar";
 import ConditionalLayout from "./components/ConditionalLayout";
@@ -381,6 +382,14 @@ export default function App() {
                 <ConditionalLayout>
                   <PointsManagement />
                 </ConditionalLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/messages"
+            element={
+              <ProtectedRoute requiredRole={["admin", "administrator", "supervisor", "teacher", "parent", "parent_student", "student"]}>
+                <ConditionalLayout><Messages /></ConditionalLayout>
               </ProtectedRoute>
             }
           />

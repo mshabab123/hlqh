@@ -20,6 +20,10 @@ function applyAuthHeaders(config) {
   const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+  } else if (/^Bearer\s+(?:null|undefined)$/i.test(config.headers.Authorization || '')) {
+    // Login uses an HttpOnly session cookie. Remove stale placeholder headers
+    // so requests can authenticate with that cookie instead.
+    delete config.headers.Authorization;
   }
 
   const method = (config.method || 'get').toLowerCase();

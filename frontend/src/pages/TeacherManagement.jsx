@@ -364,8 +364,8 @@ export default function TeacherManagement() {
     }
   };
 
-  // class_ids from the server are the teacher's CURRENT-semester assignments;
-  // previous semesters live in the history section inside the modal.
+  // class_ids contains assignments for the active semester, or the newest
+  // semester when no semester currently covers today's date.
   const openTeacherInfo = (teacher) => {
     setViewTeacher({ ...teacher, class_ids: (teacher.class_ids || []).map(String) });
   };
@@ -505,8 +505,7 @@ export default function TeacherManagement() {
                 </span>
               </p>
 
-              {/* حلقات الفصل الدراسي الحالي فقط (المصدر: class_ids من الخادم).
-                  حلقات الفصول السابقة تبقى في سجل المعلم داخل نافذة المعلومات. */}
+              {/* حلقات الفصل النشط، أو أحدث فصل متاح عند عدم وجود فصل جارٍ. */}
               {(() => {
                 const teacherClassIds = (teacher.class_ids || []).map(String);
                 const teacherClasses = classes.filter(cls => teacherClassIds.includes(String(cls.id)));
@@ -515,7 +514,7 @@ export default function TeacherManagement() {
                   return (
                     <div className="mt-3 p-2 bg-green-50 rounded-lg border border-green-200">
                       <p className="font-medium text-green-800 text-xs mb-2">
-                        حلقات الفصل الدراسي الحالي ({teacherClasses.length}):
+                        الحلقات المسندة ({teacherClasses.length}):
                       </p>
                       <div className="flex flex-wrap gap-1">
                         {teacherClasses.map(cls => (
@@ -533,7 +532,7 @@ export default function TeacherManagement() {
                   return (
                     <div className="mt-3 p-2 bg-gray-50 rounded-lg border border-gray-200">
                       <p className="text-gray-600 text-xs text-center">
-                        لا يدرس أي حلقة في الفصل الدراسي الحالي
+                        لا توجد حلقة مسندة في الفصل الحالي
                       </p>
                     </div>
                   );

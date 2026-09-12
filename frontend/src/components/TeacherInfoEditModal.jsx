@@ -110,10 +110,16 @@ export default function TeacherInfoEditModal({ teacher, schools = [], classes = 
           const end = new Date(semester.end_date);
           return start <= today && end >= today;
         });
-        setCurrentSemester(activeSemester || null);
+        // Semester dates are sometimes entered after teaching assignments have
+        // already started. Keep the teacher file editable by falling back to
+        // the newest semester that has classes in this school.
+        const newestSemesterWithClasses = semesters.find((semester) =>
+          classes.some((cls) => String(cls.semester_id) === String(semester.id))
+        );
+        setCurrentSemester(activeSemester || newestSemesterWithClasses || semesters[0] || null);
       })
       .catch(() => setCurrentSemester(null));
-  }, [data?.school_id]);
+  }, [data?.school_id, classes]);
 
   // Load the teaching history (all semesters/classes ever taught).
   useEffect(() => {
@@ -192,7 +198,15 @@ export default function TeacherInfoEditModal({ teacher, schools = [], classes = 
   const isCurrentSemesterClass = (cls) =>
     currentSemester && String(cls.semester_id) === String(currentSemester.id);
   const currentSemesterClasses = classes.filter(isCurrentSemesterClass);
-  const assignedIds = (data.class_ids || []).map(String);
+  // The compact teachers list only includes date-active semester assignments.
+  // Merge it with the authoritative history so assignments remain visible when
+  // semester dates are missing, expired, or have not started yet.
+  const assignedIds = Array.from(new Set([
+    ...(data.class_ids || []).map(String),
+    ...history
+      .filter((row) => row.is_active !== false)
+      .map((row) => String(row.class_id)),
+  ]));
   const currentClassIds = currentSemesterClasses
     .filter((c) => assignedIds.includes(String(c.id)))
     .map((c) => String(c.id));

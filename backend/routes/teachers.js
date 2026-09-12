@@ -523,7 +523,20 @@ router.get('/', authenticateToken, requireRole(ROLES.SUPERVISOR), async (req, re
           COALESCE(c.school_id, t.school_id) as school_id,
           t.qualifications,
           COALESCE(
-            ARRAY_AGG(DISTINCT tca.class_id) FILTER (WHERE tca.class_id IS NOT NULL AND cursem.id IS NOT NULL),
+            ARRAY_AGG(DISTINCT tca.class_id) FILTER (
+              WHERE tca.class_id IS NOT NULL
+                AND c.semester_id = (
+                  SELECT selected_semester.id
+                  FROM semesters selected_semester
+                  WHERE selected_semester.school_id = c.school_id
+                  ORDER BY
+                    CASE WHEN selected_semester.start_date <= CURRENT_DATE
+                           AND selected_semester.end_date >= CURRENT_DATE THEN 0 ELSE 1 END,
+                    selected_semester.start_date DESC NULLS LAST,
+                    selected_semester.id DESC
+                  LIMIT 1
+                )
+            ),
             ARRAY[]::UUID[]
           ) as class_ids
         FROM users u
@@ -559,7 +572,20 @@ router.get('/', authenticateToken, requireRole(ROLES.SUPERVISOR), async (req, re
           t.school_id,
           COALESCE(t.can_assign_registered_students, true) as can_assign_registered_students,
           COALESCE(
-            ARRAY_AGG(DISTINCT tca.class_id) FILTER (WHERE tca.class_id IS NOT NULL AND cursem.id IS NOT NULL),
+            ARRAY_AGG(DISTINCT tca.class_id) FILTER (
+              WHERE tca.class_id IS NOT NULL
+                AND tcls.semester_id = (
+                  SELECT selected_semester.id
+                  FROM semesters selected_semester
+                  WHERE selected_semester.school_id = tcls.school_id
+                  ORDER BY
+                    CASE WHEN selected_semester.start_date <= CURRENT_DATE
+                           AND selected_semester.end_date >= CURRENT_DATE THEN 0 ELSE 1 END,
+                    selected_semester.start_date DESC NULLS LAST,
+                    selected_semester.id DESC
+                  LIMIT 1
+                )
+            ),
             ARRAY[]::UUID[]
           ) as class_ids
         FROM users u

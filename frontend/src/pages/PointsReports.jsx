@@ -72,11 +72,6 @@ const PointsReports = () => {
       console.log("User role:", userRole);
       console.log("Token exists:", !!token);
 
-      if (!token) {
-        setError("لا يوجد رمز مصادقة. يرجى تسجيل الدخول مرة أخرى");
-        return;
-      }
-
       // Get schools through accessible classes for all users
       const classesRes = await axios.get(`${API_BASE}/api/points/teacher/my-classes`, {
         headers: { Authorization: `Bearer ${token}` }

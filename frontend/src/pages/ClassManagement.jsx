@@ -1,6 +1,6 @@
 import { useState, useEffect, Fragment } from "react";
 import axios from "../utils/axiosConfig";
-import { AiOutlinePlus, AiOutlineEdit, AiOutlineDelete, AiOutlineUser, AiOutlineBook, AiOutlineReload, AiOutlineStar, AiOutlineFileText, AiOutlineBarChart, AiOutlineCopy, AiOutlineRollback, AiOutlineDownload } from "react-icons/ai";
+import { AiOutlinePlus, AiOutlineEdit, AiOutlineDelete, AiOutlineUser, AiOutlineBook, AiOutlineReload, AiOutlineStar, AiOutlineFileText, AiOutlineBarChart, AiOutlineCopy, AiOutlineRollback, AiOutlineDownload, AiOutlineTeam, AiOutlineMore, AiOutlineSafety } from "react-icons/ai";
 import ClassForm from "../components/ClassForm";
 import StudentListModal from "../components/StudentListModal";
 import { 
@@ -56,6 +56,8 @@ export default function ClassManagement() {
   const [copyError, setCopyError] = useState("");
   const [copySuccess, setCopySuccess] = useState("");
   const [exportingClassId, setExportingClassId] = useState(null);
+  const [openClassMenu, setOpenClassMenu] = useState(null);
+  const [selectedClassForTeachers, setSelectedClassForTeachers] = useState(null);
   const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
   const [userRole, setUserRole] = useState(storedUser.role || storedUser.user_type || "admin");
   const [userSchoolId, setUserSchoolId] = useState(null); // TODO: Get from auth context
@@ -175,6 +177,24 @@ export default function ClassManagement() {
     if (userRole !== "teacher") return;
     localStorage.setItem("teacher_extra_classes_visible", String(showExtraClasses));
   }, [showExtraClasses, userRole]);
+
+  useEffect(() => {
+    if (!openClassMenu) return undefined;
+
+    const closeOnOutsideClick = (event) => {
+      if (!event.target.closest('[data-class-menu]')) setOpenClassMenu(null);
+    };
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') setOpenClassMenu(null);
+    };
+
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [openClassMenu]);
 
   const fetchCourses = async (semesterId, classId) => {
     try {
@@ -983,7 +1003,9 @@ export default function ClassManagement() {
           const legacyTeacher = classItem.teacher_name;
           
           return (
-            <div key={classItem.id} className="bg-white rounded-xl shadow-lg border-0 hover:shadow-xl transition-shadow duration-300">
+            <div key={classItem.id} className={`relative bg-white rounded-2xl shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300 ${
+              openClassMenu?.endsWith(String(classItem.id)) ? 'z-20' : 'z-0'
+            }`}>
               {/* Header */}
               <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-4 rounded-t-xl">
                 <div className="flex justify-between items-start">
@@ -1056,46 +1078,66 @@ export default function ClassManagement() {
                 {/* Action Buttons */}
                 <div className="space-y-2">
                   {/* Primary Actions */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 gap-2.5">
                     <button
                       onClick={() => setSelectedClassForStudents(classItem)}
-                      className="flex items-center gap-1 px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex-1 justify-center"
+                      className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-emerald-500 px-3 py-2.5 font-medium text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-emerald-600 hover:shadow-md"
                     >
                       <AiOutlineUser /> الطلاب
                     </button>
 
                     <button
                       onClick={() => handleManageCourses(classItem)}
-                      className="flex items-center gap-1 px-3 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors flex-1 justify-center"
+                      className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-violet-500 px-3 py-2.5 font-medium text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-violet-600 hover:shadow-md"
                     >
                       <AiOutlineBook /> المقررات
                     </button>
 
-                    <button
-                      onClick={() => {
-                        setSelectedClassForGrades(classItem);
-                        setShowGradesModal(true);
-                      }}
-                      className="flex items-center gap-1 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex-1 justify-center"
-                    >
-                      <AiOutlineFileText /> {"الدرجات"}
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        const semesterParam = classItem.semester_id ? `&semester_id=${classItem.semester_id}` : "";
-                        window.location.href = `/points-management?class_id=${classItem.id}${semesterParam}`;
-                      }}
-                      className="flex items-center gap-1 px-3 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors flex-1 justify-center"
-                      title="إدارة النقاط"
-                    >
-                      <AiOutlineStar /> النقاط
-                    </button>
+                    <div className="relative" data-class-menu>
+                      <button
+                        onClick={() => setOpenClassMenu(
+                          openClassMenu === `assessment-${classItem.id}` ? null : `assessment-${classItem.id}`
+                        )}
+                        className={`flex min-h-12 w-full items-center justify-center gap-2 rounded-xl px-3 py-2.5 font-medium text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+                          openClassMenu === `assessment-${classItem.id}` ? 'bg-blue-700 ring-4 ring-blue-100' : 'bg-blue-600 hover:bg-blue-700'
+                        }`}
+                        title="الدرجات والنقاط"
+                      >
+                        <AiOutlineBarChart className="text-lg" /> التقييم <AiOutlineMore className="opacity-80" />
+                      </button>
+                      {openClassMenu === `assessment-${classItem.id}` && (
+                        <div className="absolute z-30 top-full mt-2 inset-x-0 min-w-48 overflow-hidden rounded-xl border border-gray-200 bg-white p-1.5 shadow-2xl">
+                          <div className="flex items-center justify-between px-2 py-1.5 text-xs font-bold text-gray-500">
+                            <span>اختر نوع التقييم</span>
+                            <button onClick={() => setOpenClassMenu(null)} className="rounded p-1 hover:bg-gray-100" aria-label="إغلاق">✕</button>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setSelectedClassForGrades(classItem);
+                              setShowGradesModal(true);
+                              setOpenClassMenu(null);
+                            }}
+                            className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-blue-700 hover:bg-blue-50"
+                          >
+                            <AiOutlineFileText /> الدرجات
+                          </button>
+                          <button
+                            onClick={() => {
+                              const semesterParam = classItem.semester_id ? `&semester_id=${classItem.semester_id}` : "";
+                              window.location.href = `/points-management?class_id=${classItem.id}${semesterParam}`;
+                            }}
+                            className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-amber-700 hover:bg-amber-50"
+                          >
+                            <AiOutlineStar /> النقاط
+                          </button>
+                        </div>
+                      )}
+                    </div>
 
                     <button
                       onClick={() => handleExportStudents(classItem)}
                       disabled={exportingClassId === classItem.id}
-                      className="flex items-center gap-1 px-2 py-1.5 bg-teal-600 text-white text-sm rounded-md hover:bg-teal-700 disabled:opacity-60 transition-colors justify-center self-center sm:col-start-1"
+                      className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-teal-600 px-3 py-2.5 font-medium text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-teal-700 hover:shadow-md disabled:opacity-60"
                       title="تنزيل معلومات طلاب الحلقة"
                     >
                       <AiOutlineDownload />
@@ -1105,7 +1147,7 @@ export default function ClassManagement() {
                   
                   {/* Secondary Actions */}
                   {canManageClassWithContext(classItem) && (
-                    <div className="flex gap-2">
+                    <div className="grid grid-cols-3 gap-2 border-t border-gray-100 pt-3">
                       <button
                         onClick={async () => {
                           await fetchTeachers(); // Refresh teachers before editing
@@ -1123,28 +1165,65 @@ export default function ClassManagement() {
                             primary_teacher_id: primaryTeacherId
                           });
                         }}
-                        className="flex items-center gap-1 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm flex-1 justify-center"
+                        className="flex items-center justify-center gap-1.5 rounded-xl bg-blue-50 px-2 py-2.5 text-xs font-bold text-blue-700 transition hover:bg-blue-100"
                       >
                         <AiOutlineEdit /> تعديل
                       </button>
                       
                       <button
-                        onClick={() => toggleClassStatus(classItem.id, classItem.is_active)}
-                        className={`flex items-center gap-1 px-3 py-1 rounded text-white text-sm flex-1 justify-center ${
-                          classItem.is_active 
-                            ? 'bg-orange-500 hover:bg-orange-600' 
-                            : 'bg-green-500 hover:bg-green-600'
-                        }`}
+                        onClick={async () => {
+                          await fetchTeachers();
+                          setSelectedClassForTeachers(classItem);
+                        }}
+                        className="flex items-center justify-center gap-1.5 rounded-xl bg-teal-50 px-2 py-2.5 text-xs font-bold text-teal-700 transition hover:bg-teal-100"
+                        title="إدارة معلمي الحلقة"
                       >
-                        {classItem.is_active ? '⏸️' : '▶️'}
+                        <AiOutlineTeam /> المعلمون
                       </button>
-                      
-                      <button
-                        onClick={() => handleDeleteClass(classItem.id)}
-                        className="flex items-center gap-1 px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-sm flex-1 justify-center"
-                      >
-                        <AiOutlineDelete />
-                      </button>
+
+                      <div className="relative" data-class-menu>
+                        <button
+                          onClick={() => setOpenClassMenu(
+                            openClassMenu === `admin-${classItem.id}` ? null : `admin-${classItem.id}`
+                          )}
+                          className={`flex w-full items-center justify-center gap-1.5 rounded-xl px-2 py-2.5 text-xs font-bold transition ${
+                            openClassMenu === `admin-${classItem.id}`
+                              ? 'bg-slate-700 text-white ring-4 ring-slate-100'
+                              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                          }`}
+                          title="الإيقاف والحذف"
+                        >
+                          <AiOutlineSafety /> الإجراءات <AiOutlineMore />
+                        </button>
+                        {openClassMenu === `admin-${classItem.id}` && (
+                          <div className="absolute z-30 bottom-full mb-2 left-0 min-w-52 overflow-hidden rounded-xl border border-gray-200 bg-white p-1.5 shadow-2xl">
+                            <div className="flex items-center justify-between px-2 py-1.5 text-xs font-bold text-gray-500">
+                              <span>إجراءات الحلقة</span>
+                              <button onClick={() => setOpenClassMenu(null)} className="rounded p-1 hover:bg-gray-100" aria-label="إغلاق">✕</button>
+                            </div>
+                            <button
+                              onClick={() => {
+                                toggleClassStatus(classItem.id, classItem.is_active);
+                                setOpenClassMenu(null);
+                              }}
+                              className={`w-full rounded-lg px-3 py-2.5 text-sm font-medium text-right hover:bg-gray-50 ${
+                                classItem.is_active ? 'text-orange-700' : 'text-green-700'
+                              }`}
+                            >
+                              {classItem.is_active ? '⏸ إيقاف الحلقة' : '▶ تفعيل الحلقة'}
+                            </button>
+                            <button
+                              onClick={() => {
+                                handleDeleteClass(classItem.id);
+                                setOpenClassMenu(null);
+                              }}
+                              className="w-full flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-red-700 hover:bg-red-50"
+                            >
+                              <AiOutlineDelete /> حذف الحلقة
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1197,6 +1276,21 @@ export default function ClassManagement() {
         />
       )}
 
+      {selectedClassForTeachers && (
+        <ClassTeachersModal
+          classItem={selectedClassForTeachers}
+          teachers={teachers.filter(
+            (teacher) => String(teacher.school_id) === String(selectedClassForTeachers.school_id)
+          )}
+          onClose={() => setSelectedClassForTeachers(null)}
+          onSaved={() => {
+            setSelectedClassForTeachers(null);
+            fetchClasses(schoolFilter || null, getSemesterFilterParam());
+            fetchTeachers();
+          }}
+        />
+      )}
+
       {showCoursesModal && selectedClassForCourses && (
         <CourseManagementModal
           classItem={selectedClassForCourses}
@@ -1229,6 +1323,109 @@ export default function ClassManagement() {
     </div>
   );
 }
+
+const ClassTeachersModal = ({ classItem, teachers, onClose, onSaved }) => {
+  const assigned = Array.isArray(classItem.teachers_with_roles) ? classItem.teachers_with_roles : [];
+  const initialIds = (classItem.assigned_teacher_ids || assigned.map((teacher) => teacher.id)).map(String);
+  const initialPrimary = assigned.find((teacher) => teacher.role === 'primary')?.id || initialIds[0] || '';
+  const [teacherIds, setTeacherIds] = useState(initialIds);
+  const [primaryTeacherId, setPrimaryTeacherId] = useState(String(initialPrimary));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const toggleTeacher = (teacherId, checked) => {
+    const id = String(teacherId);
+    if (checked) {
+      const nextIds = teacherIds.includes(id) ? teacherIds : [...teacherIds, id];
+      setTeacherIds(nextIds);
+      if (!primaryTeacherId) setPrimaryTeacherId(id);
+      return;
+    }
+
+    const nextIds = teacherIds.filter((selectedId) => selectedId !== id);
+    setTeacherIds(nextIds);
+    if (primaryTeacherId === id) setPrimaryTeacherId(nextIds[0] || '');
+  };
+
+  const save = async () => {
+    try {
+      setSaving(true);
+      setError('');
+      await axios.post(`${API_BASE}/api/classes/${classItem.id}/teachers`, {
+        teacher_ids: teacherIds,
+        primary_teacher_id: primaryTeacherId || teacherIds[0] || null,
+      }, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      onSaved();
+    } catch (err) {
+      setError(err.response?.data?.error || 'فشل تحديث معلمي الحلقة');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" dir="rtl">
+      <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-bold text-gray-800">معلمو الحلقة</h3>
+            <p className="text-sm text-gray-500">{classItem.name}</p>
+          </div>
+          <button onClick={onClose} className="rounded-lg px-3 py-1 text-gray-500 hover:bg-gray-100">✕</button>
+        </div>
+
+        {error && <div className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+
+        <div className="max-h-80 space-y-2 overflow-y-auto rounded-xl border p-2">
+          {teachers.length === 0 ? (
+            <p className="p-4 text-center text-sm text-gray-500">لا يوجد معلمون في مجمع هذه الحلقة</p>
+          ) : teachers.map((teacher) => {
+            const id = String(teacher.id);
+            const selected = teacherIds.includes(id);
+            const primary = primaryTeacherId === id;
+            return (
+              <div key={id} className="flex items-center gap-3 rounded-lg p-3 hover:bg-gray-50">
+                <input
+                  type="checkbox"
+                  checked={selected}
+                  onChange={(event) => toggleTeacher(id, event.target.checked)}
+                  className="h-4 w-4 accent-teal-600"
+                />
+                <span className="min-w-0 flex-1 text-sm font-medium">
+                  {[teacher.first_name, teacher.second_name, teacher.last_name].filter(Boolean).join(' ')}
+                </span>
+                {selected && (
+                  <label className="flex cursor-pointer items-center gap-1 text-xs">
+                    <input
+                      type="radio"
+                      name={`primary-teacher-${classItem.id}`}
+                      checked={primary}
+                      onChange={() => setPrimaryTeacherId(id)}
+                      className="h-4 w-4 accent-green-600"
+                    />
+                    <span className={primary ? 'font-bold text-green-700' : 'text-gray-500'}>
+                      {primary ? 'أساسي' : 'اختياره كأساسي'}
+                    </span>
+                  </label>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <p className="mt-3 text-xs text-gray-500">يجب تحديد معلم أساسي واحد عند إسناد معلمين للحلقة.</p>
+        <div className="mt-5 flex gap-2">
+          <button onClick={save} disabled={saving} className="flex-1 rounded-lg bg-teal-600 px-4 py-2 text-white hover:bg-teal-700 disabled:opacity-50">
+            {saving ? 'جاري الحفظ...' : 'حفظ التغييرات'}
+          </button>
+          <button onClick={onClose} disabled={saving} className="rounded-lg border px-4 py-2 text-gray-600 hover:bg-gray-50">إلغاء</button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // CourseManagementModal Component
 const CourseManagementModal = ({ classItem, courses, semesters, readOnly = false, onClose, onRefresh }) => {

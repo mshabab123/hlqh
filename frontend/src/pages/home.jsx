@@ -1,7 +1,7 @@
 // src/pages/Home.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AiOutlineExclamationCircle } from "react-icons/ai";
+import { AiOutlineExclamationCircle, AiOutlineMail } from "react-icons/ai";
 import {
   FaCertificate,
   FaChalkboardTeacher,
@@ -34,6 +34,14 @@ const roleLabels = {
 };
 
 const navigationCards = [
+  {
+    title: "الرسائل",
+    description: "التواصل الداخلي مع إدارة المجمع والمعلمين وأولياء الأمور.",
+    icon: AiOutlineMail,
+    path: "/messages",
+    color: "bg-teal-600",
+    roles: ["admin", "administrator", "supervisor", "teacher", "parent", "parent_student", "student"],
+  },
   {
     title: "حلقاتي",
     description: "عرض الحلقات المسندة ومتابعة الطلاب داخل كل حلقة.",
@@ -192,7 +200,7 @@ const navigationCards = [
     icon: MdDashboard,
     path: "/dashboard",
     color: "bg-gray-700",
-    roles: ["admin", "administrator", "supervisor", "teacher"],
+    roles: ["admin", "administrator", "supervisor"],
   },
   {
     title: "قاعدة البيانات",
