@@ -23,7 +23,8 @@ import {
   AiOutlineStar,
   AiOutlineSafety,
   AiOutlineTable,
-  AiOutlineMail
+  AiOutlineMail,
+  AiOutlineBug
 } from "react-icons/ai";
 import { 
   FaChalkboardTeacher, 
@@ -361,6 +362,13 @@ const NavigationSidebar = ({ isOpen, setIsOpen, isCollapsed, setIsCollapsed, cla
       title: "الشخصي",
       icon: AiOutlineUser,
       items: [
+        {
+          title: "الدعم الفني",
+          path: "/technical-support",
+          icon: AiOutlineBug,
+          roles: null,
+          description: "رفع ومتابعة المشكلات التقنية"
+        },
         {
           title: "الرسائل",
           path: "/messages",

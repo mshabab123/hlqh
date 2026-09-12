@@ -3,8 +3,32 @@ const router = express.Router();
 const db = require('../config/database');
 const { authenticateToken: auth } = require('../middleware/auth');
 const { getAccessibleSchoolIds } = require('../utils/accessScope');
+const rateLimit = require('express-rate-limit');
+const { encryptMessageBody, decryptMessageBody, PREFIX } = require('../utils/messageCrypto');
 
 const fullNameSql = `TRIM(CONCAT_WS(' ', u.first_name, u.second_name, u.last_name))`;
+const sendMessageLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'تم إرسال رسائل كثيرة. حاول مرة أخرى بعد دقيقة' }
+});
+
+const boundedInt = (value, fallback, max) => {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.min(parsed, max) : fallback;
+};
+
+async function encryptLegacyMessagesForUser(userId) {
+  const result = await db.query(`
+    SELECT id, body FROM internal_messages
+    WHERE (sender_id = $1 OR recipient_id = $1) AND body NOT LIKE $2
+  `, [userId, `${PREFIX}%`]);
+  for (const message of result.rows) {
+    await db.query(`UPDATE internal_messages SET body = $1 WHERE id = $2`, [encryptMessageBody(message.body), message.id]);
+  }
+}
 
 async function getAllowedContactIds(user) {
   if (user.role === 'admin') {
@@ -107,6 +131,8 @@ router.get('/contacts', auth, async (req, res) => {
 
 router.get('/conversations', auth, async (req, res) => {
   try {
+    await encryptLegacyMessagesForUser(req.user.id);
+    const limit = boundedInt(req.query.limit, 100, 200);
     const result = await db.query(`
       WITH mine AS (
         SELECT m.*, CASE WHEN m.sender_id = $1 THEN m.recipient_id ELSE m.sender_id END AS contact_id
@@ -123,7 +149,9 @@ router.get('/conversations', auth, async (req, res) => {
       FROM latest JOIN users u ON u.id = latest.contact_id
       LEFT JOIN unread ON unread.contact_id = latest.contact_id
       ORDER BY latest.created_at DESC
-    `, [req.user.id]);
+      LIMIT $2
+    `, [req.user.id, limit]);
+    result.rows.forEach((row) => { row.last_message = decryptMessageBody(row.last_message); });
     res.json({ conversations: result.rows });
   } catch (error) {
     console.error('Get conversations error:', error);
@@ -142,12 +170,17 @@ router.get('/thread/:contactId', auth, async (req, res) => {
     const allowed = await getAllowedContactIds(req.user);
     const hasExisting = await db.query(`SELECT 1 FROM internal_messages WHERE (sender_id=$1 AND recipient_id=$2) OR (sender_id=$2 AND recipient_id=$1) LIMIT 1`, [req.user.id, contactId]);
     if (!allowed.includes(String(contactId)) && !hasExisting.rows.length) return res.status(403).json({ error: 'غير مسموح بهذه المحادثة' });
-    await db.query(`UPDATE internal_messages SET read_at = NOW() WHERE sender_id=$2 AND recipient_id=$1 AND read_at IS NULL`, [req.user.id, contactId]);
+    await encryptLegacyMessagesForUser(req.user.id);
+    const limit = boundedInt(req.query.limit, 100, 200);
+    const offset = boundedInt(req.query.offset, 0, 10000);
     const result = await db.query(`
-      SELECT id, sender_id, recipient_id, body, read_at, created_at
-      FROM internal_messages WHERE (sender_id=$1 AND recipient_id=$2) OR (sender_id=$2 AND recipient_id=$1)
-      ORDER BY created_at, id
-    `, [req.user.id, contactId]);
+      SELECT * FROM (
+        SELECT id, sender_id, recipient_id, body, read_at, created_at
+        FROM internal_messages WHERE (sender_id=$1 AND recipient_id=$2) OR (sender_id=$2 AND recipient_id=$1)
+        ORDER BY created_at DESC, id DESC LIMIT $3 OFFSET $4
+      ) recent ORDER BY created_at, id
+    `, [req.user.id, contactId, limit, offset]);
+    result.rows.forEach((row) => { row.body = decryptMessageBody(row.body); });
     res.json({ messages: result.rows });
   } catch (error) {
     console.error('Get message thread error:', error);
@@ -155,15 +188,20 @@ router.get('/thread/:contactId', auth, async (req, res) => {
   }
 });
 
-router.post('/', auth, async (req, res) => {
+router.patch('/thread/:contactId/read', auth, async (req, res) => {
+  await db.query(`UPDATE internal_messages SET read_at = NOW() WHERE sender_id=$2 AND recipient_id=$1 AND read_at IS NULL`, [req.user.id, req.params.contactId]);
+  res.json({ success: true });
+});
+
+router.post('/', auth, sendMessageLimiter, async (req, res) => {
   try {
     const recipientId = String(req.body.recipient_id || '');
     const body = String(req.body.body || '').trim();
     if (!body || body.length > 4000) return res.status(400).json({ error: 'نص الرسالة مطلوب وبحد أقصى 4000 حرف' });
     const allowed = await getAllowedContactIds(req.user);
     if (!allowed.includes(recipientId)) return res.status(403).json({ error: 'لا يمكنك مراسلة هذا المستخدم' });
-    const result = await db.query(`INSERT INTO internal_messages(sender_id, recipient_id, body) VALUES($1,$2,$3) RETURNING *`, [req.user.id, recipientId, body]);
-    res.status(201).json({ message: result.rows[0] });
+    const result = await db.query(`INSERT INTO internal_messages(sender_id, recipient_id, body) VALUES($1,$2,$3) RETURNING *`, [req.user.id, recipientId, encryptMessageBody(body)]);
+    res.status(201).json({ message: { ...result.rows[0], body } });
   } catch (error) {
     console.error('Send internal message error:', error);
     res.status(500).json({ error: 'فشل إرسال الرسالة' });

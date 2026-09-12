@@ -8,6 +8,7 @@ const { authenticateToken } = require('../middleware/auth');
 const { requireRole, ROLES } = require('../middleware/rbac');
 const { requireManageableUser } = require('../middleware/ownership');
 const { canAccessSchool, canAccessClass } = require('../utils/accessScope');
+const { calculateQuranProgress } = require('../utils/quranUtils');
 
 const cleanLegacyQualifications = (value) => {
   if (value === null || value === undefined) return value;
@@ -350,6 +351,43 @@ router.get('/my-classes', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error('Get teacher classes error:', err);
     res.status(500).json({ error: 'حدث خطأ أثناء جلب الحلقات الخاصة بك' });
+  }
+});
+
+// GET /api/teachers/my-statistics - Summary of the authenticated teacher's impact.
+// Students are counted once even when they studied in more than one assigned class.
+router.get('/my-statistics', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'teacher') {
+      return res.status(403).json({ error: 'هذه الإحصاءات متاحة للمعلم فقط' });
+    }
+
+    const result = await db.query(`
+      SELECT DISTINCT
+        s.id,
+        s.memorized_surah_id,
+        s.memorized_ayah_number
+      FROM teacher_class_assignments tca
+      JOIN student_enrollments se ON se.class_id = tca.class_id
+      JOIN students s ON s.id = se.student_id
+      WHERE tca.teacher_id = $1
+    `, [req.user.id]);
+
+    const totalMemorizedPages = result.rows.reduce((total, student) => {
+      const progress = calculateQuranProgress(
+        student.memorized_surah_id,
+        student.memorized_ayah_number
+      );
+      return total + (progress.memorizedPages || 0);
+    }, 0);
+
+    res.json({
+      studentsTaught: result.rows.length,
+      totalMemorizedPages
+    });
+  } catch (err) {
+    console.error('Get teacher statistics error:', err);
+    res.status(500).json({ error: 'حدث خطأ أثناء جلب إحصاءات المعلم' });
   }
 });
 

@@ -253,8 +253,40 @@ async function ensureInternalMessagesSchema() {
       CHECK (char_length(body) BETWEEN 1 AND 4000)
     )
   `);
+  await db.query(`
+    ALTER TABLE internal_messages DROP CONSTRAINT IF EXISTS internal_messages_body_check;
+    ALTER TABLE internal_messages ADD CONSTRAINT internal_messages_body_check
+      CHECK (char_length(body) BETWEEN 1 AND 25000)
+  `);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_internal_messages_sender ON internal_messages(sender_id, created_at DESC)`);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_internal_messages_recipient ON internal_messages(recipient_id, read_at, created_at DESC)`);
+}
+
+async function ensureSupportTicketsSchema() {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS support_tickets (
+      id bigserial PRIMARY KEY,
+      created_by varchar(20) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      assigned_admin_id varchar(20) REFERENCES users(id) ON DELETE SET NULL,
+      subject varchar(200) NOT NULL,
+      status varchar(20) NOT NULL DEFAULT 'open',
+      created_at timestamptz NOT NULL DEFAULT NOW(),
+      updated_at timestamptz NOT NULL DEFAULT NOW(),
+      CHECK (status IN ('open', 'in_progress', 'resolved', 'closed'))
+    );
+    ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS admin_viewed_at timestamptz;
+    CREATE TABLE IF NOT EXISTS support_ticket_messages (
+      id bigserial PRIMARY KEY,
+      ticket_id bigint NOT NULL REFERENCES support_tickets(id) ON DELETE CASCADE,
+      sender_id varchar(20) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      body text NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT NOW(),
+      CHECK (char_length(body) BETWEEN 1 AND 25000)
+    );
+    CREATE INDEX IF NOT EXISTS idx_support_tickets_owner ON support_tickets(created_by, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_support_tickets_status ON support_tickets(status, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_support_ticket_messages_ticket ON support_ticket_messages(ticket_id, created_at)
+  `);
 }
 
 async function ensureSchema() {
@@ -268,6 +300,7 @@ async function ensureSchema() {
   await ensureStageExamsSchema();
   await ensureEmailSchema();
   await ensureInternalMessagesSchema();
+  await ensureSupportTicketsSchema();
   await require('../utils/featurePrivileges').ensureFeaturePrivilegesSchema();
 }
 
@@ -282,5 +315,6 @@ module.exports = {
   ensureStageExamsSchema,
   ensureEmailSchema,
   ensureInternalMessagesSchema,
+  ensureSupportTicketsSchema,
   ensureSchema,
 };

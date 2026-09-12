@@ -1,7 +1,7 @@
 // src/pages/Home.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AiOutlineExclamationCircle, AiOutlineMail } from "react-icons/ai";
+import { AiOutlineBug, AiOutlineExclamationCircle, AiOutlineMail } from "react-icons/ai";
 import {
   FaCertificate,
   FaChalkboardTeacher,
@@ -18,6 +18,7 @@ import {
   FaUserShield,
   FaUserTie,
   FaUsers,
+  FaBookOpen,
 } from "react-icons/fa";
 import { MdAssignment, MdDashboard } from "react-icons/md";
 import axios from "../utils/axiosConfig";
@@ -34,6 +35,14 @@ const roleLabels = {
 };
 
 const navigationCards = [
+  {
+    title: "الدعم الفني",
+    description: "رفع مشكلة تقنية ومتابعة رد أدمن المنصة.",
+    icon: AiOutlineBug,
+    path: "/technical-support",
+    color: "bg-orange-600",
+    roles: ["admin", "administrator", "supervisor", "teacher", "parent", "parent_student", "student"],
+  },
   {
     title: "الرسائل",
     description: "التواصل الداخلي مع إدارة المجمع والمعلمين وأولياء الأمور.",
@@ -220,11 +229,21 @@ const navigationCards = [
   },
 ];
 
+const communicationCardPaths = ['/messages', '/technical-support'];
+const keepCommunicationCardsLast = (cards) => [
+  ...cards.filter((card) => !communicationCardPaths.includes(card.path)),
+  ...communicationCardPaths
+    .map((path) => cards.find((card) => card.path === path))
+    .filter(Boolean),
+];
+
 export default function Home() {
   const [user, setUser] = useState(null);
   const [cardOrder, setCardOrder] = useState([]);
   const [draggedCardPath, setDraggedCardPath] = useState(null);
   const [orderSaveState, setOrderSaveState] = useState("idle");
+  const [teacherStats, setTeacherStats] = useState(null);
+  const [teacherStatsLoading, setTeacherStatsLoading] = useState(false);
   const cardOrderRef = useRef([]);
   const dragSessionRef = useRef(null);
   const saveStateTimerRef = useRef(null);
@@ -256,9 +275,40 @@ export default function Home() {
       });
   }, [navigate]);
 
+  useEffect(() => {
+    if (user?.role !== "teacher") {
+      setTeacherStats(null);
+      return undefined;
+    }
+
+    let isMounted = true;
+    setTeacherStatsLoading(true);
+    axios
+      .get("/api/teachers/my-statistics")
+      .then((response) => {
+        if (!isMounted) return;
+        setTeacherStats({
+          studentsTaught: Number(response.data?.studentsTaught) || 0,
+          totalMemorizedPages: Number(response.data?.totalMemorizedPages) || 0,
+        });
+      })
+      .catch(() => {
+        if (isMounted) setTeacherStats(null);
+      })
+      .finally(() => {
+        if (isMounted) setTeacherStatsLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.role]);
+
   const accessibleCards = useMemo(() => {
     if (!user?.role) return [];
-    return navigationCards.filter((card) => card.roles.includes(user.role));
+    return keepCommunicationCardsLast(
+      navigationCards.filter((card) => card.roles.includes(user.role))
+    );
   }, [user?.role]);
 
   useEffect(() => {
@@ -300,7 +350,9 @@ export default function Home() {
   const orderedAccessibleCards = useMemo(() => {
     if (cardOrder.length === 0) return accessibleCards;
     const cardsByPath = new Map(accessibleCards.map((card) => [card.path, card]));
-    return cardOrder.map((path) => cardsByPath.get(path)).filter(Boolean);
+    return keepCommunicationCardsLast(
+      cardOrder.map((path) => cardsByPath.get(path)).filter(Boolean)
+    );
   }, [accessibleCards, cardOrder]);
 
   const moveCard = (activePath, targetPath) => {
@@ -427,6 +479,38 @@ export default function Home() {
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
                 اختر الوجهة التي تحتاجها لإدارة الحلقات والطلاب والتقارير من مكان واحد.
               </p>
+
+              {user.role === "teacher" && (
+                <div className="mt-5 grid gap-3 sm:grid-cols-2" aria-label="إحصاءات المعلم">
+                  <div className="flex items-center gap-4 rounded-xl border border-blue-100 bg-gradient-to-l from-blue-50 to-white p-4">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-xl text-white shadow-sm">
+                      <FaUserGraduate aria-hidden="true" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold text-slate-600">الطلاب الذين درّستهم</div>
+                      <div className="mt-1 text-2xl font-extrabold text-slate-900">
+                        {teacherStatsLoading ? "..." : (teacherStats?.studentsTaught ?? "—")}
+                        {!teacherStatsLoading && teacherStats && <span className="mr-1 text-sm font-semibold text-slate-500">طالب</span>}
+                      </div>
+                      <div className="mt-1 text-xs text-slate-500">دون تكرار الطالب بين الحلقات</div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4 rounded-xl border border-emerald-100 bg-gradient-to-l from-emerald-50 to-white p-4">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-xl text-white shadow-sm">
+                      <FaBookOpen aria-hidden="true" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold text-slate-600">إجمالي حفظ طلابك</div>
+                      <div className="mt-1 text-2xl font-extrabold text-slate-900">
+                        {teacherStatsLoading ? "..." : (teacherStats?.totalMemorizedPages ?? "—")}
+                        {!teacherStatsLoading && teacherStats && <span className="mr-1 text-sm font-semibold text-slate-500">صفحة</span>}
+                      </div>
+                      <div className="mt-1 text-xs text-slate-500">بحسب آخر تقدم مسجل لكل طالب</div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {false && (

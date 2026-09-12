@@ -78,6 +78,7 @@ export default function AuthNavbar() {
   const [user, setUser] = useState(null);
   const [notifications, setNotifications] = useState(0); // عدد الطلاب الجاهزين للمرحليات
   const [messageNotifications, setMessageNotifications] = useState([]);
+  const [supportTicketNotifications, setSupportTicketNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [navLinks, setNavLinks] = useState([]);
   const [showInactiveModal, setShowInactiveModal] = useState(false);
@@ -181,10 +182,32 @@ export default function AuthNavbar() {
     return () => clearInterval(interval);
   }, [user?.id, user?.is_active, location.pathname]);
 
+  useEffect(() => {
+    if (user?.role !== 'admin' || user.is_active === false) {
+      setSupportTicketNotifications([]);
+      return undefined;
+    }
+    const token = localStorage.getItem('token');
+    const fetchSupportTickets = () => {
+      fetch(`${API_BASE}/api/support-tickets?limit=50`, {
+        credentials: 'include',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => setSupportTicketNotifications(
+          (data?.tickets || []).filter((ticket) => ticket.status === 'open' && !ticket.admin_viewed_at)
+        ))
+        .catch(() => {});
+    };
+    fetchSupportTickets();
+    const interval = setInterval(fetchSupportTickets, 30000);
+    return () => clearInterval(interval);
+  }, [user?.role, user?.is_active, location.pathname]);
+
   const unreadMessagesCount = messageNotifications.reduce(
     (total, item) => total + Number(item.unread_count || 0), 0
   );
-  const totalNotifications = notifications + unreadMessagesCount;
+  const totalNotifications = notifications + unreadMessagesCount + supportTicketNotifications.length;
 
   const openStageNotifications = () => {
     setIsMobileMenuOpen(false);
@@ -196,6 +219,12 @@ export default function AuthNavbar() {
     setIsMobileMenuOpen(false);
     setShowNotifications(false);
     navigate(`/messages?contact=${contactId}`);
+  };
+
+  const openSupportTicketNotification = (ticketId) => {
+    setIsMobileMenuOpen(false);
+    setShowNotifications(false);
+    navigate(`/technical-support?ticket=${ticketId}`);
   };
 
   const handleLogout = async () => {
@@ -341,6 +370,12 @@ export default function AuthNavbar() {
                         <span className="rounded-full bg-red-500 px-2 py-0.5 text-xs text-white">{item.unread_count}</span>
                       </button>
                     ))}
+                    {supportTicketNotifications.map((ticket) => (
+                      <button key={`ticket-${ticket.id}`} onClick={() => openSupportTicketNotification(ticket.id)} className="mb-1 flex w-full items-start gap-3 rounded-xl p-3 text-right hover:bg-orange-50">
+                        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-orange-100 text-orange-700">🛠️</span>
+                        <span className="min-w-0 flex-1"><span className="block font-bold">مشكلة تقنية جديدة</span><span className="block truncate text-xs text-gray-600">{ticket.creator_name}: {ticket.subject}</span></span>
+                      </button>
+                    ))}
                     {notifications > 0 && (
                       <button onClick={openStageNotifications} className="flex w-full items-start gap-3 rounded-xl p-3 text-right hover:bg-amber-50">
                         <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-amber-100 text-amber-700"><AiOutlineBell /></span>
@@ -429,9 +464,11 @@ export default function AuthNavbar() {
 
             {/* Notifications on mobile */}
             <button
-              onClick={() => messageNotifications.length
-                ? openMessageNotification(messageNotifications[0].id)
-                : openStageNotifications()}
+              onClick={() => supportTicketNotifications.length
+                ? openSupportTicketNotification(supportTicketNotifications[0].id)
+                : messageNotifications.length
+                  ? openMessageNotification(messageNotifications[0].id)
+                  : openStageNotifications()}
               className="flex items-center gap-3 px-4 py-3 text-white hover:bg-white/15 rounded-lg transition-colors"
             >
               <span className="text-xl relative">
@@ -442,7 +479,7 @@ export default function AuthNavbar() {
                   </span>
                 )}
               </span>
-              <span>الإشعارات{unreadMessagesCount > 0 ? ` — ${unreadMessagesCount} رسالة جديدة` : notifications > 0 ? ` — ${notifications} جاهز للمرحليات` : ''}</span>
+              <span>الإشعارات{supportTicketNotifications.length > 0 ? ` — ${supportTicketNotifications.length} مشكلة تقنية` : unreadMessagesCount > 0 ? ` — ${unreadMessagesCount} رسالة جديدة` : notifications > 0 ? ` — ${notifications} جاهز للمرحليات` : ''}</span>
             </button>
 
             {/* Logout on mobile */}

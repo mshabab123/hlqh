@@ -93,6 +93,7 @@ if (!isProduction || isEnabled(process.env.ENABLE_DEBUG_ROUTES)) {
 app.use('/api/quran', require('./routes/quran')); // Quran read endpoints
 app.use('/api/homework', require('./routes/homework')); // Homework management
 app.use('/api/messages', require('./routes/messages')); // Internal messaging
+app.use('/api/support-tickets', require('./routes/supportTickets')); // Technical support tickets
 
 // Default route
 app.get('/', (req, res) => {

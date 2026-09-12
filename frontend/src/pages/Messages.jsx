@@ -49,8 +49,9 @@ export default function Messages() {
     setShowNew(false);
     setError('');
     try {
-      const response = await axios.get(`/api/messages/thread/${contact.id}`);
+      const response = await axios.get(`/api/messages/thread/${contact.id}`, { params: { limit: 100 } });
       setMessages(response.data.messages || []);
+      await axios.patch(`/api/messages/thread/${contact.id}/read`);
       loadLists();
     } catch (err) { setError(err.response?.data?.error || 'فشل فتح المحادثة'); }
   };

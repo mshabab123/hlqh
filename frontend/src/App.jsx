@@ -45,6 +45,7 @@ import StageExams from "./pages/StageExams";
 import CertificateManagement from "./pages/CertificateManagement";
 import MyCertificates from "./pages/MyCertificates";
 import Messages from "./pages/Messages";
+import SupportTickets from "./pages/SupportTickets";
 import Navbar from "./components/Navbar";
 import AuthNavbar from "./components/AuthNavbar";
 import ConditionalLayout from "./components/ConditionalLayout";
@@ -393,6 +394,7 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+          <Route path="/technical-support" element={<ProtectedRoute requiredRole={["admin", "administrator", "supervisor", "teacher", "parent", "parent_student", "student"]}><ConditionalLayout><SupportTickets /></ConditionalLayout></ProtectedRoute>} />
           <Route
             path="/points-reports"
             element={
