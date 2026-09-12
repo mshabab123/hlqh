@@ -1,37 +1,44 @@
-const csvCell = (value) => {
+const normalizeExcelValue = (value) => {
   if (value === null || value === undefined) return '';
-  let normalized = String(value).replace(/\r?\n/g, ' ');
-  // Prevent CSV/formula injection: neutralize cells that a spreadsheet
-  // would interpret as a formula by prefixing them with a single quote.
-  if (/^[=+\-@\t\r]/.test(normalized)) {
-    normalized = `'${normalized}`;
-  }
-  return `"${normalized.replace(/"/g, '""')}"`;
+  const normalized = String(value).replace(/\r?\n/g, ' ');
+  return /^[=+\-@\t\r]/.test(normalized) ? `'${normalized}` : normalized;
 };
 
-export function exportRowsToCsv(rows, filename) {
-  const csv = rows.map((row) => row.map(csvCell).join(',')).join('\r\n');
-  // Excel uses the Windows regional list separator by default. The `sep=,`
-  // directive makes comma-separated exports open in distinct columns even on
-  // Arabic systems whose configured separator is a semicolon. UTF-16LE with
-  // its byte-order mark is detected reliably by desktop Excel and prevents
-  // Arabic text from being decoded as the Windows ANSI code page.
-  const content = `sep=,\r\n${csv}`;
-  const bytes = new Uint8Array(2 + (content.length * 2));
-  bytes[0] = 0xFF;
-  bytes[1] = 0xFE;
-  for (let index = 0; index < content.length; index += 1) {
-    const codeUnit = content.charCodeAt(index);
-    bytes[2 + (index * 2)] = codeUnit & 0xFF;
-    bytes[3 + (index * 2)] = codeUnit >>> 8;
+const getXlsxFilename = (filename) => {
+  const requestedName = filename || 'export.xlsx';
+  if (/\.csv$/i.test(requestedName)) return requestedName.replace(/\.csv$/i, '.xlsx');
+  if (/\.xlsx$/i.test(requestedName)) return requestedName;
+  return `${requestedName}.xlsx`;
+};
+
+// Keep the existing function name so all report buttons automatically switch
+// from CSV to a native Excel workbook.
+export async function exportRowsToCsv(rows, filename) {
+  const { default: ExcelJS } = await import('exceljs');
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('البيانات', {
+    views: [{ rightToLeft: true }]
+  });
+  worksheet.addRows(rows.map((row) => row.map(normalizeExcelValue)));
+
+  for (let columnIndex = 1; columnIndex <= worksheet.columnCount; columnIndex += 1) {
+    const column = worksheet.getColumn(columnIndex);
+    let width = 10;
+    column.eachCell({ includeEmpty: false }, (cell) => {
+      width = Math.max(width, String(cell.value ?? '').length + 2);
+    });
+    column.width = Math.min(width, 45);
+    column.alignment = { horizontal: 'right', vertical: 'middle' };
   }
-  const blob = new Blob([bytes], {
-    type: 'text/csv;charset=utf-16le;'
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
   });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = filename;
+  link.download = getXlsxFilename(filename);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

@@ -332,7 +332,10 @@ export default function TeacherManagement() {
   const handleAddTeacher = async (e) => {
     e.preventDefault();
     try {
-      await axios.post(`${API_BASE}/api/teachers`, newTeacher, {
+      await axios.post(`${API_BASE}/api/teachers`, {
+        ...newTeacher,
+        qualifications: newTeacher.actual_qualifications || "",
+      }, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token')}`
         }

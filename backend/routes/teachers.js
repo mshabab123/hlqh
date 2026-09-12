@@ -9,6 +9,14 @@ const { requireRole, ROLES } = require('../middleware/rbac');
 const { requireManageableUser } = require('../middleware/ownership');
 const { canAccessSchool, canAccessClass } = require('../utils/accessScope');
 
+const cleanLegacyQualifications = (value) => {
+  if (value === null || value === undefined) return value;
+  const cleaned = String(value)
+    .replace(/(?:^|\s*)SCHOOL_ID:[0-9a-f-]{36}(?=\s|$)/gi, '')
+    .trim();
+  return cleaned || null;
+};
+
 // Scope a teacher-management request to the caller's school: the target teacher
 // must belong to a school the caller can access (admin bypasses).
 async function requireTeacherScope(req, res, next) {
@@ -569,6 +577,9 @@ router.get('/', authenticateToken, requireRole(ROLES.SUPERVISOR), async (req, re
     }
 
     const result = await db.query(query, params);
+    result.rows.forEach((row) => {
+      row.qualifications = cleanLegacyQualifications(row.qualifications);
+    });
 
     const responseKey = user_type === 'teacher' ? 'teachers' : `${user_type}s`;
     res.json({ [responseKey]: result.rows });
@@ -637,7 +648,7 @@ router.put('/:id', authenticateToken, requireRole(ROLES.ADMINISTRATOR), requireM
       WHERE id = $5
     `, [
       specialization,
-      qualifications,
+      qualifications !== undefined ? cleanLegacyQualifications(qualifications) : null,
       school_id,
       typeof can_assign_registered_students === 'boolean' ? can_assign_registered_students : null,
       id

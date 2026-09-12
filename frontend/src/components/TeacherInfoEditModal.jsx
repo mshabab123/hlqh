@@ -15,6 +15,11 @@ const authHeaders = () => ({
 const inputClass =
   "w-full p-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white";
 
+const cleanQualifications = (value) =>
+  String(value || "")
+    .replace(/(?:^|\s*)SCHOOL_ID:[0-9a-f-]{36}(?=\s|$)/gi, "")
+    .trim();
+
 function Field({ label, children, full = false }) {
   return (
     <div className={full ? "sm:col-span-2" : ""}>
@@ -87,11 +92,28 @@ export default function TeacherInfoEditModal({ teacher, schools = [], classes = 
   // Resolve the current semester (by date) — "الحلقات الحالية" means this
   // semester only; everything else lives in the history section.
   useEffect(() => {
+    if (!data?.school_id) {
+      setCurrentSemester(null);
+      return;
+    }
+
     axios
-      .get(`${API_BASE}/api/semesters/current`, { headers: authHeaders() })
-      .then((res) => setCurrentSemester(res.data.semester || null))
+      .get(`${API_BASE}/api/semesters`, {
+        params: { school_id: data.school_id },
+        headers: authHeaders(),
+      })
+      .then((res) => {
+        const semesters = res.data.semesters || [];
+        const today = new Date();
+        const activeSemester = semesters.find((semester) => {
+          const start = new Date(semester.start_date);
+          const end = new Date(semester.end_date);
+          return start <= today && end >= today;
+        });
+        setCurrentSemester(activeSemester || null);
+      })
       .catch(() => setCurrentSemester(null));
-  }, []);
+  }, [data?.school_id]);
 
   // Load the teaching history (all semesters/classes ever taught).
   useEffect(() => {
@@ -315,7 +337,7 @@ export default function TeacherInfoEditModal({ teacher, schools = [], classes = 
               startEdit("job", {
                 school_id: data.school_id || "",
                 specialization: data.specialization || "",
-                qualifications: data.qualifications || data.actual_qualifications || "",
+                qualifications: cleanQualifications(data.qualifications || data.actual_qualifications),
                 can_assign_registered_students: data.can_assign_registered_students !== false,
               })
             }
@@ -346,7 +368,7 @@ export default function TeacherInfoEditModal({ teacher, schools = [], classes = 
                 {editingGroup === "job" ? (
                   <input className={inputClass} value={d("qualifications")} onChange={(e) => setD("qualifications", e.target.value)} />
                 ) : (
-                  <ReadValue value={data.qualifications || data.actual_qualifications} />
+                  <ReadValue value={cleanQualifications(data.qualifications || data.actual_qualifications)} />
                 )}
               </Field>
               <div className="sm:col-span-2 flex items-center gap-2">
@@ -406,7 +428,9 @@ export default function TeacherInfoEditModal({ teacher, schools = [], classes = 
                       </label>
                     );
                   })}
-                {currentSemesterClasses.length === 0 && (
+                {currentSemesterClasses.filter(
+                  (c) => !data.school_id || String(c.school_id) === String(data.school_id)
+                ).length === 0 && (
                   <p className="text-sm text-gray-500">لا توجد حلقات في الفصل الدراسي الحالي</p>
                 )}
               </div>
